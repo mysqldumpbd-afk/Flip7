@@ -882,7 +882,9 @@ Responde SOLO con JSON sin markdown ni explicación extra:
       let parsed;
       if(provider==="gemini"){
         // Try models in order until one works
-        const MODELS=["gemini-2.0-flash-lite","gemini-2.0-flash","gemini-1.5-flash-latest","gemini-1.5-pro-latest"];
+        // Modelos gratuitos activos en Gemini API - Abril 2026
+        // gemini-1.5 y 2.0 están DEPRECADOS y dan 404
+        const MODELS=["gemini-2.5-flash-lite-preview-06-17","gemini-2.5-flash","gemini-2.5-flash-preview-05-20","gemini-2.5-pro"];
         let lastErr=null;
         for(const model of MODELS){
           try{
@@ -948,7 +950,7 @@ Responde SOLO con JSON sin markdown ni explicación extra:
         <div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.22)",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:"1.3rem"}}>✨</span>
           <div style={{flex:1}}>
-            <div style={{fontWeight:900,fontSize:".82rem",color:"var(--t)"}}>Gemini Flash — Listo</div>
+            <div style={{fontWeight:900,fontSize:".82rem",color:"var(--t)"}}>✨ Gemini 2.5 Flash — Activo</div>
             <div style={{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>1,500 análisis gratis por día · IA incluida</div>
           </div>
           <button onClick={()=>{snd('tap');setShowKeyEdit(v=>!v);}} style={{background:"none",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.4)",borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:".68rem",fontWeight:700}}>
@@ -1025,7 +1027,10 @@ Responde SOLO con JSON sin markdown ni explicación extra:
             💡 Tip: la cuota gratuita es 15 req/min.<br/>Usa ✏️ Manual mientras esperas.
           </div>}
           {(errMsg.includes("404")||errMsg.includes("🔍"))&&<div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--t)"}}>
-            💡 La app intentó 4 modelos diferentes.<br/>Genera una nueva API Key en aistudio.google.com
+            💡 Pasos para resolver:<br/>
+            1. Ve a <b>aistudio.google.com</b><br/>
+            2. Claves de API → Elimina la actual → Crea una nueva<br/>
+            3. Abre ⚙ en el scan y pega la nueva key
           </div>}
         </div>
         <div className="mr2">
