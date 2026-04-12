@@ -45,7 +45,7 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .inp{width:100%;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.12);color:#fff;border-radius:12px;padding:12px 14px;font-family:'Nunito',sans-serif;font-size:1rem;font-weight:800;outline:none;transition:border-color .2s;margin-bottom:10px;display:block}
 .inp:focus{border-color:var(--y)}
 .inp::placeholder{color:rgba(255,255,255,.25)}
-.code-inp{text-align:center;font-family:'Anton',sans-serif;font-size:2rem;letter-spacing:8px;color:var(--y);text-transform:uppercase}
+.code-inp{text-align:center;font-family:'Anton',sans-serif;font-size:3rem;letter-spacing:10px;color:var(--y);text-transform:uppercase;padding:20px 14px}
 .btn{width:100%;border:none;border-radius:14px;font-family:'Lilita One',sans-serif;font-size:1.1rem;letter-spacing:1px;padding:14px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:9px;user-select:none}
 .btn:active{transform:scale(.97)}
 .btn-y{background:linear-gradient(135deg,var(--y),var(--or));color:var(--dark);box-shadow:0 6px 20px rgba(245,200,0,.3)}
@@ -642,12 +642,22 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
           <div key={p.id} className={`pr ${done?"done":""}`} style={{"--clr":p.color}}>
             <div className="ava" style={{background:p.color+"22",color:p.color}}>{p.emoji}</div>
             <div style={{flex:1}}>
-              <div className="pr-name">
-                {p.name}
-                {myPlayerId===p.id&&<span style={{fontSize:".62rem",color:"rgba(255,255,255,.35)",marginLeft:6,fontWeight:700}}>← tú</span>}
+              <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:8}}>
+                <div className="pr-name">
+                  {p.name}
+                  {myPlayerId===p.id&&<span style={{fontSize:".62rem",color:"rgba(255,255,255,.35)",marginLeft:5,fontWeight:700}}>← tú</span>}
+                </div>
+                <div style={{display:"flex",alignItems:"baseline",gap:4,flexShrink:0}}>
+                  <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:p.color,lineHeight:1,textShadow:`2px 2px 0 rgba(0,0,0,.4)`}}>{p.total}</span>
+                  <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>pts</span>
+                </div>
+              </div>
+              {/* Mini progress bar */}
+              <div style={{height:3,background:"rgba(255,255,255,.07)",borderRadius:2,marginTop:4,marginBottom:4,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${Math.min(100,(p.total/200)*100)}%`,background:`linear-gradient(90deg,${p.color},${p.color}aa)`,borderRadius:2,transition:"width .8s"}}/>
               </div>
               {done?(
-                <div style={{display:"flex",alignItems:"center",gap:7,marginTop:3}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginTop:2}}>
                   <span className="pr-pts">+{entry.score}</span>
                   <span className={`mtag mt-${entry.method}`}>{entry.method==="scan"?"📷":entry.method==="zero"?"0️⃣":"✏️"} {entry.method}</span>
                 </div>
@@ -871,17 +881,28 @@ Responde SOLO con JSON sin markdown ni explicación extra:
     try{
       let parsed;
       if(provider==="gemini"){
-        const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{
-          method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({contents:[{parts:[
-            {inline_data:{mime_type:mime,data:b64}},
-            {text:PROMPT}
-          ]}]})
-        });
-        if(!resp.ok){const t=await resp.text();throw new Error(`Gemini ${resp.status}: ${t.slice(0,120)}`);}
-        const data=await resp.json();
-        const txt=data.candidates?.[0]?.content?.parts?.[0]?.text||"";
-        parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+        // Try models in order until one works
+        const MODELS=["gemini-2.0-flash-lite","gemini-2.0-flash","gemini-1.5-flash-latest","gemini-1.5-pro-latest"];
+        let lastErr=null;
+        for(const model of MODELS){
+          try{
+            const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,{
+              method:"POST",headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({contents:[{parts:[
+                {inline_data:{mime_type:mime,data:b64}},
+                {text:PROMPT}
+              ]}]})
+            });
+            if(resp.status===429){lastErr=new Error(`Cuota excedida (429). Espera 1 minuto e intenta de nuevo.`);continue;}
+            if(resp.status===404){lastErr=new Error(`Modelo ${model} no disponible (404), probando siguiente...`);continue;}
+            if(!resp.ok){const t=await resp.text();lastErr=new Error(`Gemini ${resp.status}: ${t.slice(0,100)}`);continue;}
+            const data=await resp.json();
+            const rawTxt=data.candidates?.[0]?.content?.parts?.[0]?.text||"";
+            parsed=JSON.parse(rawTxt.replace(/```json|```/g,"").trim());
+            break; // success!
+          }catch(e){lastErr=e;}
+        }
+        if(!parsed) throw lastErr||new Error("Todos los modelos de Gemini fallaron.");
       } else {
         // Anthropic
         const resp=await fetch("https://api.anthropic.com/v1/messages",{
@@ -899,7 +920,17 @@ Responde SOLO con JSON sin markdown ni explicación extra:
       }
       snd('score');setRes(parsed);setPhase("result");
     }catch(e){
-      setErrMsg(`${e.message}. Verifica tu API key o usa captura manual.`);
+      const m=e.message||"";
+      let friendly=m;
+      if(m.includes("429")||m.includes("Cuota")||m.includes("quota"))
+        friendly="⏱ Cuota de Gemini excedida. Espera ~1 minuto e intenta de nuevo, o usa captura manual.";
+      else if(m.includes("404")||m.includes("not found"))
+        friendly="🔍 Modelo no encontrado. Se probaron todos los modelos disponibles.";
+      else if(m.includes("403")||m.includes("API key"))
+        friendly="🔑 API Key inválida. Ve a aistudio.google.com y genera una nueva key.";
+      else if(m.includes("fetch")||m.includes("network"))
+        friendly="🌐 Error de red. Verifica tu conexión a internet.";
+      setErrMsg(friendly);
       setPhase("error");
     }
   }
@@ -988,8 +1019,14 @@ Responde SOLO con JSON sin markdown ni explicación extra:
 
       {phase==="error"&&(<>
         <div style={{textAlign:"center",padding:"20px 0"}}>
-          <div style={{fontSize:"2.5rem",marginBottom:10}}>⚠️</div>
-          <p style={{fontWeight:800,marginBottom:6,fontSize:".88rem",lineHeight:1.4}}>{errMsg}</p>
+          <div style={{fontSize:"2.5rem",marginBottom:10}}>{errMsg.includes("Cuota")?"⏱":"⚠️"}</div>
+          <p style={{fontWeight:800,marginBottom:10,fontSize:".88rem",lineHeight:1.5}}>{errMsg}</p>
+          {errMsg.includes("Cuota")&&<div style={{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--y)"}}>
+            💡 Tip: la cuota gratuita es 15 req/min.<br/>Usa ✏️ Manual mientras esperas.
+          </div>}
+          {(errMsg.includes("404")||errMsg.includes("🔍"))&&<div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--t)"}}>
+            💡 La app intentó 4 modelos diferentes.<br/>Genera una nueva API Key en aistudio.google.com
+          </div>}
         </div>
         <div className="mr2">
           <button className="mc" onClick={()=>{snd('tap');onClose();}}>Cerrar</button>
