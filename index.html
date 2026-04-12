@@ -18,14 +18,12 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 #root{height:100dvh;overflow-y:auto}
-:root{--y:#F5C800;--r:#E63946;--t:#2EC4B6;--navy:#1A1A2E;--dark:#0F0F1A;--or:#FF6B35;--pu:#7B2D8B;--gr:#3BB273}
+:root{--y:#F5C800;--r:#E63946;--t:#2EC4B6;--dark:#0F0F1A;--or:#FF6B35;--pu:#7B2D8B;--gr:#3BB273}
 body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .wrap{max-width:480px;margin:0 auto;min-height:100dvh;
   background:radial-gradient(ellipse at 20% 20%,rgba(245,200,0,.06) 0%,transparent 50%),
   radial-gradient(ellipse at 80% 80%,rgba(46,196,182,.07) 0%,transparent 50%),
   linear-gradient(180deg,#0F0F1A 0%,#1A1A2E 100%)}
-
-/* HEADER */
 .hdr{padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between;
   position:sticky;top:0;z-index:50;
   background:linear-gradient(180deg,rgba(15,15,26,.98) 80%,transparent);
@@ -33,31 +31,21 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .logo-f{font-family:'Anton',sans-serif;font-size:1.9rem;color:var(--y);letter-spacing:3px;text-shadow:3px 3px 0 var(--r);line-height:1}
 .logo-7{font-family:'Anton',sans-serif;font-size:2.2rem;color:var(--r);text-shadow:3px 3px 0 var(--y);line-height:1}
 .logo-sub{font-family:'Righteous',sans-serif;font-size:.58rem;color:var(--t);letter-spacing:2px;text-transform:uppercase;display:block}
-.badge{font-family:'Righteous',sans-serif;font-size:.68rem;color:var(--y);background:rgba(245,200,0,.12);border:1px solid rgba(245,200,0,.35);padding:4px 10px;border-radius:20px;letter-spacing:1px;display:flex;align-items:center;gap:5px}
+.badge{font-family:'Righteous',sans-serif;font-size:.68rem;color:var(--y);background:rgba(245,200,0,.12);border:1px solid rgba(245,200,0,.35);padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:5px}
 .badge.demo{color:var(--pu);background:rgba(123,45,139,.15);border-color:rgba(123,45,139,.4)}
 .badge.spec{color:var(--t);background:rgba(46,196,182,.12);border-color:rgba(46,196,182,.35)}
-
-/* NAV */
 .nav{display:flex;gap:5px;padding:8px 14px 10px}
 .nb{flex:1;border:none;border-radius:10px;font-family:'Righteous',sans-serif;font-size:.68rem;letter-spacing:1px;padding:9px 4px;cursor:pointer;transition:all .18s;text-transform:uppercase}
 .nb.on{background:linear-gradient(135deg,var(--y),var(--or));color:var(--dark);box-shadow:0 4px 16px rgba(245,200,0,.35)}
 .nb:not(.on){background:rgba(255,255,255,.06);color:rgba(255,255,255,.4)}
-
-/* PAGE */
 .page{padding:0 14px 100px}
-
-/* HERO */
 .hero{text-align:center;padding:20px 10px 18px}
 .hero-logo{font-family:'Anton',sans-serif;font-size:3.5rem;letter-spacing:4px;line-height:1;background:linear-gradient(135deg,var(--y) 30%,var(--or));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
 .hero-tag{font-family:'Righteous',sans-serif;color:var(--t);font-size:.8rem;letter-spacing:3px;text-transform:uppercase;margin-bottom:18px}
-
-/* INPUTS */
 .inp{width:100%;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.12);color:#fff;border-radius:12px;padding:12px 14px;font-family:'Nunito',sans-serif;font-size:1rem;font-weight:800;outline:none;transition:border-color .2s;margin-bottom:10px;display:block}
 .inp:focus{border-color:var(--y)}
 .inp::placeholder{color:rgba(255,255,255,.25)}
 .code-inp{text-align:center;font-family:'Anton',sans-serif;font-size:2rem;letter-spacing:8px;color:var(--y);text-transform:uppercase}
-
-/* BUTTONS */
 .btn{width:100%;border:none;border-radius:14px;font-family:'Lilita One',sans-serif;font-size:1.1rem;letter-spacing:1px;padding:14px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:9px;user-select:none}
 .btn:active{transform:scale(.97)}
 .btn-y{background:linear-gradient(135deg,var(--y),var(--or));color:var(--dark);box-shadow:0 6px 20px rgba(245,200,0,.3)}
@@ -69,20 +57,13 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .btn-sm{padding:7px 12px;font-size:.75rem;border-radius:9px;width:auto}
 .btn-add{width:100%;background:none;border:2px dashed rgba(255,255,255,.12);color:rgba(255,255,255,.38);border-radius:11px;padding:10px;cursor:pointer;font-weight:800;margin-bottom:12px;font-family:'Nunito',sans-serif;font-size:.88rem}
 .btn-add:hover{border-color:var(--t);color:var(--t)}
-
-/* ALERTS */
 .alert{border-radius:12px;padding:10px 14px;display:flex;align-items:flex-start;gap:9px;margin-bottom:11px;font-weight:800;font-size:.84rem}
 .al-g{background:rgba(59,178,115,.13);border:1px solid rgba(59,178,115,.38);color:var(--gr)}
 .al-y{background:rgba(245,200,0,.1);border:1px solid rgba(245,200,0,.3);color:var(--y)}
 .al-r{background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.35);color:var(--r);flex-direction:column}
-.al-b{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.45);font-size:.72rem;word-break:break-all;font-family:monospace}
-
-/* PLAYER SETUP */
 .psr{display:flex;gap:7px;margin-bottom:7px;align-items:center}
 .psr .inp{margin:0;flex:1}
 .psr-rm{background:none;border:none;color:var(--r);font-size:1.1rem;cursor:pointer;padding:0 5px}
-
-/* ROUND PLAYER ROW */
 .pr{border-radius:14px;border:2px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);padding:12px;margin-bottom:9px;display:flex;align-items:center;gap:10px;transition:all .25s;position:relative;overflow:hidden}
 .pr::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--clr,transparent);border-radius:4px 0 0 4px}
 .pr.done{border-color:rgba(59,178,115,.45);background:rgba(59,178,115,.07)}
@@ -103,53 +84,30 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .undo{background:none;border:none;color:rgba(255,255,255,.28);font-size:.8rem;cursor:pointer;padding:4px 5px}
 .undo:hover{color:var(--r)}
 
-/* ═══ SCOREBOARD ANIMADO ═══ */
+/* SCOREBOARD */
 .sg{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
-.sc{border-radius:16px;padding:14px 18px;display:flex;align-items:center;gap:12px;
-  position:relative;overflow:hidden;border:2px solid rgba(255,255,255,.07);
-  background:rgba(255,255,255,.03);
-  transition:all .6s cubic-bezier(.34,1.56,.64,1)}
+.sc{border-radius:16px;padding:14px 18px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden;border:2px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);transition:all .6s cubic-bezier(.34,1.56,.64,1)}
 .sc.first{border-color:rgba(245,200,0,.55);background:linear-gradient(135deg,rgba(245,200,0,.13),rgba(255,107,53,.08))}
-.sc.second{border-color:rgba(192,192,192,.35);background:rgba(192,192,192,.05)}
-.sc.third{border-color:rgba(205,127,50,.35);background:rgba(205,127,50,.05)}
-.sc-rank{font-family:'Anton',sans-serif;font-size:2.4rem;color:rgba(255,255,255,.18);line-height:1;width:40px;flex-shrink:0;transition:all .4s}
+.sc.second{border-color:rgba(192,192,192,.35)}
+.sc.third{border-color:rgba(205,127,50,.35)}
+.sc-rank{font-family:'Anton',sans-serif;font-size:2.4rem;color:rgba(255,255,255,.18);line-height:1;width:40px;flex-shrink:0}
 .sc.first .sc-rank{color:var(--y)}
 .sc.second .sc-rank{color:#C0C0C0}
 .sc.third .sc-rank{color:#CD7F32}
-.sc-info{flex:1}
-.sc-nm{font-weight:900;font-size:.98rem}
-.sc-dt{font-size:.7rem;color:rgba(255,255,255,.38);font-weight:700;margin-top:2px}
-.sc-pts{font-family:'Anton',sans-serif;font-size:3rem;line-height:1;color:rgba(255,255,255,.55);margin-left:auto;transition:all .5s}
+.sc-pts{font-family:'Anton',sans-serif;font-size:3rem;line-height:1;color:rgba(255,255,255,.5);margin-left:auto;transition:all .5s}
 .sc.first .sc-pts{color:var(--y)}
 .sc.second .sc-pts{color:#C0C0C0}
 .sc.third .sc-pts{color:#CD7F32}
-.sc-bar{position:absolute;bottom:0;left:0;height:4px;
-  background:linear-gradient(90deg,var(--y),var(--or));
-  transition:width 1s cubic-bezier(.4,0,.2,1)}
+.sc-bar{position:absolute;bottom:0;left:0;height:4px;background:linear-gradient(90deg,var(--y),var(--or));transition:width 1s cubic-bezier(.4,0,.2,1)}
 .sc-pct{position:absolute;bottom:6px;right:13px;font-size:.6rem;color:rgba(255,255,255,.28);font-weight:700;font-family:'Righteous',sans-serif}
-.sc-delta{font-family:'Righteous',sans-serif;font-size:.65rem;padding:2px 7px;border-radius:20px;position:absolute;top:8px;right:8px;animation:popIn .4s cubic-bezier(.34,1.56,.64,1)}
-.sc-delta.up{background:rgba(59,178,115,.25);color:var(--gr)}
-.sc-delta.down{background:rgba(230,57,70,.2);color:var(--r)}
-@keyframes popIn{0%{transform:scale(0);opacity:0}100%{transform:scale(1);opacity:1}}
-
-/* POSITION CHANGE ANIMATION */
 .sc.moved-up{animation:slideUp .5s cubic-bezier(.34,1.56,.64,1)}
 .sc.moved-down{animation:slideDown .5s cubic-bezier(.34,1.56,.64,1)}
 @keyframes slideUp{0%{transform:translateY(30px);opacity:.5}100%{transform:translateY(0);opacity:1}}
 @keyframes slideDown{0%{transform:translateY(-30px);opacity:.5}100%{transform:translateY(0);opacity:1}}
 
-/* ═══ SPECTATOR SCREEN ═══ */
-.spec-wrap{max-width:480px;margin:0 auto;min-height:100dvh;
-  background:radial-gradient(ellipse at 50% 0%,rgba(245,200,0,.08) 0%,transparent 60%),
-  linear-gradient(180deg,#0A0A18 0%,#0F0F1A 100%)}
-.spec-hero{text-align:center;padding:20px 16px 10px}
-.spec-title{font-family:'Anton',sans-serif;font-size:1.3rem;letter-spacing:5px;color:var(--t);text-transform:uppercase}
-.spec-sub{font-family:'Righteous',sans-serif;font-size:.7rem;color:rgba(255,255,255,.3);letter-spacing:2px;display:flex;align-items:center;justify-content:center;gap:5px;margin-top:3px}
-.spec-big-card{border-radius:20px;padding:18px 22px;display:flex;align-items:center;gap:14px;
-  position:relative;overflow:hidden;border:2px solid rgba(255,255,255,.07);
-  background:rgba(255,255,255,.03);
-  transition:all .7s cubic-bezier(.34,1.56,.64,1);
-  margin-bottom:10px}
+/* SPECTATOR */
+.spec-wrap{max-width:480px;margin:0 auto;min-height:100dvh;background:radial-gradient(ellipse at 50% 0%,rgba(245,200,0,.08) 0%,transparent 60%),linear-gradient(180deg,#0A0A18 0%,#0F0F1A 100%)}
+.spec-big-card{border-radius:20px;padding:16px 20px;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden;border:2px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);transition:all .7s cubic-bezier(.34,1.56,.64,1);margin-bottom:10px}
 .spec-big-card.first{border-color:rgba(245,200,0,.55);background:linear-gradient(135deg,rgba(245,200,0,.12),rgba(255,107,53,.08))}
 .spec-big-card.second{border-color:rgba(192,192,192,.3)}
 .spec-big-card.third{border-color:rgba(205,127,50,.3)}
@@ -162,7 +120,6 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .spec-big-card.second .sbc-pts{color:#C0C0C0}
 .spec-big-card.third .sbc-pts{color:#CD7F32}
 .sbc-bar{position:absolute;bottom:0;left:0;height:5px;background:linear-gradient(90deg,var(--y),var(--or));transition:width 1.2s cubic-bezier(.4,0,.2,1)}
-.sbc-glow{position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(245,200,0,.08) 0%,transparent 70%);pointer-events:none}
 .spec-big-card.moved-up{animation:specUp .6s cubic-bezier(.34,1.56,.64,1)}
 .spec-big-card.moved-down{animation:specDown .6s cubic-bezier(.34,1.56,.64,1)}
 @keyframes specUp{0%{transform:translateY(40px) scale(.95);opacity:.4}100%{transform:translateY(0) scale(1);opacity:1}}
@@ -189,8 +146,6 @@ tbody tr:last-child td{border-bottom:none}
 .mr2{display:flex;gap:9px;margin-top:12px}
 .mc{flex:1;padding:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.48);border-radius:11px;font-family:'Nunito',sans-serif;font-weight:800;cursor:pointer;font-size:.86rem}
 .mo{flex:2;padding:12px;background:linear-gradient(135deg,var(--y),var(--or));border:none;color:var(--dark);border-radius:11px;font-family:'Nunito',sans-serif;font-weight:900;cursor:pointer;font-size:.9rem}
-
-/* CAMERA */
 .cv{border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;position:relative;margin-bottom:11px}
 .cv img{width:100%;height:100%;object-fit:cover;display:block}
 .sov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(15,15,26,.75);gap:12px}
@@ -198,22 +153,28 @@ tbody tr:last-child td{border-bottom:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .ce{aspect-ratio:4/3;border-radius:14px;border:2px dashed rgba(255,255,255,.13);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;margin-bottom:11px;color:rgba(255,255,255,.32);font-weight:700;font-size:.86rem;cursor:pointer}
 .ce:hover{border-color:var(--t);color:var(--t)}
-
-/* API KEY INPUT */
 .api-box{background:rgba(245,200,0,.06);border:1px solid rgba(245,200,0,.2);border-radius:12px;padding:12px;margin-bottom:12px}
-.api-box p{font-size:.75rem;color:rgba(255,255,255,.5);font-weight:700;margin-bottom:8px;line-height:1.4}
-.api-box .inp{margin:0;font-size:.85rem;letter-spacing:1px}
+.api-box p{font-size:.74rem;color:rgba(255,255,255,.5);font-weight:700;margin-bottom:8px;line-height:1.5}
 
-/* ═══ NUMPAD FIXED 3x3 ═══ */
-.nd{font-family:'Anton',sans-serif;font-size:5rem;color:var(--y);text-align:center;letter-spacing:4px;line-height:1;padding:16px 0 6px;text-shadow:3px 3px 0 var(--or)}
-.np-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 8px}
-.np-bottom{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
-.npb{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:14px;color:white;font-family:'Lilita One',sans-serif;font-size:1.4rem;padding:18px 8px;cursor:pointer;transition:all .1s;user-select:none;text-align:center}
+/* ═══ CALCULADORA ═══ */
+.calc-display{background:rgba(0,0,0,.4);border:2px solid rgba(245,200,0,.25);border-radius:14px;padding:12px 16px;margin-bottom:12px;min-height:70px}
+.calc-expr{font-family:'Righteous',sans-serif;font-size:.78rem;color:rgba(255,255,255,.45);letter-spacing:1px;min-height:18px;word-break:break-all;margin-bottom:4px}
+.calc-result{font-family:'Anton',sans-serif;font-size:3.5rem;color:var(--y);line-height:1;text-align:right;text-shadow:3px 3px 0 var(--or)}
+.calc-result.error{color:var(--r);font-size:1.5rem;padding-top:8px}
+
+/* numpad 3x3 */
+.np-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+.np-bottom{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px}
+.np-ops{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.npb{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:14px;color:white;font-family:'Lilita One',sans-serif;font-size:1.35rem;padding:17px 6px;cursor:pointer;transition:all .1s;user-select:none;text-align:center;display:flex;align-items:center;justify-content:center}
 .npb:hover{background:rgba(245,200,0,.2);border-color:var(--y)}
-.npb:active{transform:scale(.92);background:rgba(245,200,0,.3)}
-.npb.zero-key{background:rgba(46,196,182,.1);color:var(--t);border-color:rgba(46,196,182,.25);grid-column:1/3}
+.npb:active{transform:scale(.91);background:rgba(245,200,0,.3)}
+.npb.zero-key{font-size:1.35rem;padding:17px 6px}
 .npb.del-key{background:rgba(230,57,70,.1);color:var(--r);border-color:rgba(230,57,70,.25)}
-.npb.ok-key{width:100%;background:linear-gradient(135deg,var(--y),var(--or));color:var(--dark);border:none;font-size:1.3rem;padding:16px;border-radius:14px;cursor:pointer;font-family:'Lilita One',sans-serif;user-select:none}
+.npb.op-key{background:rgba(46,196,182,.1);color:var(--t);border-color:rgba(46,196,182,.25);font-size:1.5rem}
+.npb.op-key:hover{background:rgba(46,196,182,.25)}
+.npb.clr-key{background:rgba(230,57,70,.1);color:var(--r);border-color:rgba(230,57,70,.25);font-size:.9rem;letter-spacing:0}
+.npb.ok-key{width:100%;background:linear-gradient(135deg,var(--y),var(--or));color:var(--dark);border:none;font-size:1.2rem;padding:16px;border-radius:14px;cursor:pointer;font-family:'Lilita One',sans-serif;user-select:none;display:flex;align-items:center;justify-content:center;gap:8px}
 .npb.ok-key:active{transform:scale(.96)}
 
 /* WINNER */
@@ -225,12 +186,10 @@ tbody tr:last-child td{border-bottom:none}
 .wnm{font-family:'Lilita One',sans-serif;font-size:2.2rem;color:white;letter-spacing:1px;margin-bottom:4px}
 .wpt{font-family:'Righteous',sans-serif;font-size:.9rem;color:var(--y);margin-bottom:32px;letter-spacing:2px}
 @keyframes cf{0%{transform:translateY(-30px) rotate(0) scale(1);opacity:1}100%{transform:translateY(110vh) rotate(720deg) scale(.4);opacity:0}}
-
-/* MISC */
 .sec{font-family:'Righteous',sans-serif;font-size:.72rem;letter-spacing:3px;color:rgba(255,255,255,.3);text-transform:uppercase;margin-bottom:9px}
 .div{height:1px;background:rgba(255,255,255,.07);margin:14px 0}
 .rsb{display:flex;align-items:center;justify-content:space-between}
-.rbd{font-family:'Lilita One',sans-serif;font-size:.8rem;background:linear-gradient(135deg,var(--pu),#5A2070);color:white;padding:4px 13px;border-radius:20px;letter-spacing:1px}
+.rbd{font-family:'Lilita One',sans-serif;font-size:.8rem;background:linear-gradient(135deg,var(--pu),#5A2070);color:white;padding:4px 13px;border-radius:20px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--gr);animation:blink 1.4s ease-in-out infinite;display:inline-block;flex-shrink:0}
 .dot.demo{background:var(--pu)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
@@ -241,11 +200,21 @@ tbody tr:last-child td{border-bottom:none}
 .hpt{font-size:.73rem;font-weight:800;background:rgba(255,255,255,.05);padding:3px 9px;border-radius:20px;color:rgba(255,255,255,.55)}
 .es{text-align:center;padding:36px 20px;color:rgba(255,255,255,.32)}
 .demo-banner{background:rgba(123,45,139,.18);border:1px solid rgba(123,45,139,.4);border-radius:11px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:9px;font-size:.8rem;font-weight:800;color:#cc88ff}
+
+/* PLAYER PICKER */
+.player-pick{border-radius:12px;border:2px solid rgba(255,255,255,.1);padding:12px 14px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s}
+.player-pick:hover{border-color:var(--y);background:rgba(245,200,0,.06)}
+.player-pick:active{transform:scale(.97)}
+.player-pick.selected{border-color:var(--y);background:rgba(245,200,0,.1)}
+
+/* AI selector */
+.ai-tabs{display:flex;gap:6px;margin-bottom:10px}
+.ai-tab{flex:1;border:2px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 6px;cursor:pointer;text-align:center;font-family:'Righteous',sans-serif;font-size:.68rem;letter-spacing:1px;transition:all .2s;background:none;color:rgba(255,255,255,.45)}
+.ai-tab.on{border-color:var(--y);background:rgba(245,200,0,.1);color:var(--y)}
 </style>
 </head>
 <body>
 <div id="root"></div>
-
 <script>
 firebase.initializeApp({
   apiKey:"AIzaSyApch0BMFO9cGB63Mt-Czuo4E0pc11k2Y8",
@@ -256,7 +225,7 @@ firebase.initializeApp({
   messagingSenderId:"505574308605",
   appId:"1:505574308605:web:51c63edb57b32a289f1c94"
 });
-const _db = firebase.database();
+const _db=firebase.database();
 
 // DEMO store
 const _DS={},_DL={};
@@ -265,30 +234,37 @@ function demoGet(p){return Promise.resolve(_DS[p]||null);}
 function demoListen(p,cb){_DL[p]=_DL[p]||[];_DL[p].push(cb);if(_DS[p])cb(_DS[p]);return()=>{_DL[p]=_DL[p].filter(f=>f!==cb);};}
 
 // SOUNDS
-const AudioCtx = window.AudioContext||window.webkitAudioContext;
 let _actx=null;
-function getACtx(){if(!_actx)_actx=new AudioCtx();return _actx;}
-function beep(freq=440,dur=0.08,type='sine',vol=0.3){
-  try{const a=getACtx();const o=a.createOscillator();const g=a.createGain();
-  o.connect(g);g.connect(a.destination);o.type=type;o.frequency.value=freq;
-  g.gain.setValueAtTime(vol,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur);
-  o.start();o.stop(a.currentTime+dur);}catch(e){}}
-function snd(type){
-  if(type==='tap')    beep(600,0.05,'sine',0.2);
-  else if(type==='score') {beep(520,0.08,'sine',0.3);setTimeout(()=>beep(660,0.1,'sine',0.3),100);}
-  else if(type==='close') {beep(880,0.06,'sine',0.25);setTimeout(()=>beep(660,0.08,'sine',0.25),80);}
-  else if(type==='round') {beep(440,0.1,'square',0.2);setTimeout(()=>beep(550,0.1,'square',0.2),120);setTimeout(()=>beep(660,0.15,'square',0.25),240);}
-  else if(type==='winner'){[0,150,300,450].forEach((t,i)=>setTimeout(()=>beep(440+i*110,0.15,'sine',0.35),t));}
-  else if(type==='up')    {beep(600,0.06,'sine',0.2);setTimeout(()=>beep(800,0.1,'sine',0.25),80);}
-  else if(type==='down')  beep(300,0.12,'sine',0.2);
-  else if(type==='join')  {beep(500,0.08,'sine',0.25);setTimeout(()=>beep(700,0.1,'sine',0.3),100);}
-  else if(type==='num')   beep(700,0.04,'sine',0.15);
-  else if(type==='zero')  beep(400,0.08,'triangle',0.2);
+function getAC(){if(!_actx)_actx=new(window.AudioContext||window.webkitAudioContext)();return _actx;}
+function beep(f=440,d=.08,t='sine',v=.3){try{const a=getAC(),o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);o.type=t;o.frequency.value=f;g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+d);o.start();o.stop(a.currentTime+d);}catch(e){}}
+function snd(t){
+  if(t==='tap')    beep(600,.05,'sine',.18);
+  else if(t==='score'){beep(520,.08,'sine',.28);setTimeout(()=>beep(660,.1,'sine',.28),100);}
+  else if(t==='round'){beep(440,.1,'square',.2);setTimeout(()=>beep(550,.1,'square',.2),120);setTimeout(()=>beep(660,.15,'square',.25),240);}
+  else if(t==='winner'){[0,150,300,450].forEach((d,i)=>setTimeout(()=>beep(440+i*110,.15,'sine',.35),d));}
+  else if(t==='up')   {beep(600,.06,'sine',.2);setTimeout(()=>beep(800,.1,'sine',.25),80);}
+  else if(t==='down') beep(300,.12,'sine',.2);
+  else if(t==='join') {beep(500,.08,'sine',.25);setTimeout(()=>beep(700,.1,'sine',.3),100);}
+  else if(t==='num')  beep(700,.04,'sine',.13);
+  else if(t==='zero') beep(400,.08,'triangle',.18);
+  else if(t==='op')   beep(550,.06,'triangle',.2);
+  else if(t==='del')  beep(300,.05,'sine',.15);
+}
+
+// Safe eval for calculator
+function safeEval(expr){
+  try{
+    const clean=expr.replace(/[^0-9+\-*/().]/g,'');
+    if(!clean)return 0;
+    // eslint-disable-next-line no-new-func
+    const r=Function('"use strict";return ('+clean+')')();
+    return isFinite(r)?Math.round(r*100)/100:null;
+  }catch{return null;}
 }
 </script>
 
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
+const{useState,useEffect,useRef,useCallback}=React;
 
 const WIN=200;
 const EMOJIS=["🔴","🔵","🟡","🟢","🟣","🟠","⚪","🩷"];
@@ -299,80 +275,64 @@ const uid=()=>Math.random().toString(36).slice(2,10);
 const fmtDate=ts=>new Date(ts).toLocaleDateString("es-MX",{weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
 
 function makeDB(demo){
-  if(demo) return{
-    set:(p,d)=>demoSet(p,d),
-    get:(p)=>demoGet(p),
-    update:(p,d)=>demoSet(p,Object.assign(demoGet(p)||{},d)),
-    listen:(p,cb)=>demoListen(p,cb),
-  };
+  if(demo)return{set:(p,d)=>demoSet(p,d),get:(p)=>demoGet(p),listen:(p,cb)=>demoListen(p,cb)};
   return{
     set:(p,d)=>_db.ref(p).set(d),
     get:(p)=>_db.ref(p).once("value").then(s=>s.val()),
-    update:(p,d)=>_db.ref(p).update(d),
     listen:(p,cb)=>{const r=_db.ref(p);r.on("value",s=>cb(s.val()));return()=>r.off("value");},
   };
 }
 
 function classifyError(e){
   const m=String(e?.message||e);
-  if(!navigator.onLine) return{msg:"📵 Sin conexión a internet.",steps:["Verifica tu WiFi o datos"]};
-  if(m.includes("PERMISSION_DENIED")||m.includes("permission")) return{msg:"🔒 Sin permisos en Firebase.",steps:['Firebase Console → Realtime Database → Reglas → pon ".read":true,".write":true → Publicar']};
-  if(m.includes("databaseURL")||m.includes("database")) return{msg:"⚙️ Realtime Database no activo.",steps:["Firebase Console → Realtime Database → Create database → test mode"]};
-  if(m.includes("fetch")||m.includes("network")) return{msg:"🌐 Error de red.",steps:["Verifica tu conexión","Intenta de nuevo en unos segundos"]};
-  return{msg:`⚠️ ${m.slice(0,100)}`,steps:["Recarga la página e intenta de nuevo"]};
+  if(!navigator.onLine)return{msg:"📵 Sin conexión.",steps:["Verifica tu internet"]};
+  if(m.includes("PERMISSION_DENIED"))return{msg:"🔒 Sin permisos Firebase.",steps:['Reglas → ".read":true,".write":true → Publicar']};
+  if(m.includes("fetch")||m.includes("network"))return{msg:"🌐 Error de red.",steps:["Verifica conexión e intenta de nuevo"]};
+  return{msg:`⚠️ ${m.slice(0,100)}`,steps:["Recarga la página"]};
 }
 
-/* ══════════════════════════════
+/* ══════════════════════
    ROOT
-══════════════════════════════ */
+══════════════════════ */
 function App(){
-  const [screen,setScreen]=useState("home");
-  const [demoMode,setDemoMode]=useState(false);
-  const [isSpectator,setIsSpectator]=useState(false);
-  const [myPlayerId,setMyPlayerId]=useState(null);
-  const [room,setRoom]=useState(null);
-  const [roomCode,setRoomCode]=useState("");
-  const [prevSorted,setPrevSorted]=useState([]);
-  const [sessions,setSessions]=useState(()=>{try{return JSON.parse(localStorage.getItem("f7sess")||"[]")}catch{return[]}});
-  const [tab,setTab]=useState("round");
-  const [winner,setWinner]=useState(null);
-  const [apiKey,setApiKey]=useState(()=>localStorage.getItem("f7apikey")||"");
+  const[screen,setScreen]=useState("home");
+  const[demoMode,setDemoMode]=useState(false);
+  const[isSpectator,setIsSpectator]=useState(false);
+  const[myPlayerId,setMyPlayerId]=useState(null);
+  const[room,setRoom]=useState(null);
+  const[roomCode,setRoomCode]=useState("");
+  const[sessions,setSessions]=useState(()=>{try{return JSON.parse(localStorage.getItem("f7sess")||"[]")}catch{return[]}});
+  const[tab,setTab]=useState("round");
+  const[winner,setWinner]=useState(null);
+  const GEMINI_DEFAULT="AIzaSyClacesVYdU8ZnozkKpL0-KJGFg4DHRG7s";
+  const[aiConfig,setAiConfig]=useState(()=>{try{const s=JSON.parse(localStorage.getItem("f7ai")||'{}');return{provider:s.provider||"gemini",key:s.key||GEMINI_DEFAULT};}catch{return{provider:"gemini",key:GEMINI_DEFAULT}}});
   const winnerShown=useRef(false);
   const unsubRef=useRef(null);
   const dbRef=useRef(makeDB(false));
   const prevSortedRef=useRef([]);
 
+  useEffect(()=>{try{localStorage.setItem("f7ai",JSON.stringify(aiConfig))}catch{};},[aiConfig]);
+
   function subscribe(code,db){
     if(unsubRef.current)unsubRef.current();
     unsubRef.current=db.listen(`rooms/${code}`,data=>{
       if(!data)return;
-      // detect position changes for animation
       const newSorted=[...data.players].sort((a,b)=>b.total-a.total);
       const prev=prevSortedRef.current;
-      newSorted.forEach((p,newIdx)=>{
-        const oldIdx=prev.findIndex(x=>x.id===p.id);
-        if(oldIdx!==-1&&oldIdx!==newIdx){
-          p._moved=newIdx<oldIdx?'up':'down';
-          if(newIdx<oldIdx)snd('up'); else snd('down');
-        }
+      newSorted.forEach((p,ni)=>{
+        const oi=prev.findIndex(x=>x.id===p.id);
+        if(oi!==-1&&oi!==ni){p._moved=ni<oi?'up':'down';if(ni<oi)snd('up');else snd('down');}
       });
       prevSortedRef.current=newSorted.map(p=>({...p}));
       setRoom(data);
       if(data.finished&&data.winner&&!winnerShown.current){
-        winnerShown.current=true;
-        setWinner(data.winner);
-        snd('winner');
-        addSession(data);
+        winnerShown.current=true;setWinner(data.winner);snd('winner');
+        setSessions(prev=>{
+          if(prev.find(s=>s.code===data.code&&s.date===data.createdAt))return prev;
+          const s=[{id:uid(),date:data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,demo:demoMode},...prev].slice(0,20);
+          try{localStorage.setItem("f7sess",JSON.stringify(s))}catch{} return s;
+        });
       }
-    });
-  }
-
-  function addSession(data){
-    setSessions(prev=>{
-      if(prev.find(s=>s.code===data.code&&s.date===data.createdAt))return prev;
-      const s=[{id:uid(),date:data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,demo:demoMode},...prev].slice(0,20);
-      try{localStorage.setItem("f7sess",JSON.stringify(s))}catch{}
-      return s;
     });
   }
 
@@ -384,66 +344,55 @@ function App(){
 
   async function submitScore(pid,score,method){
     snd('score');
-    const db=dbRef.current;
     const cur=room?.roundScores||{};
-    await db.set(`rooms/${roomCode}`,{...room,roundScores:{...cur,[pid]:{score,method}}});
+    await dbRef.current.set(`rooms/${roomCode}`,{...room,roundScores:{...cur,[pid]:{score,method}}});
   }
   async function undoScore(pid){
     snd('tap');
-    const db=dbRef.current;
     const ns={...room?.roundScores};delete ns[pid];
-    await db.set(`rooms/${roomCode}`,{...room,roundScores:ns});
+    await dbRef.current.set(`rooms/${roomCode}`,{...room,roundScores:ns});
   }
   async function finalizeRound(){
     snd('round');
-    const db=dbRef.current;
     const newPlayers=room.players.map(p=>{
       const e=room.roundScores?.[p.id];const pts=e?e.score:0;
       return{...p,total:p.total+pts,rounds:[...(p.rounds||[]),{score:pts,method:e?.method||"zero"}]};
     });
     const champ=newPlayers.find(p=>p.total>=WIN);
-    await db.set(`rooms/${roomCode}`,{...room,players:newPlayers,roundScores:{},round:champ?room.round:room.round+1,finished:!!champ,winner:champ||null});
+    await dbRef.current.set(`rooms/${roomCode}`,{...room,players:newPlayers,roundScores:{},round:champ?room.round:room.round+1,finished:!!champ,winner:champ||null});
   }
 
-  async function startGame(names,demo,spectator=false,existingCode=null,existingPlayerId=null){
+  async function enterGame({names,demo,spectator,code,playerId}){
     const db=makeDB(demo);dbRef.current=db;
-    let code=existingCode;
+    let roomCode2=code;
     if(!code){
-      code=demo?"DEMO":uid4();
-      const data={code,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
-        players:names.map((name,i)=>({id:uid(),name:name.trim(),emoji:EMOJIS[i%EMOJIS.length],color:COLORS[i%COLORS.length],total:0,rounds:[]}))};
-      await db.set(`rooms/${code}`,data);
+      roomCode2=demo?"DEMO":uid4();
+      await db.set(`rooms/${roomCode2}`,{
+        code:roomCode2,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
+        players:names.map((name,i)=>({id:uid(),name:name.trim(),emoji:EMOJIS[i%EMOJIS.length],color:COLORS[i%COLORS.length],total:0,rounds:[]}))
+      });
     }
-    setDemoMode(demo);setRoomCode(code);setIsSpectator(spectator);
-    setMyPlayerId(existingPlayerId);
-    subscribe(code,db);
+    setDemoMode(demo);setRoomCode(roomCode2);setIsSpectator(spectator||false);
+    setMyPlayerId(playerId||null);
+    subscribe(roomCode2,db);
     setScreen("game");setTab(spectator?"scores":"round");
     winnerShown.current=false;prevSortedRef.current=[];
   }
 
-  // Save API key
-  useEffect(()=>{if(apiKey)localStorage.setItem("f7apikey",apiKey);},[apiKey]);
-
   const allDone=room&&room.players.every(p=>room.roundScores?.[p.id]!==undefined);
   const sorted=room?[...room.players].sort((a,b)=>b.total-a.total):[];
 
-  if(screen==="home") return <HomeScreen onStart={startGame} sessions={sessions} apiKey={apiKey} setApiKey={setApiKey}/>;
-  if(isSpectator) return <SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame}/>;
-
+  if(screen==="home")return<HomeScreen onEnter={enterGame} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig}/>;
+  if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame}/>;
   return(
     <div className="wrap">
       <div className="hdr">
         <div>
-          <div style={{display:"flex",alignItems:"baseline",gap:4}}>
-            <span className="logo-f">FLIP</span><span className="logo-7">7</span>
-          </div>
+          <div style={{display:"flex",alignItems:"baseline",gap:4}}><span className="logo-f">FLIP</span><span className="logo-7">7</span></div>
           <span className="logo-sub">Race to 200!</span>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <div className={`badge ${demoMode?"demo":""}`}>
-            <span className={`dot ${demoMode?"demo":""}`}/>
-            {demoMode?"DEMO":roomCode}
-          </div>
+          <div className={`badge ${demoMode?"demo":""}`}><span className={`dot ${demoMode?"demo":""}`}/>{demoMode?"DEMO":roomCode}</div>
           <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');leaveGame();}}>✕</button>
         </div>
       </div>
@@ -455,7 +404,7 @@ function App(){
       <div className="page">
         {demoMode&&tab==="round"&&<div className="demo-banner">🧪 <span>MODO DEMO — local, sin Firebase</span></div>}
         {tab==="round"&&!room&&<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 16px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando…</p></div>}
-        {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} demoMode={demoMode} apiKey={apiKey} setApiKey={setApiKey}/>}
+        {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig}/>}
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room}/>}
         {tab==="history"&&<HistoryTab sessions={sessions}/>}
       </div>
@@ -464,27 +413,30 @@ function App(){
   );
 }
 
-/* ══════════════════════════════
+/* ══════════════════════
    HOME
-══════════════════════════════ */
-function HomeScreen({onStart,sessions,apiKey,setApiKey}){
-  const [view,setView]=useState("main");
-  const [names,setNames]=useState(["","",""]);
-  const [jcode,setJcode]=useState("");
-  const [jname,setJname]=useState("");
-  const [busy,setBusy]=useState(false);
-  const [err,setErr]=useState(null);
-  const go=v=>{snd('tap');setErr(null);setView(v);};
+══════════════════════ */
+function HomeScreen({onEnter,sessions,aiConfig,setAiConfig}){
+  const[view,setView]=useState("main");
+  const[names,setNames]=useState(["","",""]);
+  const[jcode,setJcode]=useState("");
+  const[jname,setJname]=useState("");
+  const[busy,setBusy]=useState(false);
+  const[err,setErr]=useState(null);
+  // For player picker when reconnecting
+  const[roomPlayers,setRoomPlayers]=useState(null);
+  const[pickingPlayer,setPickingPlayer]=useState(false);
+  const go=v=>{snd('tap');setErr(null);setView(v);setRoomPlayers(null);setPickingPlayer(false);};
 
   async function createReal(){
     const ns=names.filter(n=>n.trim());
     if(ns.length<2){setErr({msg:"Necesitas al menos 2 jugadores.",steps:[]});return;}
     setBusy(true);setErr(null);
-    try{await onStart(ns,false);}catch(e){setErr(classifyError(e));}
+    try{await onEnter({names:ns,demo:false});}catch(e){setErr(classifyError(e));}
     setBusy(false);
   }
 
-  async function joinReal(asSpectator=false){
+  async function tryJoin(asSpectator=false){
     if(jcode.length<4){setErr({msg:"Código de 4 caracteres.",steps:[]});return;}
     if(!asSpectator&&!jname.trim()){setErr({msg:"Ingresa tu nombre.",steps:[]});return;}
     setBusy(true);setErr(null);
@@ -492,31 +444,50 @@ function HomeScreen({onStart,sessions,apiKey,setApiKey}){
       const db=makeDB(false);
       const r=await db.get(`rooms/${jcode.toUpperCase()}`);
       if(!r){setErr({msg:`Sala "${jcode.toUpperCase()}" no encontrada.`,steps:["Pide el código al host"]});setBusy(false);return;}
-      if(r.finished&&!asSpectator){setErr({msg:"Esta sala ya terminó.",steps:["El host debe crear una nueva"]});setBusy(false);return;}
-      snd('join');
-      if(asSpectator){
-        await onStart(null,false,true,jcode.toUpperCase(),null);
+
+      if(asSpectator){snd('join');await onEnter({demo:false,spectator:true,code:jcode.toUpperCase()});setBusy(false);return;}
+
+      const inputName=jname.trim().toLowerCase();
+      const existing=r.players.find(p=>p.name.toLowerCase()===inputName);
+
+      if(existing){
+        // exact name match → reconnect directly
+        snd('join');
+        await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:existing.id});
       } else {
-        // find player by name or add new
-        let pid=null;
-        const existing=r.players.find(p=>p.name.toLowerCase()===jname.trim().toLowerCase());
-        if(existing){pid=existing.id;}
-        else{
-          // add new player
-          const newP={id:uid(),name:jname.trim(),emoji:EMOJIS[r.players.length%EMOJIS.length],color:COLORS[r.players.length%COLORS.length],total:0,rounds:[]};
-          r.players=[...r.players,newP];pid=newP.id;
-          await _db.ref(`rooms/${jcode.toUpperCase()}`).set(r);
-        }
-        await onStart(null,false,false,jcode.toUpperCase(),pid);
+        // name not found → show picker: choose existing player or join as new
+        setRoomPlayers(r.players);
+        setPickingPlayer(true);
       }
     }catch(e){setErr(classifyError(e));}
     setBusy(false);
   }
 
-  if(view==="create") return(
+  async function pickPlayer(player){
+    // reconnect as existing player
+    snd('join');
+    try{await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:player.id});}
+    catch(e){setErr(classifyError(e));}
+  }
+
+  async function joinAsNew(){
+    if(!jname.trim()){setErr({msg:"Ingresa tu nombre.",steps:[]});return;}
+    setBusy(true);setErr(null);
+    try{
+      const r=await makeDB(false).get(`rooms/${jcode.toUpperCase()}`);
+      const newP={id:uid(),name:jname.trim(),emoji:EMOJIS[r.players.length%EMOJIS.length],color:COLORS[r.players.length%COLORS.length],total:0,rounds:[]};
+      r.players=[...r.players,newP];
+      await _db.ref(`rooms/${jcode.toUpperCase()}`).set(r);
+      snd('join');
+      await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:newP.id});
+    }catch(e){setErr(classifyError(e));}
+    setBusy(false);
+  }
+
+  if(view==="create")return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
       <div className="hero"><div style={{fontSize:"2.8rem",marginBottom:6}}>🎮</div>
-        <div className="hero-logo" style={{fontSize:"2.5rem"}}>CREAR SALA</div>
+        <div className="hero-logo" style={{fontSize:"2.4rem"}}>CREAR SALA</div>
         <div className="hero-tag">Nuevo juego</div>
       </div>
       <p className="sec">JUGADORES (mín. 2)</p>
@@ -528,47 +499,73 @@ function HomeScreen({onStart,sessions,apiKey,setApiKey}){
           {names.length>2&&<button className="psr-rm" onClick={()=>{snd('tap');setNames(p=>p.filter((_,j)=>j!==i));}}>✕</button>}
         </div>
       ))}
-      {names.length<8&&<button className="btn-add" onClick={()=>{snd('tap');setNames(p=>[...p,""]);} }>+ Agregar jugador</button>}
+      {names.length<8&&<button className="btn-add" onClick={()=>{snd('tap');setNames(p=>[...p,""]);}}>+ Agregar jugador</button>}
       {err&&<ErrBox err={err}/>}
       <button className="btn btn-y" onClick={()=>{snd('tap');createReal();}} disabled={busy||names.filter(n=>n.trim()).length<2}>
         {busy?"⏳ Creando sala…":"🎮 CREAR SALA"}
       </button>
       <div className="g8"/>
-      <button className="btn btn-demo" onClick={()=>{snd('join');onStart(names.filter(n=>n.trim()).length>=2?names.filter(n=>n.trim()):["Jugador 1","Jugador 2","Jugador 3"],true);}}>
+      <button className="btn btn-demo" onClick={()=>{snd('join');onEnter({names:names.filter(n=>n.trim()).length>=2?names.filter(n=>n.trim()):["Jugador 1","Jugador 2","Jugador 3"],demo:true});}}>
         🧪 MODO DEMO (sin internet)
       </button>
       <div className="g8"/><button className="btn btn-g" onClick={()=>go("main")}>← Volver</button>
     </div></div>
   );
 
-  if(view==="join") return(
+  if(view==="join")return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
       <div className="hero"><div style={{fontSize:"2.8rem",marginBottom:6}}>🔑</div>
-        <div className="hero-logo" style={{fontSize:"2.5rem"}}>UNIRSE</div>
+        <div className="hero-logo" style={{fontSize:"2.4rem"}}>UNIRSE</div>
         <div className="hero-tag">Código de sala</div>
       </div>
-      <p className="sec">CÓDIGO DE SALA</p>
-      <input className="inp code-inp" placeholder="XXXX" maxLength={4} value={jcode}
-        onChange={e=>setJcode(e.target.value.toUpperCase())} onFocus={()=>snd('tap')}/>
-      <p className="sec" style={{marginTop:12}}>TU NOMBRE (como jugador)</p>
-      <input className="inp" placeholder="Tu nombre en el juego" value={jname}
-        onChange={e=>setJname(e.target.value)} onFocus={()=>snd('tap')}/>
-      {err&&<ErrBox err={err}/>}
-      <div className="g12"/>
-      <button className="btn btn-y" onClick={()=>{snd('tap');joinReal(false);}} disabled={busy||jcode.length<4||!jname.trim()}>
-        {busy?"⏳ Conectando…":"🃏 UNIRME COMO JUGADOR"}
-      </button>
-      <div className="div"/>
-      <p className="sec">VER MARCADOR (espectador)</p>
-      <p style={{color:"rgba(255,255,255,.35)",fontSize:".78rem",fontWeight:700,marginBottom:10}}>Sin controles — marcador animado en tiempo real</p>
-      <button className="btn btn-t" onClick={()=>{snd('tap');joinReal(true);}} disabled={busy||jcode.length<4}>
-        {busy?"⏳ …":"📺 ENTRAR COMO ESPECTADOR"}
-      </button>
+
+      {!pickingPlayer&&(<>
+        <p className="sec">CÓDIGO DE SALA</p>
+        <input className="inp code-inp" placeholder="XXXX" maxLength={4} value={jcode}
+          onChange={e=>setJcode(e.target.value.toUpperCase())} onFocus={()=>snd('tap')}/>
+        <p className="sec" style={{marginTop:12}}>TU NOMBRE</p>
+        <input className="inp" placeholder="Tu nombre en el juego" value={jname}
+          onChange={e=>setJname(e.target.value)} onFocus={()=>snd('tap')}/>
+        {err&&<ErrBox err={err}/>}
+        <div className="g12"/>
+        <button className="btn btn-y" onClick={()=>{snd('tap');tryJoin(false);}} disabled={busy||jcode.length<4||!jname.trim()}>
+          {busy?"⏳ Buscando sala…":"🃏 UNIRME AL JUEGO"}
+        </button>
+        <div className="div"/>
+        <p className="sec">SOLO VER MARCADOR</p>
+        <button className="btn btn-t" onClick={()=>{snd('tap');tryJoin(true);}} disabled={busy||jcode.length<4}>
+          {busy?"⏳ …":"📺 ENTRAR COMO ESPECTADOR"}
+        </button>
+      </>)}
+
+      {pickingPlayer&&roomPlayers&&(<>
+        <div className="alert al-y" style={{marginBottom:14}}>
+          👤 <span>Nombre no encontrado. ¿Eres alguno de estos jugadores o entras como nuevo?</span>
+        </div>
+        <p className="sec">ELIGE TU JUGADOR (reconectar)</p>
+        {roomPlayers.map(p=>(
+          <div key={p.id} className="player-pick" onClick={()=>pickPlayer(p)}>
+            <div className="ava" style={{background:p.color+"22",color:p.color,width:42,height:42}}>{p.emoji}</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:900,fontSize:"1rem"}}>{p.name}</div>
+              <div style={{fontSize:".72rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>{p.total} pts acumulados · {(p.rounds||[]).length} rondas</div>
+            </div>
+            <div style={{color:"rgba(255,255,255,.3)",fontSize:"1.2rem"}}>→</div>
+          </div>
+        ))}
+        <div className="div"/>
+        <p className="sec">O UNIRME COMO JUGADOR NUEVO</p>
+        <input className="inp" placeholder="Nombre del nuevo jugador" value={jname}
+          onChange={e=>setJname(e.target.value)} onFocus={()=>snd('tap')}/>
+        <button className="btn btn-y" onClick={()=>{snd('tap');joinAsNew();}} disabled={busy||!jname.trim()}>
+          ➕ AGREGAR JUGADOR NUEVO
+        </button>
+      </>)}
+
       <div className="g8"/><button className="btn btn-g" onClick={()=>go("main")}>← Volver</button>
     </div></div>
   );
 
-  // MAIN
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
       <div className="hero">
@@ -579,9 +576,9 @@ function HomeScreen({onStart,sessions,apiKey,setApiKey}){
       </div>
       <button className="btn btn-y" onClick={()=>go("create")}>🎮 CREAR NUEVO JUEGO</button>
       <div className="g8"/>
-      <button className="btn btn-t" onClick={()=>go("join")}>🔑 UNIRME CON CÓDIGO</button>
+      <button className="btn btn-t" onClick={()=>go("join")}>🔑 UNIRME / RECONECTAR</button>
       <div className="g8"/>
-      <button className="btn btn-demo" onClick={()=>{snd('join');onStart(["Jugador 1","Jugador 2","Jugador 3"],true);}}>
+      <button className="btn btn-demo" onClick={()=>{snd('join');onEnter({names:["Jugador 1","Jugador 2","Jugador 3"],demo:true});}}>
         🧪 MODO DEMO — Probar interfaz
       </button>
       {sessions.length>0&&<><div className="div"/><p className="sec">ÚLTIMAS SESIONES</p><SesCards sessions={sessions}/></>}
@@ -598,21 +595,19 @@ function ErrBox({err}){
   );
 }
 
-/* ══════════════════════════════
+/* ══════════════════════
    ROUND TAB
-══════════════════════════════ */
-function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,apiKey,setApiKey}){
-  const [scanModal,setScan]=useState(null);
-  const [manModal,setMan]=useState(null);
-
-  // If myPlayerId set, only show that player's controls
-  const canControl=(pid)=>!myPlayerId||myPlayerId===pid;
-
+══════════════════════ */
+function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,aiConfig,setAiConfig}){
+  const[scanModal,setScan]=useState(null);
+  const[manModal,setMan]=useState(null);
+  const canControl=pid=>!myPlayerId||myPlayerId===pid;
+  const isHost=!myPlayerId;
   return(
     <>
-      {room.finished&&room.winner&&<div className="alert al-g">🏆 ¡{room.winner.name} ganó! Ver Tabla.</div>}
-      {!room.finished&&allDone&&<div className="alert al-g">✅ ¡Todos listos! Cierra la ronda.</div>}
-      {!room.finished&&!allDone&&room.players.some(p=>room.roundScores?.[p.id])&&<div className="alert al-y">⏳ Esperando que todos capturen…</div>}
+      {room.finished&&room.winner&&<div className="alert al-g">🏆 ¡{room.winner.name} ganó! → Tabla</div>}
+      {!room.finished&&allDone&&<div className="alert al-g">✅ ¡Todos listos! {isHost?"Cierra la ronda.":"Esperando al host…"}</div>}
+      {!room.finished&&!allDone&&room.players.some(p=>room.roundScores?.[p.id])&&<div className="alert al-y">⏳ Esperando capturas…</div>}
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>JUGADORES</p>
         <div className="rbd">RONDA {room.round}</div>
@@ -623,127 +618,118 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
           <div key={p.id} className={`pr ${done?"done":""}`} style={{"--clr":p.color}}>
             <div className="ava" style={{background:p.color+"22",color:p.color}}>{p.emoji}</div>
             <div style={{flex:1}}>
-              <div className="pr-name">{p.name}{myPlayerId===p.id&&<span style={{fontSize:".65rem",color:"rgba(255,255,255,.4)",marginLeft:6}}>← tú</span>}</div>
+              <div className="pr-name">
+                {p.name}
+                {myPlayerId===p.id&&<span style={{fontSize:".62rem",color:"rgba(255,255,255,.35)",marginLeft:6,fontWeight:700}}>← tú</span>}
+              </div>
               {done?(
                 <div style={{display:"flex",alignItems:"center",gap:7,marginTop:3}}>
                   <span className="pr-pts">+{entry.score}</span>
                   <span className={`mtag mt-${entry.method}`}>{entry.method==="scan"?"📷":entry.method==="zero"?"0️⃣":"✏️"} {entry.method}</span>
                 </div>
-              ):(
-                mine&&<div className="ar">
-                  {!demoMode&&<button className="ab ab-s" onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan</button>}
+              ):mine?(
+                <div className="ar">
+                  {!demoMode&&<button className="ab ab-s" onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
                   <button className="ab ab-z" onClick={()=>{snd('zero');onSubmit(p.id,0,"zero");}}>0️⃣ Cero</button>
-                  <button className="ab ab-m" onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name});}}>✏️ Manual</button>
+                  <button className="ab ab-m" onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name});}}>🧮 Manual</button>
                 </div>
+              ):(
+                <div style={{fontSize:".72rem",color:"rgba(255,255,255,.28)",marginTop:3,fontWeight:700}}>⏳ esperando…</div>
               )}
-              {!mine&&!done&&<div style={{fontSize:".72rem",color:"rgba(255,255,255,.3)",marginTop:3,fontWeight:700}}>⏳ Esperando captura…</div>}
             </div>
             {done&&mine&&<button className="undo" onClick={()=>onUndo(p.id)}>✕</button>}
           </div>
         );
       })}
-      {!room.finished&&(!myPlayerId||myPlayerId==="HOST")&&(
+      {!room.finished&&isHost&&(
         <div style={{marginTop:14}}>
           <button className="btn btn-y" disabled={!allDone} onClick={onFinalize}>🎲 CERRAR RONDA {room.round}</button>
         </div>
       )}
-      {scanModal&&<ScanModal playerName={scanModal.name} apiKey={apiKey} setApiKey={setApiKey} onResult={s=>{onSubmit(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
+      {scanModal&&<ScanModal playerName={scanModal.name} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{onSubmit(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
       {manModal&&<ManualModal playerName={manModal.name} onSubmit={s=>{onSubmit(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
     </>
   );
 }
 
-/* ══════════════════════════════
+/* ══════════════════════
    SCORE TAB
-══════════════════════════════ */
+══════════════════════ */
 function ScoreTab({sorted,room}){
   const mr=room.round-1;
-  return(
-    <>
-      <p className="sec">CLASIFICACIÓN</p>
-      <div className="sg">
-        {sorted.map((p,i)=>{
-          const cls=i===0?"first":i===1?"second":i===2?"third":"";
-          const moved=p._moved;
-          return(
-            <div key={p.id} className={`sc ${cls} ${moved==='up'?'moved-up':moved==='down'?'moved-down':''}`}>
-              <div className="sc-rank">{i===0?"👑":i===1?"🥈":i===2?"🥉":`#${i+1}`}</div>
-              <div className="sc-info">
-                <div className="sc-nm">{p.emoji} {p.name}</div>
-                <div className="sc-dt">{(p.rounds||[]).length} ronda{(p.rounds||[]).length!==1?"s":""} · faltan {Math.max(0,WIN-p.total)} pts</div>
-              </div>
-              <div className="sc-pts">{p.total}</div>
-              <div className="sc-bar" style={{width:`${Math.min(100,(p.total/WIN)*100)}%`}}/>
-              <div className="sc-pct">{Math.round((p.total/WIN)*100)}%</div>
+  return(<>
+    <p className="sec">CLASIFICACIÓN</p>
+    <div className="sg">
+      {sorted.map((p,i)=>{
+        const cls=i===0?"first":i===1?"second":i===2?"third":"";
+        return(
+          <div key={p.id} className={`sc ${cls} ${p._moved==='up'?'moved-up':p._moved==='down'?'moved-down':''}`}>
+            <div className="sc-rank">{i===0?"👑":i===1?"🥈":i===2?"🥉":`#${i+1}`}</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:900,fontSize:".98rem"}}>{p.emoji} {p.name}</div>
+              <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>{(p.rounds||[]).length} ronda{(p.rounds||[]).length!==1?"s":""} · faltan {Math.max(0,WIN-p.total)} pts</div>
             </div>
-          );
-        })}
+            <div className="sc-pts">{p.total}</div>
+            <div className="sc-bar" style={{width:`${Math.min(100,(p.total/WIN)*100)}%`}}/>
+            <div className="sc-pct">{Math.round((p.total/WIN)*100)}%</div>
+          </div>
+        );
+      })}
+    </div>
+    {mr>0&&(<>
+      <div className="div"/>
+      <p className="sec">TABLA DE RONDAS</p>
+      <div className="tw">
+        <table>
+          <thead><tr><th>Jugador</th>{Array.from({length:mr},(_,i)=><th key={i}>R{i+1}</th>)}<th>Total</th></tr></thead>
+          <tbody>{sorted.map((p,ri)=>(
+            <tr key={p.id} className={ri===0?"lr":""}>
+              <td>{p.emoji} {p.name}</td>
+              {(p.rounds||[]).map((r,i)=><td key={i} className={r.score===0?"rz":""}>{r.score}</td>)}
+              {Array.from({length:mr-(p.rounds||[]).length},(_,i)=><td key={"e"+i}>—</td>)}
+              <td className="tc">{p.total}</td>
+            </tr>
+          ))}</tbody>
+        </table>
       </div>
-      {mr>0&&(<>
-        <div className="div"/>
-        <p className="sec">TABLA DE RONDAS</p>
-        <div className="tw">
-          <table>
-            <thead><tr><th>Jugador</th>{Array.from({length:mr},(_,i)=><th key={i}>R{i+1}</th>)}<th>Total</th></tr></thead>
-            <tbody>{sorted.map((p,ri)=>(
-              <tr key={p.id} className={ri===0?"lr":""}>
-                <td>{p.emoji} {p.name}</td>
-                {(p.rounds||[]).map((r,i)=><td key={i} className={r.score===0?"rz":""}>{r.score}</td>)}
-                {Array.from({length:mr-(p.rounds||[]).length},(_,i)=><td key={"e"+i}>—</td>)}
-                <td className="tc">{p.total}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-        <p style={{textAlign:"center",color:"rgba(255,255,255,.22)",fontSize:".7rem",fontWeight:700,letterSpacing:2}}>META: {WIN} PUNTOS</p>
-      </>)}
-    </>
-  );
+      <p style={{textAlign:"center",color:"rgba(255,255,255,.2)",fontSize:".7rem",fontWeight:700,letterSpacing:2}}>META: {WIN} PUNTOS</p>
+    </>)}
+  </>);
 }
 
-/* ══════════════════════════════
-   SPECTATOR SCREEN — ANIMADO
-══════════════════════════════ */
+/* ══════════════════════
+   SPECTATOR
+══════════════════════ */
 function SpectatorScreen({room,sorted,roomCode,demoMode,onBack}){
   return(
     <div className="spec-wrap" style={{maxWidth:480,margin:"0 auto",minHeight:"100dvh"}}>
       <div className="hdr">
-        <div>
-          <div style={{display:"flex",alignItems:"baseline",gap:4}}><span className="logo-f">FLIP</span><span className="logo-7">7</span></div>
-          <span className="logo-sub">Race to 200!</span>
-        </div>
-        <div style={{display:"flex",gap:6}}>
-          <div className="badge spec"><span className="dot"/>📺 {roomCode}</div>
-          <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>✕</button>
+        <div><div style={{display:"flex",alignItems:"baseline",gap:4}}><span className="logo-f">FLIP</span><span className="logo-7">7</span></div><span className="logo-sub">Race to 200!</span></div>
+        <div style={{display:"flex",gap:6}}><div className="badge spec"><span className="dot"/>📺 {roomCode}</div><button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>✕</button></div>
+      </div>
+      <div style={{textAlign:"center",padding:"14px 16px 4px"}}>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",letterSpacing:4,color:"var(--t)",textTransform:"uppercase"}}>📺 EN VIVO</div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.3)",letterSpacing:2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:3}}>
+          <span className="dot"/>SALA {roomCode} · RONDA {room?.round||"—"}
         </div>
       </div>
-      <div className="spec-hero">
-        <div className="spec-title">📺 EN VIVO</div>
-        <div className="spec-sub"><span className="dot"/>SALA {roomCode} · RONDA {room?.round||"—"}</div>
-      </div>
-      {!room?(
-        <div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando…</p></div>
-      ):(
-        <div className="page" style={{paddingTop:8}}>
+      {!room?<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando…</p></div>:(
+        <div className="page" style={{paddingTop:10}}>
           {sorted.map((p,i)=>{
             const cls=i===0?"first":i===1?"second":i===2?"third":"";
-            const moved=p._moved;
             return(
-              <div key={p.id} className={`spec-big-card ${cls} ${moved==='up'?'moved-up':moved==='down'?'moved-down':''}`}>
-                {i===0&&<div className="sbc-glow"/>}
+              <div key={p.id} className={`spec-big-card ${cls} ${p._moved==='up'?'moved-up':p._moved==='down'?'moved-down':''}`}>
+                {i===0&&<div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 30% 50%,rgba(245,200,0,.08) 0%,transparent 70%)",pointerEvents:"none"}}/>}
                 <div className="sbc-rank">{i===0?"👑":i===1?"🥈":i===2?"🥉":`#${i+1}`}</div>
                 <div style={{flex:1}}>
-                  <div style={{fontWeight:900,fontSize:i===0?"1.3rem":"1rem"}}>{p.emoji} {p.name}</div>
-                  <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>
-                    faltan {Math.max(0,WIN-p.total)} pts · {Math.round((p.total/WIN)*100)}%
-                  </div>
+                  <div style={{fontWeight:900,fontSize:i===0?"1.25rem":"1rem"}}>{p.emoji} {p.name}</div>
+                  <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>faltan {Math.max(0,WIN-p.total)} pts · {Math.round((p.total/WIN)*100)}%</div>
                 </div>
                 <div className="sbc-pts">{p.total}</div>
                 <div className="sbc-bar" style={{width:`${Math.min(100,(p.total/WIN)*100)}%`}}/>
               </div>
             );
           })}
-
           {room.round>1&&(<>
             <div className="div"/>
             <p className="sec">AVANCE POR RONDAS</p>
@@ -761,16 +747,15 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack}){
               </table>
             </div>
           </>)}
-          <p style={{textAlign:"center",color:"rgba(255,255,255,.2)",fontSize:".68rem",fontWeight:700,letterSpacing:2,paddingBottom:20}}>AUTO-ACTUALIZA · META {WIN} PTS</p>
         </div>
       )}
     </div>
   );
 }
 
-/* ══════════════════════════════
+/* ══════════════════════
    HISTORY
-══════════════════════════════ */
+══════════════════════ */
 function HistoryTab({sessions}){
   if(!sessions.length)return<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>🃏</div><p style={{fontWeight:700}}>Sin sesiones aún</p></div>;
   return<SesCards sessions={sessions}/>;
@@ -788,26 +773,27 @@ function SesCards({sessions}){
           <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}}>{s.winner}</div>
         </div>
       </div>
-      <div className="hpl">
-        {[...s.players].sort((a,b)=>b.total-a.total).map(p=>(
-          <div key={p.id} className="hpt">{p.emoji} {p.name} — {p.total}pts</div>
-        ))}
-      </div>
+      <div className="hpl">{[...s.players].sort((a,b)=>b.total-a.total).map(p=>(
+        <div key={p.id} className="hpt">{p.emoji} {p.name} — {p.total}pts</div>
+      ))}</div>
     </div>
   ));
 }
 
-/* ══════════════════════════════
-   SCAN MODAL — con API key propia
-══════════════════════════════ */
-function ScanModal({playerName,onResult,onClose,apiKey,setApiKey}){
-  const [phase,setPhase]=useState("pick");
-  const [img,setImg]=useState(null);
-  const [b64,setB64]=useState(null);
-  const [mime,setMime]=useState("image/jpeg");
-  const [res,setRes]=useState(null);
-  const [errMsg,setErrMsg]=useState("");
-  const [localKey,setLocalKey]=useState(apiKey||"");
+/* ══════════════════════
+   SCAN MODAL — Gemini / Anthropic
+══════════════════════ */
+function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
+  const[phase,setPhase]=useState("pick");
+  const[img,setImg]=useState(null);
+  const[b64,setB64]=useState(null);
+  const[mime,setMime]=useState("image/jpeg");
+  const[res,setRes]=useState(null);
+  const[errMsg,setErrMsg]=useState("");
+  const[provider,setProvider]=useState(aiConfig.provider||"gemini");
+  const GEMINI_DEFAULT="AIzaSyClacesVYdU8ZnozkKpL0-KJGFg4DHRG7s";
+  const[apiKey,setApiKey]=useState(aiConfig.key||GEMINI_DEFAULT);
+  const[showKeyEdit,setShowKeyEdit]=useState(false);
   const fileRef=useRef();
 
   function handleFile(e){
@@ -817,27 +803,45 @@ function ScanModal({playerName,onResult,onClose,apiKey,setApiKey}){
     r.readAsDataURL(f);
   }
 
+  const PROMPT=`Esta es una foto de las cartas del juego Flip 7 de un jugador. Suma ÚNICAMENTE los números visibles. Cartas numeradas del 0 al 12. Cartas de acción (Flip,Freeze,Second Chance) NO suman. Cartas con "+N" como "+8" o "+10" SÍ suman ese número. Responde SOLO con JSON sin markdown: {"total":<número>,"cards":[<lista>],"note":"<nota breve en español>"}`;
+
   async function analyze(){
-    const key=localKey.trim();
-    if(!key){setErrMsg("Necesitas ingresar tu API Key de Anthropic arriba.");setPhase("error");return;}
-    setApiKey(key);
+    const key=apiKey.trim();
+    if(!key){setErrMsg("Ingresa tu API Key arriba.");setPhase("error");return;}
+    setAiConfig({provider,key});
     setPhase("analyzing");
     try{
-      const resp=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-opus-4-5",max_tokens:300,messages:[{role:"user",content:[
-          {type:"image",source:{type:"base64",media_type:mime,data:b64}},
-          {type:"text",text:`Esta es una foto de las cartas del juego Flip 7 de un jugador. Suma ÚNICAMENTE los números visibles. Cartas del 0 al 12. Cartas de acción (Flip,Freeze,Second Chance) NO suman. Cartas con "+N" como "+8" o "+10" SÍ suman ese número. Responde SOLO con JSON sin markdown: {"total":<número>,"cards":[<lista>],"note":"<nota breve en español>"}`}
-        ]}]})
-      });
-      if(!resp.ok){const t=await resp.text();throw new Error(`HTTP ${resp.status}: ${t.slice(0,100)}`);}
-      const data=await resp.json();
-      const txt=data.content?.map(c=>c.text||"").join("")||"";
-      const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+      let parsed;
+      if(provider==="gemini"){
+        const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
+          method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({contents:[{parts:[
+            {inline_data:{mime_type:mime,data:b64}},
+            {text:PROMPT}
+          ]}]})
+        });
+        if(!resp.ok){const t=await resp.text();throw new Error(`Gemini ${resp.status}: ${t.slice(0,120)}`);}
+        const data=await resp.json();
+        const txt=data.candidates?.[0]?.content?.parts?.[0]?.text||"";
+        parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+      } else {
+        // Anthropic
+        const resp=await fetch("https://api.anthropic.com/v1/messages",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+          body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:300,messages:[{role:"user",content:[
+            {type:"image",source:{type:"base64",media_type:mime,data:b64}},
+            {type:"text",text:PROMPT}
+          ]}]})
+        });
+        if(!resp.ok){const t=await resp.text();throw new Error(`Anthropic ${resp.status}: ${t.slice(0,120)}`);}
+        const data=await resp.json();
+        const txt=data.content?.map(c=>c.text||"").join("")||"";
+        parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+      }
       snd('score');setRes(parsed);setPhase("result");
     }catch(e){
-      setErrMsg(`Error: ${e.message}. Verifica tu API key o usa captura manual.`);
+      setErrMsg(`${e.message}. Verifica tu API key o usa captura manual.`);
       setPhase("error");
     }
   }
@@ -847,21 +851,38 @@ function ScanModal({playerName,onResult,onClose,apiKey,setApiKey}){
   return(
     <div className="mbg"><div className="ms">
       <div className="mh"/>
-      <div className="mt2">📷 Escanear Cartas</div>
+      <div className="mt2">📷 Scan con IA</div>
       <div className="msub">Turno de: <b style={{color:"#fff"}}>{playerName}</b></div>
 
       {phase==="pick"&&(<>
-        <div className="api-box">
-          <p>🔑 Para analizar cartas con IA necesitas tu API Key de Anthropic.<br/>Consíguela en <b>console.anthropic.com</b> (gratis con créditos iniciales)</p>
-          <input className="inp" style={{margin:0,fontSize:".83rem"}} placeholder="sk-ant-api03-..." value={localKey} onChange={e=>setLocalKey(e.target.value)} onFocus={()=>snd('tap')}/>
+        {/* AI status bar */}
+        <div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.22)",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:"1.3rem"}}>✨</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:900,fontSize:".82rem",color:"var(--t)"}}>Gemini Flash — Listo</div>
+            <div style={{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>1,500 análisis gratis por día · IA incluida</div>
+          </div>
+          <button onClick={()=>{snd('tap');setShowKeyEdit(v=>!v);}} style={{background:"none",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.4)",borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:".68rem",fontWeight:700}}>
+            {showKeyEdit?"▲":"⚙"}
+          </button>
         </div>
+        {showKeyEdit&&(
+          <div className="api-box" style={{marginBottom:12}}>
+            <p>Cambiar IA o key (opcional):</p>
+            <div className="ai-tabs">
+              <button className={`ai-tab ${provider==="gemini"?"on":""}`} onClick={()=>{snd('tap');setProvider("gemini");}}>✨ Gemini<br/><span style={{fontSize:".6rem",opacity:.7}}>GRATIS</span></button>
+              <button className={`ai-tab ${provider==="anthropic"?"on":""}`} onClick={()=>{snd('tap');setProvider("anthropic");}}>🟠 Claude<br/><span style={{fontSize:".6rem",opacity:.7}}>$0.001/img</span></button>
+            </div>
+            <input className="inp" style={{margin:0,fontSize:".82rem"}} placeholder={provider==="gemini"?"AIzaSy...":"sk-ant-api03-..."} value={apiKey} onChange={e=>setApiKey(e.target.value)} onFocus={()=>snd('tap')}/>
+          </div>
+        )}
         <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handleFile}/>
         <div className="ce" onClick={()=>{snd('tap');fileRef.current?.click();}}>
           <div style={{fontSize:"2.8rem"}}>📸</div>
           <div>Toca para abrir la cámara</div>
           <div style={{fontSize:".7rem",opacity:.5}}>Apunta a tus cartas y toma foto</div>
         </div>
-        <p style={{textAlign:"center",color:"rgba(255,255,255,.3)",fontSize:".76rem",fontWeight:700,cursor:"pointer",marginBottom:12}}
+        <p style={{textAlign:"center",color:"rgba(255,255,255,.3)",fontSize:".75rem",fontWeight:700,cursor:"pointer",marginBottom:12}}
           onClick={()=>{snd('tap');if(fileRef.current){fileRef.current.removeAttribute("capture");fileRef.current.click();setTimeout(()=>fileRef.current?.setAttribute("capture","environment"),600);}}}>
           o elegir de galería
         </p>
@@ -881,7 +902,7 @@ function ScanModal({playerName,onResult,onClose,apiKey,setApiKey}){
         <div className="cv" style={{position:"relative"}}>
           <img src={img} alt="" style={{opacity:.4,width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
           <div className="sov"><div className="spin"/>
-            <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}}>Analizando cartas…</div>
+            <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}}>Analizando con {provider==="gemini"?"Gemini ✨":"Claude 🟠"}…</div>
           </div>
         </div>
       )}
@@ -902,7 +923,7 @@ function ScanModal({playerName,onResult,onClose,apiKey,setApiKey}){
       {phase==="error"&&(<>
         <div style={{textAlign:"center",padding:"20px 0"}}>
           <div style={{fontSize:"2.5rem",marginBottom:10}}>⚠️</div>
-          <p style={{fontWeight:800,marginBottom:6,fontSize:".9rem"}}>{errMsg}</p>
+          <p style={{fontWeight:800,marginBottom:6,fontSize:".88rem",lineHeight:1.4}}>{errMsg}</p>
         </div>
         <div className="mr2">
           <button className="mc" onClick={()=>{snd('tap');onClose();}}>Cerrar</button>
@@ -913,44 +934,96 @@ function ScanModal({playerName,onResult,onClose,apiKey,setApiKey}){
   );
 }
 
-/* ══════════════════════════════
-   MANUAL MODAL — numpad 3x3
-══════════════════════════════ */
+/* ══════════════════════
+   MANUAL MODAL con CALCULADORA
+══════════════════════ */
 function ManualModal({playerName,onSubmit,onClose}){
-  const [val,setVal]=useState("");
-  function press(d){
-    snd(d==='0'?'zero':'num');
-    if(d==="⌫"){setVal(v=>v.slice(0,-1));return;}
-    if(val.length>=3)return;
-    setVal(v=>v+d);
+  const[expr,setExpr]=useState("");
+  const[calcResult,setCalcResult]=useState(0);
+  const[error,setError]=useState(false);
+
+  function pressNum(d){
+    snd('num');
+    setExpr(v=>v+d);
   }
+  function pressOp(op){
+    snd('op');
+    setExpr(v=>{
+      if(!v)return v;
+      const last=v.slice(-1);
+      if(['+','-','*','/'].includes(last))return v.slice(0,-1)+op;
+      return v+op;
+    });
+  }
+  function pressDel(){
+    snd('del');
+    setExpr(v=>v.slice(0,-1));
+  }
+  function pressClear(){
+    snd('del');setExpr("");setCalcResult(0);setError(false);
+  }
+
+  useEffect(()=>{
+    if(!expr){setCalcResult(0);setError(false);return;}
+    const r=safeEval(expr);
+    if(r===null){setError(true);}
+    else{setError(false);setCalcResult(r);}
+  },[expr]);
+
+  const display=expr||"0";
+  const finalVal=error?0:calcResult;
+
   return(
     <div className="mbg"><div className="ms">
       <div className="mh"/>
-      <div className="mt2">✏️ Captura Manual</div>
+      <div className="mt2">🧮 Captura Manual</div>
       <div className="msub">Puntos de <b style={{color:"#fff"}}>{playerName}</b> esta ronda</div>
-      <div className="nd">{val||"0"}</div>
-      {/* 3x3 grid: 1-9 */}
+
+      {/* DISPLAY */}
+      <div className="calc-display">
+        <div className="calc-expr">{display}</div>
+        <div className={`calc-result ${error?"error":""}`}>
+          {error?"ERROR":finalVal}
+        </div>
+      </div>
+
+      {/* DIGITS 3x3 */}
       <div className="np-grid">
-        {["1","2","3","4","5","6","7","8","9"].map(d=>(
-          <button key={d} className="npb" onClick={()=>press(d)}>{d}</button>
+        {["7","8","9","4","5","6","1","2","3"].map(d=>(
+          <button key={d} className="npb" onClick={()=>pressNum(d)}>{d}</button>
         ))}
       </div>
-      {/* bottom row: 0 (wide) + delete */}
+
+      {/* BOTTOM: 0 wide + del */}
       <div className="np-bottom">
-        <button className="npb zero-key" onClick={()=>press('0')}>0</button>
-        <button className="npb del-key" onClick={()=>press('⌫')}>⌫</button>
+        <button className="npb zero-key" onClick={()=>pressNum('0')}>0</button>
+        <button className="npb del-key" onClick={pressDel}>⌫</button>
       </div>
-      <button className="npb ok-key" onClick={()=>{snd('score');onSubmit(parseInt(val)||0);}}>✓ OK — {val||"0"} puntos</button>
+
+      {/* OPERATORS */}
+      <div className="np-ops">
+        <button className="npb op-key" onClick={()=>pressOp('+')}>+</button>
+        <button className="npb op-key" onClick={()=>pressOp('-')}>−</button>
+        <button className="npb op-key" onClick={()=>pressOp('*')}>×</button>
+        <button className="npb clr-key" onClick={pressClear}>CLR</button>
+      </div>
+
+      {/* OK */}
+      <button className="npb ok-key" onClick={()=>{
+        if(error||(!expr&&finalVal===0)){snd('zero');onSubmit(0);}
+        else{snd('score');onSubmit(Math.max(0,Math.round(finalVal)));}
+      }}>
+        ✓ CONFIRMAR — <span style={{fontSize:"1.4rem"}}>{error?"0":Math.max(0,Math.round(finalVal))}</span> puntos
+      </button>
       <div style={{height:10}}/>
       <button className="mc" style={{width:"100%"}} onClick={()=>{snd('tap');onClose();}}>Cancelar</button>
     </div></div>
   );
 }
 
-/* ══════════════════════════════
+/* ══════════════════════
    WINNER
-══════════════════════════════ */
+══════════════════════ */
 function WinnerScreen({winner,onClose,onNew}){
   const dots=Array.from({length:40},(_,i)=>({id:i,c:CONF[i%CONF.length],l:`${Math.random()*100}%`,dl:`${Math.random()*2.5}s`,dr:`${2.5+Math.random()*2.5}s`,sz:`${7+Math.random()*10}px`,sh:Math.random()>.5?"2px":"50%"}));
   return(
