@@ -881,30 +881,47 @@ Responde SOLO con JSON sin markdown ni explicación extra:
     try{
       let parsed;
       if(provider==="gemini"){
-        // Try models in order until one works
-        // Modelos gratuitos activos en Gemini API - Abril 2026
-        // gemini-1.5 y 2.0 están DEPRECADOS y dan 404
-        const MODELS=["gemini-2.5-flash-lite-preview-06-17","gemini-2.5-flash","gemini-2.5-flash-preview-05-20","gemini-2.5-pro"];
+        const MODELS=["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-2.5-pro"];
         let lastErr=null;
+        let debugLog=[];
         for(const model of MODELS){
           try{
+            debugLog.push(`→${model}`);
             const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,{
-              method:"POST",headers:{"Content-Type":"application/json"},
-              body:JSON.stringify({contents:[{parts:[
-                {inline_data:{mime_type:mime,data:b64}},
-                {text:PROMPT}
-              ]}]})
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({
+                contents:[{parts:[
+                  {inline_data:{mime_type:mime,data:b64}},
+                  {text:PROMPT}
+                ]}],
+                generationConfig:{temperature:0.1,maxOutputTokens:600}
+              })
             });
-            if(resp.status===429){lastErr=new Error(`Cuota excedida (429). Espera 1 minuto e intenta de nuevo.`);continue;}
-            if(resp.status===404){lastErr=new Error(`Modelo ${model} no disponible (404), probando siguiente...`);continue;}
-            if(!resp.ok){const t=await resp.text();lastErr=new Error(`Gemini ${resp.status}: ${t.slice(0,100)}`);continue;}
-            const data=await resp.json();
+            const rawBody=await resp.text();
+            debugLog.push(`[${resp.status}]${rawBody.slice(0,250)}`);
+            if(resp.status===429){lastErr=new Error(`⏱ Cuota excedida (429). Espera 1 min e intenta.`);continue;}
+            if(resp.status===404){lastErr=new Error(`Modelo ${model} no encontrado (404)`);continue;}
+            if(resp.status===400){lastErr=new Error(`Bad request 400: ${rawBody.slice(0,200)}`);continue;}
+            if(resp.status===403){lastErr=new Error(`🔑 API Key sin permisos (403): ${rawBody.slice(0,150)}`);continue;}
+            if(!resp.ok){lastErr=new Error(`HTTP ${resp.status}: ${rawBody.slice(0,150)}`);continue;}
+            const data=JSON.parse(rawBody);
+            const blockReason=data.candidates?.[0]?.finishReason;
+            const safeBlock=data.promptFeedback?.blockReason;
             const rawTxt=data.candidates?.[0]?.content?.parts?.[0]?.text||"";
-            parsed=JSON.parse(rawTxt.replace(/```json|```/g,"").trim());
-            break; // success!
-          }catch(e){lastErr=e;}
+            debugLog.push(`txt="${rawTxt.slice(0,150)}" finish=${blockReason} safe=${safeBlock}`);
+            if(!rawTxt){lastErr=new Error(`Respuesta vacía. finish=${blockReason} safe=${safeBlock} resp=${JSON.stringify(data).slice(0,200)}`);continue;}
+            const cleanTxt=rawTxt.replace(/```json|```/g,"").trim();
+            parsed=JSON.parse(cleanTxt);
+            break;
+          }catch(ex){
+            debugLog.push(`EX:${ex.message}`);
+            lastErr=ex;
+          }
         }
-        if(!parsed) throw lastErr||new Error("Todos los modelos de Gemini fallaron.");
+        if(!parsed){
+          throw new Error((lastErr?.message||"Sin respuesta")+`\n\nDEBUG:\n${debugLog.join("\n").slice(0,600)}`);
+        }
       } else {
         // Anthropic
         const resp=await fetch("https://api.anthropic.com/v1/messages",{
@@ -1022,7 +1039,7 @@ Responde SOLO con JSON sin markdown ni explicación extra:
       {phase==="error"&&(<>
         <div style={{textAlign:"center",padding:"20px 0"}}>
           <div style={{fontSize:"2.5rem",marginBottom:10}}>{errMsg.includes("Cuota")?"⏱":"⚠️"}</div>
-          <p style={{fontWeight:800,marginBottom:10,fontSize:".88rem",lineHeight:1.5}}>{errMsg}</p>
+          <p style={{fontWeight:800,marginBottom:10,fontSize:".82rem",lineHeight:1.5,textAlign:"left",whiteSpace:"pre-wrap",background:"rgba(0,0,0,.3)",padding:"10px",borderRadius:10,maxHeight:200,overflowY:"auto",wordBreak:"break-all"}}>{errMsg}</p>
           {errMsg.includes("Cuota")&&<div style={{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--y)"}}>
             💡 Tip: la cuota gratuita es 15 req/min.<br/>Usa ✏️ Manual mientras esperas.
           </div>}
