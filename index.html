@@ -249,6 +249,30 @@ function snd(t){
   else if(t==='zero') beep(400,.08,'triangle',.18);
   else if(t==='op')   beep(550,.06,'triangle',.2);
   else if(t==='del')  beep(300,.05,'sine',.15);
+  else if(t==='fanfare'){
+    // Victory fanfare melody: C-E-G-C (ascending triumphant)
+    const notes=[523,659,784,1047,784,1047,1175,1047];
+    const durs=[.12,.12,.12,.25,.1,.12,.12,.35];
+    let t2=0;
+    notes.forEach((f,i)=>{
+      setTimeout(()=>beep(f,durs[i],'sine',.4),t2*1000);
+      t2+=durs[i]+.04;
+    });
+  }
+  else if(t==='victory'){
+    // Full victory song - plays on winner screen
+    const melody=[523,523,523,392,523,659,392,330,440,494,466,440,392,523,659,784];
+    const dur=[.15,.15,.15,.2,.3,.5,.3,.2,.15,.15,.15,.15,.2,.2,.2,.5];
+    let t2=0;
+    melody.forEach((f,i)=>{
+      setTimeout(()=>beep(f,dur[i],'sine',.35),t2*1000);
+      t2+=dur[i]+.05;
+    });
+  }
+  else if(t==='spec_join'){
+    // Chime when spectator joins
+    [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.15,'sine',.3),i*180));
+  }
 }
 
 // Safe eval for calculator
@@ -326,7 +350,7 @@ function App(){
       prevSortedRef.current=newSorted.map(p=>({...p}));
       setRoom(data);
       if(data.finished&&data.winner&&!winnerShown.current){
-        winnerShown.current=true;setWinner(data.winner);snd('winner');
+        winnerShown.current=true;setWinner(data.winner);snd('winner');setTimeout(()=>snd('victory'),400);
         setSessions(prev=>{
           if(prev.find(s=>s.code===data.code&&s.date===data.createdAt))return prev;
           const s=[{id:uid(),date:data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,demo:demoMode},...prev].slice(0,20);
@@ -383,7 +407,7 @@ function App(){
   const sorted=room?[...room.players].sort((a,b)=>b.total-a.total):[];
 
   if(screen==="home")return<HomeScreen onEnter={enterGame} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig}/>;
-  if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame}/>;
+  if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner}/>;
   return(
     <div className="wrap">
       <div className="hdr">
@@ -700,9 +724,27 @@ function ScoreTab({sorted,room}){
 /* ══════════════════════
    SPECTATOR
 ══════════════════════ */
-function SpectatorScreen({room,sorted,roomCode,demoMode,onBack}){
+function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner}){
+  const[joined,setJoined]=React.useState(false);
+  const[showJoinAnim,setShowJoinAnim]=React.useState(true);
+  React.useEffect(()=>{
+    snd('spec_join');
+    setTimeout(()=>{setShowJoinAnim(false);setJoined(true);},2800);
+  },[]);
   return(
     <div className="spec-wrap" style={{maxWidth:480,margin:"0 auto",minHeight:"100dvh"}}>
+      {/* JOIN ANIMATION OVERLAY */}
+      {showJoinAnim&&<div style={{position:"fixed",inset:0,background:"linear-gradient(135deg,#0a0a18,#1a1a2e)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:500,animation:"fadeOut 2.5s forwards"}}>
+        <style>{"@keyframes fadeOut{0%{opacity:1}70%{opacity:1}100%{opacity:0;pointer-events:none}} @keyframes zoomIn{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.15) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}} @keyframes slidePill{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}"}</style>
+        <div style={{animation:"zoomIn .6s cubic-bezier(.34,1.56,.64,1) forwards",textAlign:"center"}}>
+          <div style={{fontSize:"5rem",marginBottom:10}}>📺</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--t),#1A9A94)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:6}}>MARCADOR</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--y),var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:20}}>EN VIVO</div>
+          <div style={{animation:"slidePill .5s .4s both",fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)",letterSpacing:3,background:"rgba(255,255,255,.06)",padding:"8px 20px",borderRadius:30,border:"1px solid rgba(255,255,255,.1)"}}>SALA {roomCode} 🔴 LIVE</div>
+        </div>
+      </div>}
+      {/* WINNER OVERLAY FOR SPECTATOR */}
+      {winner&&<WinnerScreen winner={winner} onClose={()=>{}} onNew={onBack}/>}
       <div className="hdr">
         <div><div style={{display:"flex",alignItems:"baseline",gap:4}}><span className="logo-f">FLIP</span><span className="logo-7">7</span></div><span className="logo-sub">Race to 200!</span></div>
         <div style={{display:"flex",gap:6}}><div className="badge spec"><span className="dot"/>📺 {roomCode}</div><button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>✕</button></div>
@@ -803,7 +845,23 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
     r.readAsDataURL(f);
   }
 
-  const PROMPT=`Esta es una foto de las cartas del juego Flip 7 de un jugador. Suma ÚNICAMENTE los números visibles. Cartas numeradas del 0 al 12. Cartas de acción (Flip,Freeze,Second Chance) NO suman. Cartas con "+N" como "+8" o "+10" SÍ suman ese número. Responde SOLO con JSON sin markdown: {"total":<número>,"cards":[<lista>],"note":"<nota breve en español>"}`;
+  const PROMPT=`Eres un experto en el juego de cartas Flip 7. Analiza esta foto de las cartas de UN jugador y calcula su puntaje siguiendo ESTRICTAMENTE estas reglas en orden:
+
+TIPOS DE CARTAS:
+1. CARTAS NUMÉRICAS (blancas/crema con número): valores del 0 al 12. Estas son la BASE.
+2. CARTAS MULTIPLICADORAS (amarillas con número rojo como "x2","x3"): multiplican el total base.
+3. CARTAS SUMA TARDÍA (amarillas con "+N" como "+8","+10"): se suman AL FINAL, después de multiplicar.
+4. CARTAS DE ACCIÓN (Flip, Freeze, Second Chance, etc.): NO tienen valor numérico, IGNÓRALAS.
+
+ORDEN DE CÁLCULO:
+PASO 1: Suma todas las cartas numéricas base (blancas/crema) → subtotal_base
+PASO 2: Aplica multiplicadores si existen → subtotal_base × multiplicador
+PASO 3: Suma las cartas amarillas con "+" → resultado_final
+
+EJEMPLO: tienes 4, 7, 3 (base=14) + x2 (×2=28) + +8 (28+8=36) → total=36
+
+Responde SOLO con JSON sin markdown ni explicación extra:
+{"total":<número entero>,"base_cards":[<lista números base>],"multipliers":[<lista multiplicadores>],"plus_cards":[<lista sumas tardías>],"calculation":"<fórmula como (4+7+3)×2+8=36>","note":"<nota breve en español>"}`;
 
   async function analyze(){
     const key=apiKey.trim();
@@ -813,7 +871,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
     try{
       let parsed;
       if(provider==="gemini"){
-        const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
+        const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{
           method:"POST",headers:{"Content-Type":"application/json"},
           body:JSON.stringify({contents:[{parts:[
             {inline_data:{mime_type:mime,data:b64}},
@@ -911,8 +969,16 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
         <div style={{textAlign:"center",padding:"12px 0 6px"}}>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"rgba(255,255,255,.38)",letterSpacing:3,marginBottom:4}}>TOTAL CALCULADO</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"5.5rem",color:"var(--y)",lineHeight:1,textShadow:"4px 4px 0 var(--or)"}}>{res.total}</div>
-          <div style={{color:"rgba(255,255,255,.4)",fontWeight:700,fontSize:".82rem",marginTop:6}}>Cartas: {res.cards?.join(" + ")||"—"}</div>
-          {res.note&&<div style={{color:"rgba(255,255,255,.28)",fontSize:".74rem",marginTop:4,fontWeight:700}}>{res.note}</div>}
+          {res.calculation&&<div style={{background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",borderRadius:10,padding:"8px 12px",marginTop:8,marginBottom:4}}>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:3}}>CÁLCULO</div>
+            <div style={{fontFamily:"'Nunito',sans-serif",fontSize:".82rem",color:"var(--y)",fontWeight:800}}>{res.calculation}</div>
+          </div>}
+          <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:6,marginTop:8}}>
+            {res.base_cards?.length>0&&<div style={{background:"rgba(255,255,255,.08)",borderRadius:8,padding:"4px 10px",fontSize:".72rem",fontWeight:800}}>🔢 Base: {res.base_cards.join("+")||"—"}</div>}
+            {res.multipliers?.length>0&&<div style={{background:"rgba(230,57,70,.15)",borderRadius:8,padding:"4px 10px",fontSize:".72rem",fontWeight:800,color:"#ff9999"}}>✖️ ×{res.multipliers.join("×")}</div>}
+            {res.plus_cards?.length>0&&<div style={{background:"rgba(59,178,115,.15)",borderRadius:8,padding:"4px 10px",fontSize:".72rem",fontWeight:800,color:"var(--gr)"}}>➕ +{res.plus_cards.join("+")}</div>}
+          </div>
+          {res.note&&<div style={{color:"rgba(255,255,255,.28)",fontSize:".72rem",marginTop:6,fontWeight:700}}>{res.note}</div>}
         </div>
         <div className="mr2">
           <button className="mc" onClick={()=>{snd('tap');retake();}}>🔄 Repetir</button>
@@ -1025,6 +1091,7 @@ function ManualModal({playerName,onSubmit,onClose}){
    WINNER
 ══════════════════════ */
 function WinnerScreen({winner,onClose,onNew}){
+  React.useEffect(()=>{ setTimeout(()=>snd('victory'),300); },[]);
   const dots=Array.from({length:40},(_,i)=>({id:i,c:CONF[i%CONF.length],l:`${Math.random()*100}%`,dl:`${Math.random()*2.5}s`,dr:`${2.5+Math.random()*2.5}s`,sz:`${7+Math.random()*10}px`,sh:Math.random()>.5?"2px":"50%"}));
   return(
     <div className="wb">
