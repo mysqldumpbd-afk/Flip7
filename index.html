@@ -737,13 +737,15 @@ function ScoreTab({sorted,room}){
 function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner}){
   const[joined,setJoined]=React.useState(false);
   const[showJoinAnim,setShowJoinAnim]=React.useState(true);
-  React.useEffect(()=>{
-    snd('spec_join');
-    setTimeout(()=>{setShowJoinAnim(false);setJoined(true);},2800);
-  },[]);
+  const[showWinnerOverlay,setShowWinnerOverlay]=React.useState(!!winner);
+  React.useEffect(()=>{ snd('spec_join'); setTimeout(()=>{setShowJoinAnim(false);setJoined(true);},2800); },[]);
+  React.useEffect(()=>{ if(winner) setShowWinnerOverlay(true); },[winner]);
+
+  const maxRound=(room?.round||1)-1;
+
   return(
     <div className="spec-wrap" style={{maxWidth:480,margin:"0 auto",minHeight:"100dvh"}}>
-      {/* JOIN ANIMATION OVERLAY */}
+      {/* JOIN ANIMATION */}
       {showJoinAnim&&<div style={{position:"fixed",inset:0,background:"linear-gradient(135deg,#0a0a18,#1a1a2e)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:500,animation:"fadeOut 2.5s forwards"}}>
         <style>{"@keyframes fadeOut{0%{opacity:1}70%{opacity:1}100%{opacity:0;pointer-events:none}} @keyframes zoomIn{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.15) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}} @keyframes slidePill{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}"}</style>
         <div style={{animation:"zoomIn .6s cubic-bezier(.34,1.56,.64,1) forwards",textAlign:"center"}}>
@@ -753,52 +755,135 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner}){
           <div style={{animation:"slidePill .5s .4s both",fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)",letterSpacing:3,background:"rgba(255,255,255,.06)",padding:"8px 20px",borderRadius:30,border:"1px solid rgba(255,255,255,.1)"}}>SALA {roomCode} 🔴 LIVE</div>
         </div>
       </div>}
+
       {/* WINNER OVERLAY FOR SPECTATOR */}
-      {winner&&<WinnerScreen winner={winner} onClose={()=>{}} onNew={onBack}/>}
+      {showWinnerOverlay&&winner&&(
+        <div style={{position:"fixed",inset:0,zIndex:400,background:"radial-gradient(circle at 50% 35%,#2a1800 0%,#0F0F1A 65%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:28,overflow:"hidden"}}>
+          {/* Confetti */}
+          {Array.from({length:40},(_,i)=>({c:["#F5C800","#E63946","#2EC4B6","#FF6B35","#fff","#3BB273"][i%6],l:`${Math.random()*100}%`,dl:`${Math.random()*2.5}s`,dr:`${2.5+Math.random()*2.5}s`,sz:`${7+Math.random()*10}px`,sh:Math.random()>.5?"2px":"50%"})).map((d,i)=>(
+            <div key={i} style={{position:"absolute",background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:d.sh,animation:`cf ${d.dr} ${d.dl} linear infinite`}}/>
+          ))}
+          <div style={{fontSize:"5rem",animation:"fl 2s ease-in-out infinite",marginBottom:8}}>🏆</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase",marginBottom:8}}>¡Ganador!</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"5rem",letterSpacing:3,background:"linear-gradient(135deg,var(--y) 30%,var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:10}}>FLIP 7</div>
+          {/* BIG winner name */}
+          <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:"3.2rem",color:"white",letterSpacing:2,lineHeight:1.1,marginBottom:6,textShadow:"0 0 30px rgba(245,200,0,.5)"}}>
+            {winner.emoji} {winner.name}
+          </div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:"1.1rem",color:"var(--y)",marginBottom:30,letterSpacing:2}}>
+            {winner.total} PUNTOS · RACE TO 200!
+          </div>
+          <button className="btn btn-y" onClick={()=>setShowWinnerOverlay(false)} style={{maxWidth:260,marginBottom:10}}>
+            📊 Ver marcador final
+          </button>
+          <button className="btn btn-g" onClick={onBack} style={{maxWidth:260}}>Salir</button>
+        </div>
+      )}
+
+      {/* HEADER */}
       <div className="hdr">
-        <div><div style={{display:"flex",alignItems:"baseline",gap:4}}><span className="logo-f">FLIP</span><span className="logo-7">7</span></div><span className="logo-sub">Race to 200!</span></div>
-        <div style={{display:"flex",gap:6}}><div className="badge spec"><span className="dot"/>📺 {roomCode}</div><button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>✕</button></div>
+        <div>
+          <div style={{display:"flex",alignItems:"baseline",gap:4}}><span className="logo-f">FLIP</span><span className="logo-7">7</span></div>
+          <span className="logo-sub">Race to 200!</span>
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <div className="badge spec"><span className="dot"/>📺 {roomCode}</div>
+          <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>✕</button>
+        </div>
       </div>
-      <div style={{textAlign:"center",padding:"14px 16px 4px"}}>
-        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",letterSpacing:4,color:"var(--t)",textTransform:"uppercase"}}>📺 EN VIVO</div>
-        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.3)",letterSpacing:2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:3}}>
+
+      {/* LIVE HEADER */}
+      <div style={{padding:"10px 16px 0",textAlign:"center"}}>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase"}}>📺 MARCADOR EN VIVO</div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.3)",letterSpacing:2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:3}}>
           <span className="dot"/>SALA {roomCode} · RONDA {room?.round||"—"}
         </div>
       </div>
-      {!room?<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando…</p></div>:(
-        <div className="page" style={{paddingTop:10}}>
-          {sorted.map((p,i)=>{
-            const cls=i===0?"first":i===1?"second":i===2?"third":"";
-            return(
-              <div key={p.id} className={`spec-big-card ${cls} ${p._moved==='up'?'moved-up':p._moved==='down'?'moved-down':''}`}>
-                {i===0&&<div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 30% 50%,rgba(245,200,0,.08) 0%,transparent 70%)",pointerEvents:"none"}}/>}
-                <div className="sbc-rank">{i===0?"👑":i===1?"🥈":i===2?"🥉":`#${i+1}`}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:900,fontSize:i===0?"1.25rem":"1rem"}}>{p.emoji} {p.name}</div>
-                  <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>faltan {Math.max(0,WIN-p.total)} pts · {Math.round((p.total/WIN)*100)}%</div>
+
+      {!room?(
+        <div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando…</p></div>
+      ):(
+        <div style={{padding:"10px 12px 80px",overflowY:"auto"}}>
+
+          {/* BIG SCORE CARDS */}
+          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
+            {sorted.map((p,i)=>{
+              const pct=Math.min(100,(p.total/200)*100);
+              const isFirst=i===0;
+              const isSecond=i===1;
+              const isThird=i===2;
+              const rankEmoji=isFirst?"👑":isSecond?"🥈":isThird?"🥉":`#${i+1}`;
+              const borderColor=isFirst?"rgba(245,200,0,.6)":isSecond?"rgba(192,192,192,.4)":isThird?"rgba(205,127,50,.4)":"rgba(255,255,255,.08)";
+              const bg=isFirst?"linear-gradient(135deg,rgba(245,200,0,.15),rgba(255,107,53,.1))":isSecond?"rgba(192,192,192,.05)":isThird?"rgba(205,127,50,.05)":"rgba(255,255,255,.03)";
+              const scoreColor=isFirst?"var(--y)":isSecond?"#C0C0C0":isThird?"#CD7F32":"rgba(255,255,255,.55)";
+              const scoreSize=isFirst?"5rem":isSecond?"4rem":"3.2rem";
+              const nameSize=isFirst?"1.5rem":"1.05rem";
+              const pad=isFirst?"20px 18px":"14px 16px";
+
+              return(
+                <div key={p.id} className={`${p._moved==='up'?'moved-up':p._moved==='down'?'moved-down':''}`}
+                  style={{borderRadius:18,padding:pad,display:"flex",alignItems:"center",gap:14,position:"relative",overflow:"hidden",border:`2px solid ${borderColor}`,background:bg,transition:"all .6s cubic-bezier(.34,1.56,.64,1)"}}>
+                  {isFirst&&<div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse at 20% 50%,rgba(245,200,0,.1) 0%,transparent 60%)",pointerEvents:"none"}}/>}
+                  {/* Rank */}
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:isFirst?"3.5rem":"2.5rem",color:scoreColor,lineHeight:1,width:isFirst?56:44,flexShrink:0,textAlign:"center"}}>
+                    {rankEmoji}
+                  </div>
+                  {/* Info */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:900,fontSize:nameSize,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {p.emoji} {p.name}
+                    </div>
+                    <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>
+                      faltan {Math.max(0,200-p.total)} pts · {Math.round(pct)}%
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{height:isFirst?6:4,background:"rgba(255,255,255,.08)",borderRadius:3,marginTop:5,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${p.color},${p.color}cc)`,borderRadius:3,transition:"width 1.2s cubic-bezier(.4,0,.2,1)"}}/>
+                    </div>
+                  </div>
+                  {/* Score */}
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:scoreSize,lineHeight:1,color:scoreColor,flexShrink:0,textShadow:isFirst?`0 0 20px rgba(245,200,0,.4)`:"none",transition:"all .5s"}}>
+                    {p.total}
+                  </div>
+                  {/* Bottom bar */}
+                  <div style={{position:"absolute",bottom:0,left:0,height:isFirst?5:3,width:`${pct}%`,background:`linear-gradient(90deg,var(--y),var(--or))`,transition:"width 1.2s cubic-bezier(.4,0,.2,1)"}}/>
                 </div>
-                <div className="sbc-pts">{p.total}</div>
-                <div className="sbc-bar" style={{width:`${Math.min(100,(p.total/WIN)*100)}%`}}/>
-              </div>
-            );
-          })}
-          {room.round>1&&(<>
-            <div className="div"/>
-            <p className="sec">AVANCE POR RONDAS</p>
+              );
+            })}
+          </div>
+
+          {/* ROUND TABLE — always visible if rounds played */}
+          {maxRound>0&&(<>
+            <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"4px 0 12px"}}/>
+            <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>
+              AVANCE POR RONDAS
+            </p>
             <div className="tw">
               <table>
-                <thead><tr><th>Jugador</th>{Array.from({length:room.round-1},(_,i)=><th key={i}>R{i+1}</th>)}<th>Total</th></tr></thead>
-                <tbody>{sorted.map((p,ri)=>(
-                  <tr key={p.id} className={ri===0?"lr":""}>
-                    <td>{p.emoji} {p.name}</td>
-                    {(p.rounds||[]).map((r,i)=><td key={i} className={r.score===0?"rz":""}>{r.score}</td>)}
-                    {Array.from({length:(room.round-1)-(p.rounds||[]).length},(_,i)=><td key={"e"+i}>—</td>)}
-                    <td className="tc">{p.total}</td>
+                <thead>
+                  <tr>
+                    <th>Jugador</th>
+                    {Array.from({length:maxRound},(_,i)=><th key={i}>R{i+1}</th>)}
+                    <th>Total</th>
                   </tr>
-                ))}</tbody>
+                </thead>
+                <tbody>
+                  {sorted.map((p,ri)=>(
+                    <tr key={p.id} className={ri===0?"lr":""}>
+                      <td style={{fontSize:".82rem"}}>{p.emoji} {p.name}</td>
+                      {(p.rounds||[]).map((r,i)=><td key={i} className={r.score===0?"rz":""}>{r.score}</td>)}
+                      {Array.from({length:maxRound-(p.rounds||[]).length},(_,i)=><td key={"e"+i}>—</td>)}
+                      <td className="tc">{p.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             </div>
           </>)}
+
+          <p style={{textAlign:"center",color:"rgba(255,255,255,.2)",fontSize:".68rem",fontWeight:700,letterSpacing:2,paddingBottom:10}}>
+            AUTO-ACTUALIZA · META 200 PTS
+          </p>
         </div>
       )}
     </div>
@@ -1101,7 +1186,7 @@ function ResultEditor({res, onResult, onRetake}){
   const[adding,setAdding]=React.useState(false);
   const[newVal,setNewVal]=React.useState("");
 
-  const total = cards.reduce((a,b)=>a+b,0);
+  const total = cards.reduce((a,b)=>Number(a)+Number(b),0);
 
   function removeCard(idx){
     snd('del');
@@ -1171,7 +1256,7 @@ function ResultEditor({res, onResult, onRetake}){
         </div>
         {cards.length>0&&(
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.35)",marginTop:2}}>
-            {cards.join(" + ")} = {total}
+            {cards.map(Number).join(" + ")} = {cards.map(Number).reduce((a,b)=>a+b,0)}
           </div>
         )}
         {res.note&&(
