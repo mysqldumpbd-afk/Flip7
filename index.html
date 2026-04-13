@@ -328,8 +328,31 @@ function App(){
   const[sessions,setSessions]=useState(()=>{try{return JSON.parse(localStorage.getItem("f7sess")||"[]")}catch{return[]}});
   const[tab,setTab]=useState("round");
   const[winner,setWinner]=useState(null);
-  const GEMINI_DEFAULT="AIzaSyClacesVYdU8ZnozkKpL0-KJGFg4DHRG7s";
-  const[aiConfig,setAiConfig]=useState(()=>{try{const s=JSON.parse(localStorage.getItem("f7ai")||'{}');return{provider:s.provider||"gemini",key:s.key||GEMINI_DEFAULT};}catch{return{provider:"gemini",key:GEMINI_DEFAULT}}});
+  const[aiConfig,setAiConfig]=useState({provider:"gemini",key:""});
+  const[aiLoaded,setAiLoaded]=useState(false);
+
+  // Load AI key from Firebase /config/ai on startup (hides key from source code)
+  useEffect(()=>{
+    async function loadAiConfig(){
+      try{
+        // Try Firebase first
+        const snap = await _db.ref("config/ai").once("value");
+        const fbCfg = snap.val();
+        if(fbCfg && fbCfg.key){
+          setAiConfig({provider: fbCfg.provider||"gemini", key: fbCfg.key});
+          setAiLoaded(true);
+          return;
+        }
+      }catch(e){ console.log("Firebase config not available, using local"); }
+      // Fallback to localStorage or default
+      try{
+        const s=JSON.parse(localStorage.getItem("f7ai")||"{}");
+        setAiConfig({provider:s.provider||"gemini", key:s.key||""});
+      }catch{}
+      setAiLoaded(true);
+    }
+    loadAiConfig();
+  },[]);
   const winnerShown=useRef(false);
   const unsubRef=useRef(null);
   const dbRef=useRef(makeDB(false));
@@ -445,7 +468,7 @@ function App(){
       <div className="page">
         {demoMode&&tab==="round"&&<div className="demo-banner">🧪 <span>MODO DEMO — local, sin Firebase</span></div>}
         {tab==="round"&&!room&&<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 16px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando…</p></div>}
-        {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig} onRematch={startRematch} onEndGame={leaveGame}/>}
+        {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig} onRematch={startRematch} onEndGame={leaveGame} roomCode={roomCode}/>}
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room}/>}
         {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}}/>}
       </div>
@@ -633,7 +656,7 @@ function ErrBox({err}){
 /* ══════════════════════
    ROUND TAB
 ══════════════════════ */
-function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,aiConfig,setAiConfig,onRematch,onEndGame}){
+function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,aiConfig,setAiConfig,onRematch,onEndGame,roomCode}){
   const[scanModal,setScan]=useState(null);
   const[manModal,setMan]=useState(null);
   const canControl=pid=>!myPlayerId||myPlayerId===pid;
@@ -1013,8 +1036,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   const[res,setRes]=useState(null);
   const[errMsg,setErrMsg]=useState("");
   const[provider,setProvider]=useState(aiConfig.provider||"gemini");
-  const GEMINI_DEFAULT="AIzaSyClacesVYdU8ZnozkKpL0-KJGFg4DHRG7s";
-  const[apiKey,setApiKey]=useState(aiConfig.key||GEMINI_DEFAULT);
+  const[apiKey,setApiKey]=useState(aiConfig.key||"");
   const[showKeyEdit,setShowKeyEdit]=useState(false);
   const[scanMode,setScanMode]=useState("full");
   const fileRef=useRef();
@@ -1199,8 +1221,8 @@ Responde ÚNICAMENTE con este JSON sin markdown:
         <div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.22)",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:"1.3rem"}}>✨</span>
           <div style={{flex:1}}>
-            <div style={{fontWeight:900,fontSize:".82rem",color:"var(--t)"}}>✨ Gemini 2.5 Flash — Activo</div>
-            <div style={{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>1,500 análisis gratis por día · IA incluida</div>
+            <div style={{fontWeight:900,fontSize:".82rem",color:"var(--t)"}}>{apiKey?"✨ Gemini 2.5 Flash — Activo":"⏳ Cargando configuración…"}</div>
+            <div style={{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>{apiKey?"IA incluida · Lista para usar":"La key se carga desde Firebase automáticamente"}</div>
           </div>
           <button onClick={()=>{snd('tap');setShowKeyEdit(v=>!v);}} style={{background:"none",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.4)",borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:".68rem",fontWeight:700}}>
             {showKeyEdit?"▲":"⚙"}
