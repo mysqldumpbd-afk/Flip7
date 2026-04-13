@@ -856,42 +856,20 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
     r.readAsDataURL(f);
   }
 
-  const PROMPT=`Eres un lector de cartas del juego Flip 7. Tu ÚNICA tarea es LEER los números y el texto que aparece en las cartas. NO interpretes, NO calcules, NO asumas.
+  const PROMPT=`Mira esta foto de cartas del juego Flip 7.
 
-INSTRUCCIONES ESTRICTAS:
+Tu ÚNICA tarea: lee los números que aparecen en las cartas de fondo BLANCO o CREMA.
+Las cartas base tienen escrito el número en grande y debajo el nombre en inglés (SEVEN, TEN, TWELVE, etc.)
 
-1. MIRA cada carta visible en la foto.
-2. LEE el texto escrito en ella (puede estar en inglés como SEVEN, TEN, TWELVE, etc.)
-3. Para cada carta reporta:
-   - El número que ves (o el texto si no ves número claro)
-   - Si el fondo es BLANCO/CREMA o AMARILLO/DORADO
-   - Si dice algo especial como "x2", "+2", "+4", "+6", "+8", "+10", "THE SUM OF YOUR NUMBER CARDS"
+IGNORA completamente:
+- Cualquier carta de fondo AMARILLO o DORADO
+- Cualquier carta de acción (Flip, Freeze, Second Chance)
+- Cualquier símbolo como x2, +2, +4, +6, +8, +10
 
-REGLAS DE CLASIFICACIÓN (solo si estás SEGURO):
-- Carta con fondo BLANCO/CREMA + número 0-12 = carta BASE
-- Carta con fondo CLARAMENTE AMARILLO/DORADO + símbolo "x2" = MULTIPLICADOR (solo existe x2)
-- Carta con fondo CLARAMENTE AMARILLO/DORADO + "+N THE SUM OF YOUR NUMBER CARDS" = SUMA TARDÍA
+SOLO reporta los números de cartas blancas/crema que veas claramente.
 
-SI TIENES DUDA sobre si una carta es amarilla o blanca → ponla como BASE.
-SI NO PUEDES LEER un número claramente → indica "ilegible".
-NO INVENTES modificadores. Solo reporta lo que VES con certeza.
-
-CALCULO (solo después de identificar con certeza):
-- Suma los números BASE
-- Si hay x2 amarillo CONFIRMADO: multiplica
-- Si hay +N amarillo CONFIRMADO: suma al final
-
-Responde con este JSON exacto:
-{
-  "cards_seen": [{"value": <número o texto>, "background": "white|yellow|unclear", "type": "base|multiplier|plus|action|unclear", "text_on_card": "<texto exacto visible>"}],
-  "base_cards": [<solo números claramente base>],
-  "multiplier": <2 solo si hay x2 AMARILLO CONFIRMADO, sino null>,
-  "plus_cards": [<solo N de cartas +N AMARILLAS CONFIRMADAS>],
-  "total": <número calculado>,
-  "calculation": "<fórmula>",
-  "confidence": "high|medium|low",
-  "note": "<qué viste exactamente, incluyendo dudas>"
-}`;
+Responde ÚNICAMENTE con este JSON sin markdown:
+{"cards":[<lista de números enteros que leíste>],"total":<suma de esos números>,"note":"<qué cartas viste: ej NINE=9, TEN=10, TWELVE=12>"}`;
 
   async function analyze(){
     const key=apiKey.trim();
@@ -1065,19 +1043,11 @@ Responde con este JSON exacto:
       {phase==="preview"&&(<>
         <div className="cv"><img src={img} alt="preview"/></div>
         <p style={{textAlign:"center",color:"rgba(255,255,255,.45)",fontWeight:700,fontSize:".82rem",marginBottom:8}}>¿Se ven bien todas las cartas?</p>
-        {/* Mode selector */}
-        <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"10px 14px",marginBottom:10}}>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8}}>MODO DE ANÁLISIS</div>
-          <div style={{display:"flex",gap:7}}>
-            <button onClick={()=>{snd('tap');setScanMode('full');}}
-              style={{flex:1,border:`2px solid ${scanMode==='full'?'var(--y)':'rgba(255,255,255,.1)'}`,background:scanMode==='full'?'rgba(245,200,0,.1)':'rgba(255,255,255,.04)',borderRadius:10,padding:"8px 6px",cursor:"pointer",color:scanMode==='full'?'var(--y)':'rgba(255,255,255,.45)',fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:.5,textAlign:"center"}}>
-              🃏 Detectar todo<br/><span style={{fontSize:".58rem",opacity:.7}}>base + modificadores</span>
-            </button>
-            <button onClick={()=>{snd('tap');setScanMode('base_only');}}
-              style={{flex:1,border:`2px solid ${scanMode==='base_only'?'var(--t)':'rgba(255,255,255,.1)'}`,background:scanMode==='base_only'?'rgba(46,196,182,.1)':'rgba(255,255,255,.04)',borderRadius:10,padding:"8px 6px",cursor:"pointer",color:scanMode==='base_only'?'var(--t)':'rgba(255,255,255,.45)',fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:.5,textAlign:"center"}}>
-              🔢 Solo números<br/><span style={{fontSize:".58rem",opacity:.7}}>sin modificadores</span>
-            </button>
-          </div>
+        {/* Base-only mode notice */}
+        <div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"8px 12px",marginBottom:8,textAlign:"center"}}>
+          <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}}>
+            🔢 Modo: solo números base · Ajusta chips después del scan
+          </span>
         </div>
         <div className="mr2">
           <button className="mc" onClick={()=>{snd('tap');retake();}}>🔄 Otra foto</button>
@@ -1122,140 +1092,137 @@ Responde con este JSON exacto:
 }
 
 /* ══════════════════════
-   RESULT EDITOR — editable after AI scan
+   RESULT EDITOR — card chip interface
 ══════════════════════ */
 function ResultEditor({res, onResult, onRetake}){
-  const[editTotal,setEditTotal]=React.useState(String(res.total));
-  const[editing,setEditing]=React.useState(false);
-  const[editVal,setEditVal]=React.useState("");
+  // Build initial cards from scan result — simple array of numbers
+  const initCards = (res.cards||res.base_cards||[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=12);
+  const[cards,setCards]=React.useState(initCards);
+  const[adding,setAdding]=React.useState(false);
+  const[newVal,setNewVal]=React.useState("");
 
-  const finalVal=parseInt(editTotal)||0;
+  const total = cards.reduce((a,b)=>a+b,0);
 
-  function startEdit(){
-    snd('tap');
-    setEditVal(editTotal);
-    setEditing(true);
+  function removeCard(idx){
+    snd('del');
+    setCards(c=>c.filter((_,i)=>i!==idx));
   }
 
   function pressNum(d){
+    if(d==="⌫"){setNewVal(v=>v.slice(0,-1));snd('del');return;}
+    if(newVal.length>=2)return;
     snd('num');
-    if(d==="⌫"){setEditVal(v=>v.slice(0,-1));return;}
-    if(editVal.length>=3)return;
-    setEditVal(v=>v+d);
+    setNewVal(v=>v+d);
   }
 
-  function applyEdit(){
+  function addCard(){
+    const n=parseInt(newVal);
+    if(isNaN(n)||n<0||n>12){snd('del');return;}
     snd('score');
-    setEditTotal(editVal||"0");
-    setEditing(false);
+    setCards(c=>[...c,n]);
+    setNewVal("");
+    setAdding(false);
   }
-
-  const mult = res.multiplier||null;
-  const plus = res.plus_cards||[];
-  const base = res.base_cards||[];
 
   return(
     <>
-      {!editing&&(
-        <>
-          <div style={{textAlign:"center",padding:"10px 0 6px"}}>
-            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:4}}>TOTAL CALCULADO</div>
-            {/* Big editable total */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:6}}>
-              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"5rem",color:editTotal!==String(res.total)?"var(--t)":"var(--y)",lineHeight:1,textShadow:"4px 4px 0 var(--or)",transition:"color .3s"}}>
-                {editTotal}
-              </div>
-              <button onClick={startEdit} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",borderRadius:10,padding:"8px 10px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                <span style={{fontSize:"1.2rem"}}>✏️</span>
-                <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.5)",letterSpacing:1}}>EDITAR</span>
-              </button>
+      {/* CARDS DETECTED */}
+      <div style={{marginBottom:10}}>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:8,textAlign:"center"}}>
+          CARTAS DETECTADAS — toca ✕ para quitar
+        </div>
+
+        {/* Card chips */}
+        <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",minHeight:48,alignItems:"center"}}>
+          {cards.length===0&&(
+            <div style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}}>Sin cartas — agrega manualmente</div>
+          )}
+          {cards.map((n,i)=>(
+            <div key={i} style={{
+              background:"linear-gradient(135deg,#f5f0e8,#ede8d8)",
+              border:"3px solid #d4af37",
+              borderRadius:10,
+              padding:"6px 10px",
+              display:"flex",alignItems:"center",gap:6,
+              boxShadow:"0 3px 8px rgba(0,0,0,.4)",
+              position:"relative",
+              minWidth:52,
+              justifyContent:"center"
+            }}>
+              <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"#222",lineHeight:1}}>{n}</span>
+              <button onClick={()=>removeCard(i)} style={{
+                position:"absolute",top:-8,right:-8,
+                width:20,height:20,
+                background:"var(--r)",border:"none",borderRadius:"50%",
+                color:"white",fontSize:".7rem",cursor:"pointer",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontWeight:900,lineHeight:1
+              }}>✕</button>
             </div>
-            {editTotal!==String(res.total)&&(
-              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"var(--t)",letterSpacing:1,marginBottom:4}}>
-                ✏️ Editado por ti: {res.total}→{editTotal}
-              </div>
-            )}
+          ))}
+        </div>
+      </div>
 
-            {/* Calculation box */}
-            {res.calculation&&(
-              <div style={{background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",borderRadius:10,padding:"8px 12px",marginBottom:8}}>
-                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:2}}>CÁLCULO IA</div>
-                <div style={{fontFamily:"'Nunito',sans-serif",fontSize:".82rem",color:"var(--y)",fontWeight:800}}>{res.calculation}</div>
-              </div>
-            )}
-
-            {/* Card breakdown */}
-            <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:6,marginBottom:6}}>
-              {base.length>0&&(
-                <div style={{background:"rgba(255,255,255,.08)",borderRadius:8,padding:"5px 11px",fontSize:".74rem",fontWeight:800}}>
-                  🃏 Base: {base.join(" + ")} = {base.reduce((a,b)=>a+b,0)}
-                </div>
-              )}
-              {mult&&(
-                <div style={{background:"rgba(230,57,70,.18)",borderRadius:8,padding:"5px 11px",fontSize:".74rem",fontWeight:800,color:"#ffaaaa"}}>
-                  ✖️ ×{mult}
-                </div>
-              )}
-              {plus.length>0&&(
-                <div style={{background:"rgba(59,178,115,.18)",borderRadius:8,padding:"5px 11px",fontSize:".74rem",fontWeight:800,color:"var(--gr)"}}>
-                  ➕ +{plus.join(" +")}
-                </div>
-              )}
-            </div>
-
-            {res.confidence&&res.confidence!=="high"&&(
-              <div style={{background:res.confidence==="low"?"rgba(230,57,70,.15)":"rgba(245,200,0,.12)",border:`1px solid ${res.confidence==="low"?"rgba(230,57,70,.4)":"rgba(245,200,0,.3)"}`,borderRadius:9,padding:"6px 12px",marginBottom:6,fontSize:".76rem",fontWeight:800,color:res.confidence==="low"?"var(--r)":"var(--y)"}}>
-                {res.confidence==="low"?"⚠️ Confianza BAJA — verifica con la foto":"⚡ Confianza media — revisa el total"}
-              </div>
-            )}
-            {res.note&&(
-              <div style={{color:"rgba(255,255,255,.28)",fontSize:".72rem",fontWeight:700,lineHeight:1.4,marginTop:4,fontStyle:"italic"}}>
-                💬 {res.note}
-              </div>
-            )}
+      {/* TOTAL */}
+      <div style={{textAlign:"center",padding:"8px 0 10px",borderTop:"1px solid rgba(255,255,255,.08)",borderBottom:"1px solid rgba(255,255,255,.08)",marginBottom:12}}>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2}}>TOTAL</div>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"4.5rem",color:"var(--y)",lineHeight:1,textShadow:"4px 4px 0 var(--or)"}}>
+          {total}
+        </div>
+        {cards.length>0&&(
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.35)",marginTop:2}}>
+            {cards.join(" + ")} = {total}
           </div>
-
-          <div className="mr2">
-            <button className="mc" onClick={()=>{snd('tap');onRetake();}}>🔄 Repetir</button>
-            <button className="mo" style={{background:`linear-gradient(135deg,${editTotal!==String(res.total)?"var(--t),#1A9A94":"var(--y),var(--or)"})`}}
-              onClick={()=>{snd('score');onResult(finalVal);}}>
-              ✅ Confirmar {finalVal} pts
-            </button>
+        )}
+        {res.note&&(
+          <div style={{color:"rgba(255,255,255,.28)",fontSize:".7rem",fontWeight:700,marginTop:6,fontStyle:"italic",lineHeight:1.4}}>
+            💬 {res.note}
           </div>
-        </>
-      )}
+        )}
+      </div>
 
-      {editing&&(
-        <>
-          <div style={{textAlign:"center",marginBottom:6}}>
-            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"var(--t)",letterSpacing:2,marginBottom:4}}>✏️ CORREGIR TOTAL</div>
-            <div style={{fontFamily:"'Anton',sans-serif",fontSize:"4.5rem",color:"var(--t)",lineHeight:1,textShadow:"3px 3px 0 #1A9A94"}}>
-              {editVal||"0"}
-            </div>
-            <div style={{fontSize:".72rem",color:"rgba(255,255,255,.35)",fontWeight:700,marginTop:4}}>
-              IA calculó: {res.total} pts
-            </div>
+      {/* ADD CARD */}
+      {!adding?(
+        <button onClick={()=>{snd('tap');setAdding(true);setNewVal("");}}
+          style={{width:"100%",background:"rgba(255,255,255,.06)",border:"2px dashed rgba(255,255,255,.2)",borderRadius:12,padding:"10px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:1,marginBottom:12}}>
+          ➕ AGREGAR CARTA (0–12)
+        </button>
+      ):(
+        <div style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,padding:"12px",marginBottom:12}}>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"}}>¿QUÉ NÚMERO? (0–12)</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"3rem",color:"var(--t)",textAlign:"center",marginBottom:8,lineHeight:1}}>
+            {newVal||"_"}
           </div>
-
-          {/* Simple numpad for correction */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7,marginBottom:8}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}}>
             {["7","8","9","4","5","6","1","2","3"].map(d=>(
-              <button key={d} className="npb" onClick={()=>pressNum(d)}>{d}</button>
+              <button key={d} className="npb" style={{padding:"12px 4px",fontSize:"1.1rem"}} onClick={()=>pressNum(d)}>{d}</button>
             ))}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:7,marginBottom:10}}>
-            <button className="npb zero-key" onClick={()=>pressNum('0')}>0</button>
-            <button className="npb del-key" onClick={()=>pressNum('⌫')}>⌫</button>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:6,marginBottom:8}}>
+            <button className="npb zero-key" style={{padding:"12px 4px",fontSize:"1.1rem"}} onClick={()=>pressNum("0")}>0</button>
+            <button className="npb del-key" style={{padding:"12px 4px"}} onClick={()=>pressNum("⌫")}>⌫</button>
           </div>
           <div className="mr2">
-            <button className="mc" onClick={()=>{snd('tap');setEditing(false);}}>← Volver</button>
-            <button className="mo" onClick={applyEdit}>✅ Aplicar {editVal||"0"} pts</button>
+            <button className="mc" onClick={()=>{snd('tap');setAdding(false);}}>Cancelar</button>
+            <button className="mo" onClick={addCard} disabled={!newVal}>
+              ➕ Agregar {newVal?`carta ${newVal}`:""}
+            </button>
           </div>
-        </>
+        </div>
       )}
+
+      {/* ACTIONS */}
+      <div className="mr2">
+        <button className="mc" onClick={()=>{snd('tap');onRetake();}}>🔄 Repetir foto</button>
+        <button className="mo" onClick={()=>{snd('score');onResult(total);}}
+          disabled={cards.length===0}>
+          ✅ Confirmar {total} pts
+        </button>
+      </div>
     </>
   );
 }
+
 
 /* ══════════════════════
    MANUAL MODAL con CALCULADORA
