@@ -846,6 +846,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   const GEMINI_DEFAULT="AIzaSyClacesVYdU8ZnozkKpL0-KJGFg4DHRG7s";
   const[apiKey,setApiKey]=useState(aiConfig.key||GEMINI_DEFAULT);
   const[showKeyEdit,setShowKeyEdit]=useState(false);
+  const[scanMode,setScanMode]=useState("full");
   const fileRef=useRef();
 
   function handleFile(e){
@@ -855,39 +856,52 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
     r.readAsDataURL(f);
   }
 
-  const PROMPT=`Eres un experto en el juego de cartas Flip 7. Analiza CUIDADOSAMENTE esta foto.
+  const PROMPT=`Eres un lector de cartas del juego Flip 7. Tu ÚNICA tarea es LEER los números y el texto que aparece en las cartas. NO interpretes, NO calcules, NO asumas.
 
-IDENTIFICACIÓN DE CARTAS POR COLOR Y DISEÑO:
-- CARTAS BASE: fondo BLANCO o CREMA, números grandes del 0 al 12 con texto en inglés (ZERO, ONE, TWO... TWELVE). Estas son los puntos base.
-- CARTAS ESPECIALES (fondo AMARILLO/DORADO brillante): hay dos tipos:
-  * MULTIPLICADOR: dice "x2" con una "x" antes del número. SOLO existe x2. Multiplica la suma base.
-  * SUMA TARDÍA: dice "+2", "+4", "+6", "+8" o "+10" con texto "THE SUM OF YOUR NUMBER CARDS" abajo. Se suman AL FINAL después de multiplicar.
-- CARTAS DE ACCIÓN (Flip, Freeze, Second Chance): NO dan puntos, ignóralas.
+INSTRUCCIONES ESTRICTAS:
 
-REGLAS DE CÁLCULO (en este orden estricto):
-1. Suma SOLO las cartas base blancas/crema → SUMA_BASE
-2. Si hay carta x2 amarilla: SUMA_BASE × 2 → SUBTOTAL
-3. Si hay cartas +N amarillas: SUBTOTAL + todos los +N → TOTAL_FINAL
-4. Si no hay x2: SUMA_BASE + todos los +N = TOTAL_FINAL
+1. MIRA cada carta visible en la foto.
+2. LEE el texto escrito en ella (puede estar en inglés como SEVEN, TEN, TWELVE, etc.)
+3. Para cada carta reporta:
+   - El número que ves (o el texto si no ves número claro)
+   - Si el fondo es BLANCO/CREMA o AMARILLO/DORADO
+   - Si dice algo especial como "x2", "+2", "+4", "+6", "+8", "+10", "THE SUM OF YOUR NUMBER CARDS"
 
-EJEMPLO REAL: cartas 7, 10, 12 (base=29) + x2 (×2=58) + +8 (58+8=66) → total=66
-EJEMPLO SIN X2: cartas 5, 3 (base=8) + +4 (8+4=12) → total=12
-EJEMPLO SOLO BASE: cartas 4, 7, 2 → total=13
+REGLAS DE CLASIFICACIÓN (solo si estás SEGURO):
+- Carta con fondo BLANCO/CREMA + número 0-12 = carta BASE
+- Carta con fondo CLARAMENTE AMARILLO/DORADO + símbolo "x2" = MULTIPLICADOR (solo existe x2)
+- Carta con fondo CLARAMENTE AMARILLO/DORADO + "+N THE SUM OF YOUR NUMBER CARDS" = SUMA TARDÍA
 
-MUY IMPORTANTE: 
-- Las cartas +N dicen literalmente "+2 THE SUM OF YOUR NUMBER CARDS"
-- La carta x2 dice "x2 THE SUM OF YOUR NUMBER CARDS" con una X grande
-- NO inventes valores. Si no puedes leer una carta claramente, indícalo en note.
-- Sé conservador: solo suma lo que claramente ves.
+SI TIENES DUDA sobre si una carta es amarilla o blanca → ponla como BASE.
+SI NO PUEDES LEER un número claramente → indica "ilegible".
+NO INVENTES modificadores. Solo reporta lo que VES con certeza.
 
-Responde SOLO con este JSON exacto sin markdown:
-{"total":<número>,"base_cards":[<solo números de cartas blancas/crema>],"multiplier":<2 si hay x2, sino null>,"plus_cards":[<lista de N de las cartas +N amarillas>],"calculation":"<fórmula como (7+10+12)×2+8=66 o 7+10+12=29>","note":"<descripción breve de lo que viste>"}`;
+CALCULO (solo después de identificar con certeza):
+- Suma los números BASE
+- Si hay x2 amarillo CONFIRMADO: multiplica
+- Si hay +N amarillo CONFIRMADO: suma al final
+
+Responde con este JSON exacto:
+{
+  "cards_seen": [{"value": <número o texto>, "background": "white|yellow|unclear", "type": "base|multiplier|plus|action|unclear", "text_on_card": "<texto exacto visible>"}],
+  "base_cards": [<solo números claramente base>],
+  "multiplier": <2 solo si hay x2 AMARILLO CONFIRMADO, sino null>,
+  "plus_cards": [<solo N de cartas +N AMARILLAS CONFIRMADAS>],
+  "total": <número calculado>,
+  "calculation": "<fórmula>",
+  "confidence": "high|medium|low",
+  "note": "<qué viste exactamente, incluyendo dudas>"
+}`;
 
   async function analyze(){
     const key=apiKey.trim();
     if(!key){setErrMsg("Ingresa tu API Key arriba.");setPhase("error");return;}
     setAiConfig({provider,key});
     setPhase("analyzing");
+    // En modo 'base_only' usamos un prompt simplificado que ignora modificadores
+    const ACTIVE_PROMPT = scanMode==='base_only'
+      ? `Mira esta foto de cartas del juego Flip 7. SOLO lee los números de las cartas con fondo BLANCO o CREMA. Ignora completamente cualquier carta amarilla. Suma esos números. Responde SOLO con JSON sin markdown: {"total":<número>,"base_cards":[<lista>],"multiplier":null,"plus_cards":[],"calculation":"<formula>","confidence":"high","note":"Solo números base, sin modificadores"}`
+      : PROMPT;
     try{
       let parsed;
       if(provider==="gemini"){
@@ -914,7 +928,7 @@ Responde SOLO con este JSON exacto sin markdown:
                     }
                   },
                   {
-                    text: PROMPT
+                    text: ACTIVE_PROMPT
                   }
                 ]
               }]
@@ -980,7 +994,7 @@ Responde SOLO con este JSON exacto sin markdown:
           headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
           body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:300,messages:[{role:"user",content:[
             {type:"image",source:{type:"base64",media_type:mime,data:b64}},
-            {type:"text",text:PROMPT}
+            {type:"text",text:ACTIVE_PROMPT}
           ]}]})
         });
         if(!resp.ok){const t=await resp.text();throw new Error(`Anthropic ${resp.status}: ${t.slice(0,120)}`);}
@@ -1050,7 +1064,21 @@ Responde SOLO con este JSON exacto sin markdown:
 
       {phase==="preview"&&(<>
         <div className="cv"><img src={img} alt="preview"/></div>
-        <p style={{textAlign:"center",color:"rgba(255,255,255,.45)",fontWeight:700,fontSize:".82rem",marginBottom:10}}>¿Se ven bien todas las cartas?</p>
+        <p style={{textAlign:"center",color:"rgba(255,255,255,.45)",fontWeight:700,fontSize:".82rem",marginBottom:8}}>¿Se ven bien todas las cartas?</p>
+        {/* Mode selector */}
+        <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"10px 14px",marginBottom:10}}>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8}}>MODO DE ANÁLISIS</div>
+          <div style={{display:"flex",gap:7}}>
+            <button onClick={()=>{snd('tap');setScanMode('full');}}
+              style={{flex:1,border:`2px solid ${scanMode==='full'?'var(--y)':'rgba(255,255,255,.1)'}`,background:scanMode==='full'?'rgba(245,200,0,.1)':'rgba(255,255,255,.04)',borderRadius:10,padding:"8px 6px",cursor:"pointer",color:scanMode==='full'?'var(--y)':'rgba(255,255,255,.45)',fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:.5,textAlign:"center"}}>
+              🃏 Detectar todo<br/><span style={{fontSize:".58rem",opacity:.7}}>base + modificadores</span>
+            </button>
+            <button onClick={()=>{snd('tap');setScanMode('base_only');}}
+              style={{flex:1,border:`2px solid ${scanMode==='base_only'?'var(--t)':'rgba(255,255,255,.1)'}`,background:scanMode==='base_only'?'rgba(46,196,182,.1)':'rgba(255,255,255,.04)',borderRadius:10,padding:"8px 6px",cursor:"pointer",color:scanMode==='base_only'?'var(--t)':'rgba(255,255,255,.45)',fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:.5,textAlign:"center"}}>
+              🔢 Solo números<br/><span style={{fontSize:".58rem",opacity:.7}}>sin modificadores</span>
+            </button>
+          </div>
+        </div>
         <div className="mr2">
           <button className="mc" onClick={()=>{snd('tap');retake();}}>🔄 Otra foto</button>
           <button className="mo" onClick={()=>{snd('tap');analyze();}}>🔍 Analizar</button>
@@ -1175,6 +1203,11 @@ function ResultEditor({res, onResult, onRetake}){
               )}
             </div>
 
+            {res.confidence&&res.confidence!=="high"&&(
+              <div style={{background:res.confidence==="low"?"rgba(230,57,70,.15)":"rgba(245,200,0,.12)",border:`1px solid ${res.confidence==="low"?"rgba(230,57,70,.4)":"rgba(245,200,0,.3)"}`,borderRadius:9,padding:"6px 12px",marginBottom:6,fontSize:".76rem",fontWeight:800,color:res.confidence==="low"?"var(--r)":"var(--y)"}}>
+                {res.confidence==="low"?"⚠️ Confianza BAJA — verifica con la foto":"⚡ Confianza media — revisa el total"}
+              </div>
+            )}
             {res.note&&(
               <div style={{color:"rgba(255,255,255,.28)",fontSize:".72rem",fontWeight:700,lineHeight:1.4,marginTop:4,fontStyle:"italic"}}>
                 💬 {res.note}
