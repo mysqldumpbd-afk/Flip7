@@ -366,6 +366,24 @@ function App(){
     setRoom(null);setRoomCode("");setWinner(null);setScreen("home");setDemoMode(false);setIsSpectator(false);setMyPlayerId(null);
   }
 
+  async function startRematch(prevPlayers){
+    // Create new room with same players, reset scores
+    snd('round');
+    if(unsubRef.current){unsubRef.current();unsubRef.current=null;}
+    winnerShown.current=false;prevSortedRef.current=[];
+    const db=makeDB(false);dbRef.current=db;
+    const code=uid4();
+    const freshPlayers=prevPlayers.map(p=>({...p,total:0,rounds:[]}));
+    await db.set(`rooms/${code}`,{
+      code,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
+      players:freshPlayers
+    });
+    setDemoMode(false);setRoomCode(code);setWinner(null);
+    subscribe(code,db);
+    setTab("round");
+    // Stay in game screen, just with new code
+  }
+
   async function submitScore(pid,score,method){
     snd('score');
     const cur=room?.roundScores||{};
@@ -428,9 +446,9 @@ function App(){
       <div className="page">
         {demoMode&&tab==="round"&&<div className="demo-banner">🧪 <span>MODO DEMO — local, sin Firebase</span></div>}
         {tab==="round"&&!room&&<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 16px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando…</p></div>}
-        {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig}/>}
+        {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig} onRematch={startRematch} onEndGame={leaveGame}/>}
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room}/>}
-        {tab==="history"&&<HistoryTab sessions={sessions}/>}
+        {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}}/>}
       </div>
       {winner&&<WinnerScreen winner={winner} onClose={()=>{setWinner(null);setTab("scores");}} onNew={leaveGame}/>}
     </div>
@@ -528,10 +546,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig}){
       <button className="btn btn-y" onClick={()=>{snd('tap');createReal();}} disabled={busy||names.filter(n=>n.trim()).length<2}>
         {busy?"⏳ Creando sala…":"🎮 CREAR SALA"}
       </button>
-      <div className="g8"/>
-      <button className="btn btn-demo" onClick={()=>{snd('join');onEnter({names:names.filter(n=>n.trim()).length>=2?names.filter(n=>n.trim()):["Jugador 1","Jugador 2","Jugador 3"],demo:true});}}>
-        🧪 MODO DEMO (sin internet)
-      </button>
+
       <div className="g8"/><button className="btn btn-g" onClick={()=>go("main")}>← Volver</button>
     </div></div>
   );
@@ -601,11 +616,8 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig}){
       <button className="btn btn-y" onClick={()=>go("create")}>🎮 CREAR NUEVO JUEGO</button>
       <div className="g8"/>
       <button className="btn btn-t" onClick={()=>go("join")}>🔑 UNIRME / RECONECTAR</button>
-      <div className="g8"/>
-      <button className="btn btn-demo" onClick={()=>{snd('join');onEnter({names:["Jugador 1","Jugador 2","Jugador 3"],demo:true});}}>
-        🧪 MODO DEMO — Probar interfaz
-      </button>
-      {sessions.length>0&&<><div className="div"/><p className="sec">ÚLTIMAS SESIONES</p><SesCards sessions={sessions}/></>}
+
+      {sessions.length>0&&<><div className="div"/><p className="sec">ÚLTIMAS SESIONES</p><SesCards sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}}/></>}
     </div></div>
   );
 }
@@ -622,19 +634,36 @@ function ErrBox({err}){
 /* ══════════════════════
    ROUND TAB
 ══════════════════════ */
-function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,aiConfig,setAiConfig}){
+function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,aiConfig,setAiConfig,onRematch,onEndGame}){
   const[scanModal,setScan]=useState(null);
   const[manModal,setMan]=useState(null);
   const canControl=pid=>!myPlayerId||myPlayerId===pid;
   const isHost=!myPlayerId;
   return(
     <>
-      {room.finished&&room.winner&&<div className="alert al-g">🏆 ¡{room.winner.name} ganó! → Tabla</div>}
+      {room.finished&&room.winner&&(
+        <div style={{background:"linear-gradient(135deg,rgba(245,200,0,.15),rgba(255,107,53,.1))",border:"2px solid rgba(245,200,0,.4)",borderRadius:16,padding:"16px",marginBottom:14,textAlign:"center"}}>
+          <div style={{fontSize:"2.5rem",marginBottom:4}}>🏆</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"var(--y)",letterSpacing:2,marginBottom:2}}>¡{room.winner.name} ganó!</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:2,marginBottom:14}}>{room.winner.total} PUNTOS · FIN DEL JUEGO</div>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-y" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={()=>onRematch(room.players)}>
+              🔄 Revancha
+            </button>
+            <button className="btn btn-g" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={onEndGame}>
+              🚪 Terminar
+            </button>
+          </div>
+        </div>
+      )}
       {!room.finished&&allDone&&<div className="alert al-g">✅ ¡Todos listos! {isHost?"Cierra la ronda.":"Esperando al host…"}</div>}
       {!room.finished&&!allDone&&room.players.some(p=>room.roundScores?.[p.id])&&<div className="alert al-y">⏳ Esperando capturas…</div>}
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>JUGADORES</p>
-        <div className="rbd">RONDA {room.round}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          {room.round===1&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"var(--t)",background:"rgba(46,196,182,.1)",border:"1px solid rgba(46,196,182,.2)",padding:"2px 8px",borderRadius:20,letterSpacing:1}}>SALA {roomCode}</div>}
+          <div className="rbd">RONDA {room.round}</div>
+        </div>
       </div>
       {room.players.map(p=>{
         const entry=room.roundScores?.[p.id];const done=entry!==undefined;const mine=canControl(p.id);
@@ -893,28 +922,85 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner}){
 /* ══════════════════════
    HISTORY
 ══════════════════════ */
-function HistoryTab({sessions}){
-  if(!sessions.length)return<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>🃏</div><p style={{fontWeight:700}}>Sin sesiones aún</p></div>;
-  return<SesCards sessions={sessions}/>;
+function HistoryTab({sessions, onClear}){
+  if(!sessions.length)return<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>🃏</div><p style={{fontWeight:700}}>Sin sesiones aún</p><p style={{fontSize:".8rem",marginTop:6,color:"rgba(255,255,255,.3)"}}>Completa una partida para verla aquí</p></div>;
+  return<SesCards sessions={sessions} onClear={onClear}/>;
 }
-function SesCards({sessions}){
-  return sessions.map(s=>(
-    <div key={s.id} className="hc">
-      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-        <div><div style={{fontWeight:900,fontSize:".84rem"}}>{fmtDate(s.date)}</div>
-          <div style={{fontSize:".7rem",color:"rgba(255,255,255,.32)",fontWeight:700}}>{s.players.length} jugadores · {s.rounds} rondas · {s.demo?"DEMO":"Sala "+s.code}</div>
+function SesCards({sessions, onClear}){
+  const[expanded,setExpanded]=React.useState(null);
+  return(
+    <>
+      {sessions.length>0&&(
+        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+          <button onClick={()=>{if(window.confirm("¿Borrar todo el historial?"))onClear();}}
+            style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.3)",color:"var(--r)",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1}}>
+            🗑 Borrar historial
+          </button>
         </div>
-      </div>
-      <div className="hw"><span style={{fontSize:"1.3rem"}}>🏆</span>
-        <div><div style={{fontSize:".63rem",color:"rgba(255,255,255,.3)",fontWeight:700,letterSpacing:2}}>GANADOR</div>
-          <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}}>{s.winner}</div>
-        </div>
-      </div>
-      <div className="hpl">{[...s.players].sort((a,b)=>b.total-a.total).map(p=>(
-        <div key={p.id} className="hpt">{p.emoji} {p.name} — {p.total}pts</div>
-      ))}</div>
-    </div>
-  ));
+      )}
+      {sessions.map(s=>{
+        const isOpen=expanded===s.id;
+        const sorted=[...s.players].sort((a,b)=>b.total-a.total);
+        return(
+          <div key={s.id} className="hc" style={{cursor:"pointer"}} onClick={()=>{snd('tap');setExpanded(isOpen?null:s.id);}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <div>
+                <div style={{fontWeight:900,fontSize:".84rem"}}>{fmtDate(s.date)}</div>
+                <div style={{fontSize:".7rem",color:"rgba(255,255,255,.32)",fontWeight:700}}>{s.players.length} jugadores · {s.rounds} rondas · Sala {s.code}</div>
+              </div>
+              <span style={{color:"rgba(255,255,255,.3)",fontSize:"1rem"}}>{isOpen?"▲":"▼"}</span>
+            </div>
+            {/* Winner always visible */}
+            <div className="hw">
+              <span style={{fontSize:"1.3rem"}}>🏆</span>
+              <div>
+                <div style={{fontSize:".63rem",color:"rgba(255,255,255,.3)",fontWeight:700,letterSpacing:2}}>GANADOR</div>
+                <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1.1rem"}}>{s.winner}</div>
+              </div>
+            </div>
+            {/* Expanded: full scoreboard */}
+            {isOpen&&(
+              <div style={{marginTop:10,borderTop:"1px solid rgba(255,255,255,.07)",paddingTop:10}}>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>CLASIFICACIÓN FINAL</div>
+                {sorted.map((p,i)=>(
+                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,.05)"}}>
+                    <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:i===0?"var(--y)":i===1?"#C0C0C0":i===2?"#CD7F32":"rgba(255,255,255,.3)",width:28,textAlign:"center"}}>
+                      {i===0?"👑":i===1?"🥈":i===2?"🥉":`#${i+1}`}
+                    </div>
+                    <div style={{fontWeight:900,flex:1}}>{p.emoji} {p.name}</div>
+                    <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:i===0?"var(--y)":"rgba(255,255,255,.6)"}}>{p.total}</div>
+                  </div>
+                ))}
+                {/* Round breakdown */}
+                {s.players[0]?.rounds?.length>0&&(
+                  <div style={{marginTop:10,overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:".78rem"}}>
+                      <thead>
+                        <tr>
+                          <th style={{textAlign:"left",color:"rgba(255,255,255,.3)",fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,padding:"4px 0",paddingLeft:2}}>Jugador</th>
+                          {sorted[0].rounds.map((_,i)=><th key={i} style={{color:"rgba(255,255,255,.3)",fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,padding:"4px 4px"}}>R{i+1}</th>)}
+                          <th style={{color:"var(--y)",fontFamily:"'Righteous',sans-serif",fontSize:".62rem",padding:"4px 4px"}}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted.map(p=>(
+                          <tr key={p.id}>
+                            <td style={{padding:"4px 2px",fontWeight:800}}>{p.emoji} {p.name}</td>
+                            {(p.rounds||[]).map((r,i)=><td key={i} style={{textAlign:"center",padding:"4px",color:r.score===0?"rgba(255,255,255,.3)":"rgba(255,255,255,.7)"}}>{r.score}</td>)}
+                            <td style={{textAlign:"center",fontFamily:"'Anton',sans-serif",fontSize:"1rem",color:"var(--y)",padding:"4px"}}>{p.total}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 /* ══════════════════════
@@ -935,9 +1021,28 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   const fileRef=useRef();
 
   function handleFile(e){
-    const f=e.target.files[0];if(!f)return;
+    const f=e.target.files[0]; if(!f) return;
     const r=new FileReader();
-    r.onload=ev=>{const d=ev.target.result;setImg(d);setB64(d.split(",")[1]);setMime(d.split(";")[0].split(":")[1]||"image/jpeg");setPhase("preview");};
+    r.onload=ev=>{
+      const original=ev.target.result;
+      // Compress image to max 1024px - prevents mobile tab crash
+      const img=new Image();
+      img.onload=()=>{
+        const MAX=1024;
+        let w=img.width, h=img.height;
+        if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
+        const canvas=document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        const compressed=canvas.toDataURL('image/jpeg',0.75);
+        setImg(compressed);
+        setB64(compressed.split(",")[1]);
+        setMime("image/jpeg");
+        setPhase("preview");
+      };
+      img.onerror=()=>{ setImg(original); setB64(original.split(",")[1]); setMime(original.split(";")[0].split(":")[1]||"image/jpeg"); setPhase("preview"); };
+      img.src=original;
+    };
     r.readAsDataURL(f);
   }
 
