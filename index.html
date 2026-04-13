@@ -1078,6 +1078,13 @@ IGNORA completamente:
 - Cualquier símbolo como x2, +2, +4, +6, +8, +10
 
 SOLO reporta los números de cartas blancas/crema que veas claramente.
+NOTA IMPORTANTE sobre colores de números en cartas base:
+- Carta 7: número color CAFÉ/MARRÓN claro (salmon/beige), texto SEVEN
+- Carta 12: número color GRIS/CAFÉ oscuro con doble contorno, texto TWELVE
+- Carta 11: número color AZUL/LILA, texto ELEVEN
+- Carta 10: número color ROJO brillante, texto TEN
+- Carta 9: número color NARANJA/MELOCOTÓN, texto NINE
+NO confundas las cartas AMARILLAS/DORADAS de fondo con las cartas base.
 
 Responde ÚNICAMENTE con este JSON sin markdown:
 {"cards":[<lista de números enteros que leíste>],"total":<suma de esos números>,"note":"<qué cartas viste: ej NINE=9, TEN=10, TWELVE=12>"}`;
@@ -1311,8 +1318,13 @@ function ResultEditor({res, onResult, onRetake}){
   const[cards,setCards]=React.useState(initCards);
   const[adding,setAdding]=React.useState(false);
   const[newVal,setNewVal]=React.useState("");
+  // Modifiers - pre-fill from scan result if detected
+  const[multiplier,setMultiplier]=React.useState(res.multiplier||null);
+  const[plusCards,setPlusCards]=React.useState((res.plus_cards||[]).map(Number).filter(n=>n>0));
 
-  const total = cards.reduce((a,b)=>Number(a)+Number(b),0);
+  const baseTotal = cards.reduce((a,b)=>Number(a)+Number(b),0);
+  const afterMult = multiplier ? baseTotal * multiplier : baseTotal;
+  const total = afterMult + plusCards.reduce((a,b)=>Number(a)+Number(b),0);
 
   function removeCard(idx){
     snd('del');
@@ -1376,18 +1388,60 @@ function ResultEditor({res, onResult, onRetake}){
 
       {/* TOTAL */}
       <div style={{textAlign:"center",padding:"8px 0 10px",borderTop:"1px solid rgba(255,255,255,.08)",borderBottom:"1px solid rgba(255,255,255,.08)",marginBottom:12}}>
-        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2}}>TOTAL</div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2}}>TOTAL FINAL</div>
         <div style={{fontFamily:"'Anton',sans-serif",fontSize:"4.5rem",color:"var(--y)",lineHeight:1,textShadow:"4px 4px 0 var(--or)"}}>
           {total}
         </div>
+        {/* Formula breakdown */}
         {cards.length>0&&(
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.35)",marginTop:2}}>
-            {cards.map(Number).join(" + ")} = {cards.map(Number).reduce((a,b)=>a+b,0)}
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",marginTop:4,lineHeight:1.6}}>
+            {multiplier||plusCards.length>0 ? (
+              <>
+                <span style={{color:"rgba(255,255,255,.5)"}}>Base: {cards.map(Number).join("+")} = {baseTotal}</span>
+                {multiplier&&<><br/><span style={{color:"rgba(255,120,120,.8)"}}>× {multiplier} = {baseTotal*multiplier}</span></>}
+                {plusCards.length>0&&<><br/><span style={{color:"rgba(100,220,150,.8)"}}>+ {plusCards.join("+")} = {total}</span></>}
+              </>
+            ) : (
+              <span>{cards.map(Number).join(" + ")} = {baseTotal}</span>
+            )}
           </div>
         )}
         {res.note&&(
-          <div style={{color:"rgba(255,255,255,.28)",fontSize:".7rem",fontWeight:700,marginTop:6,fontStyle:"italic",lineHeight:1.4}}>
+          <div style={{color:"rgba(255,255,255,.25)",fontSize:".68rem",fontWeight:700,marginTop:5,fontStyle:"italic",lineHeight:1.4}}>
             💬 {res.note}
+          </div>
+        )}
+      </div>
+
+      {/* MODIFIERS PANEL */}
+      <div style={{marginBottom:10}}>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6,textAlign:"center"}}>
+          MODIFICADORES — toca para aplicar
+        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:6}}>
+          {/* x2 multiplier */}
+          <button onClick={()=>{snd('op');setMultiplier(m=>m?null:2);}}
+            style={{border:`2px solid ${multiplier===2?"var(--r)":"rgba(230,57,70,.3)"}`,background:multiplier===2?"rgba(230,57,70,.25)":"rgba(230,57,70,.08)",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:multiplier===2?"#ff8888":"rgba(255,100,100,.6)",transition:"all .2s",minWidth:56,textAlign:"center"}}>
+            ×2
+            {multiplier===2&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,150,150,.8)",letterSpacing:1,marginTop:1}}>ACTIVO</div>}
+          </button>
+          {/* +N cards */}
+          {[2,4,6,8,10].map(n=>{
+            const active=plusCards.includes(n);
+            return(
+              <button key={n} onClick={()=>{snd('op');setPlusCards(p=>active?p.filter(x=>x!==n):[...p,n]);}}
+                style={{border:`2px solid ${active?"var(--gr)":"rgba(59,178,115,.25)"}`,background:active?"rgba(59,178,115,.22)":"rgba(59,178,115,.06)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"var(--gr)":"rgba(59,178,115,.5)",transition:"all .2s",minWidth:48,textAlign:"center"}}>
+                +{n}
+                {active&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(100,220,150,.8)",letterSpacing:1,marginTop:1}}>✓</div>}
+              </button>
+            );
+          })}
+        </div>
+        {(multiplier||plusCards.length>0)&&(
+          <div style={{background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",borderRadius:9,padding:"6px 12px",textAlign:"center",fontSize:".76rem",fontWeight:800,color:"var(--y)"}}>
+            {multiplier?"×2 activado: ":""}
+            {multiplier?`(${baseTotal}) × 2 = ${baseTotal*2}`:`base = ${baseTotal}`}
+            {plusCards.length>0?` + ${plusCards.join("+")} = ${multiplier?baseTotal*2+plusCards.reduce((a,b)=>a+b,0):baseTotal+plusCards.reduce((a,b)=>a+b,0)}`:""}
           </div>
         )}
       </div>
@@ -1396,7 +1450,7 @@ function ResultEditor({res, onResult, onRetake}){
       {!adding?(
         <button onClick={()=>{snd('tap');setAdding(true);setNewVal("");}}
           style={{width:"100%",background:"rgba(255,255,255,.06)",border:"2px dashed rgba(255,255,255,.2)",borderRadius:12,padding:"10px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:1,marginBottom:12}}>
-          ➕ AGREGAR CARTA (0–12)
+          ➕ AGREGAR CARTA BASE (0–12)
         </button>
       ):(
         <div style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,padding:"12px",marginBottom:12}}>
