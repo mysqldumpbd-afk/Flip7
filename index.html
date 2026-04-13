@@ -380,8 +380,7 @@ function App(){
     });
     setDemoMode(false);setRoomCode(code);setWinner(null);
     subscribe(code,db);
-    setTab("round");
-    // Stay in game screen, just with new code
+    setScreen("game");setTab("round");
   }
 
   async function submitScore(pid,score,method){
