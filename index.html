@@ -1240,25 +1240,25 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
 
   const PROMPT=`Mira esta foto de cartas del juego Flip 7.
 
-Tu ÚNICA tarea: lee los números que aparecen en las cartas de fondo BLANCO o CREMA.
-Las cartas base tienen escrito el número en grande y debajo el nombre en inglés (SEVEN, TEN, TWELVE, etc.)
+Tu \u00DANICA tarea: lee los n\u00FAmeros que aparecen en las cartas de fondo BLANCO o CREMA.
+Las cartas base tienen escrito el n\u00FAmero en grande y debajo el nombre en ingl\u00E9s (SEVEN, TEN, TWELVE, etc.)
 
 IGNORA completamente:
 - Cualquier carta de fondo AMARILLO o DORADO
-- Cualquier carta de acción (Flip, Freeze, Second Chance)
-- Cualquier símbolo como x2, +2, +4, +6, +8, +10
+- Cualquier carta de acci\u00F3n (Flip, Freeze, Second Chance)
+- Cualquier s\u00EDmbolo como x2, +2, +4, +6, +8, +10
 
-SOLO reporta los números de cartas blancas/crema que veas claramente.
-NOTA IMPORTANTE sobre colores de números en cartas base:
-- Carta 7: número color CAFÉ/MARRÓN claro (salmon/beige), texto SEVEN
-- Carta 12: número color GRIS/CAFÉ oscuro con doble contorno, texto TWELVE
-- Carta 11: número color AZUL/LILA, texto ELEVEN
-- Carta 10: número color ROJO brillante, texto TEN
-- Carta 9: número color NARANJA/MELOCOTÓN, texto NINE
+SOLO reporta los n\u00FAmeros de cartas blancas/crema que veas claramente.
+NOTA IMPORTANTE sobre colores de n\u00FAmeros en cartas base:
+- Carta 7: n\u00FAmero color CAF\u00C9/MARR\u00D3N claro (salmon/beige), texto SEVEN
+- Carta 12: n\u00FAmero color GRIS/CAF\u00C9 oscuro con doble contorno, texto TWELVE
+- Carta 11: n\u00FAmero color AZUL/LILA, texto ELEVEN
+- Carta 10: n\u00FAmero color ROJO brillante, texto TEN
+- Carta 9: n\u00FAmero color NARANJA/MELOCOT\u00D3N, texto NINE
 NO confundas las cartas AMARILLAS/DORADAS de fondo con las cartas base.
 
-Responde ÚNICAMENTE con este JSON sin markdown:
-{"cards":[<lista de números enteros que leíste>],"total":<suma de esos números>,"note":"<qué cartas viste: ej NINE=9, TEN=10, TWELVE=12>"}`;
+Responde \u00DANICAMENTE con este JSON sin markdown:
+{"cards":[<lista de n\u00FAmeros enteros que le\u00EDste>],"total":<suma de esos n\u00FAmeros>,"note":"<qu\u00E9 cartas viste: ej NINE=9, TEN=10, TWELVE=12>"}`;
 
   async function analyze(){
     const key=apiKey.trim();
@@ -1267,7 +1267,7 @@ Responde ÚNICAMENTE con este JSON sin markdown:
     setPhase("analyzing");
     
     const ACTIVE_PROMPT = scanMode==='base_only'
-      ? `Mira esta foto de cartas del juego Flip 7. SOLO lee los números de las cartas con fondo BLANCO o CREMA. Ignora completamente cualquier carta amarilla. Suma esos números. Responde SOLO con JSON sin markdown: {"total":<número>,"base_cards":[<lista>],"multiplier":null,"plus_cards":[],"calculation":"<formula>","confidence":"high","note":"Solo números base, sin modificadores"}`
+      ? `Mira esta foto de cartas del juego Flip 7. SOLO lee los n\u00FAmeros de las cartas con fondo BLANCO o CREMA. Ignora completamente cualquier carta amarilla. Suma esos n\u00FAmeros. Responde SOLO con JSON sin markdown: {"total":<n\u00FAmero>,"base_cards":[<lista>],"multiplier":null,"plus_cards":[],"calculation":"<formula>","confidence":"high","note":"Solo n\u00FAmeros base, sin modificadores"}`
       : PROMPT;
     try{
       let parsed;
@@ -1316,7 +1316,7 @@ Responde ÚNICAMENTE con este JSON sin markdown:
             if(resp.status===429){lastErr=new Error(`⏱ Cuota excedida (429). Espera 1 min.`);continue;}
             if(resp.status===404){lastErr=new Error(`Modelo ${model} no encontrado (404)`);continue;}
             if(resp.status===400){lastErr=new Error("Error 400: "+rawBody.slice(0,300));continue;}
-            if(resp.status===403){lastErr=new Error("🔑 API Key sin permisos (403): "+rawBody.slice(0,200));continue;}
+            if(resp.status===403){lastErr=new Error("\u1F511 API Key sin permisos (403): "+rawBody.slice(0,200));continue;}
             if(!resp.ok){lastErr=new Error("HTTP "+resp.status+": "+rawBody.slice(0,200));continue;}
 
             const data=JSON.parse(rawBody);
@@ -1329,7 +1329,7 @@ Responde ÚNICAMENTE con este JSON sin markdown:
             debugLog.push("TEXTO="+rawTxt.slice(0,50)+" finish="+finishReason);
 
             if(!rawTxt){
-              lastErr=new Error("Respuesta vacía. finish="+finishReason+". fullResp="+JSON.stringify(data).slice(0,300));
+              lastErr=new Error("Respuesta vac\u00EDa. finish="+finishReason+". fullResp="+JSON.stringify(data).slice(0,300));
               continue;
             }
 
@@ -1371,13 +1371,13 @@ Responde ÚNICAMENTE con este JSON sin markdown:
       const m=e.message||"";
       let friendly=m;
       if(m.includes("429")||m.includes("Cuota")||m.includes("quota"))
-        friendly="⏱ Cuota de Gemini excedida. Espera ~1 minuto e intenta de nuevo, o usa captura manual.";
+        friendly="\u23F1 Cuota de Gemini excedida. Espera ~1 minuto e intenta de nuevo, o usa captura manual.";
       else if(m.includes("404")||m.includes("not found"))
-        friendly="🔍 Modelo no encontrado. Se probaron todos los modelos disponibles.";
+        friendly="\u1F50D Modelo no encontrado. Se probaron todos los modelos disponibles.";
       else if(m.includes("403")||m.includes("API key"))
-        friendly="🔑 API Key inválida. Ve a aistudio.google.com y genera una nueva key.";
+        friendly="\u1F511 API Key inv\u00E1lida. Ve a aistudio.google.com y genera una nueva key.";
       else if(m.includes("fetch")||m.includes("network"))
-        friendly="🌐 Error de red. Verifica tu conexión a internet.";
+        friendly="\u1F310 Error de red. Verifica tu conexi\u00F3n a internet.";
       setErrMsg(friendly);
       setPhase("error");
     }
@@ -1388,27 +1388,27 @@ Responde ÚNICAMENTE con este JSON sin markdown:
   return(
     <div className="mbg"><div className="ms">
       <div className="mh"/>
-      <div className="mt2">📷 Scan con IA</div>
+      <div className="mt2">\u1F4F7 Scan con IA</div>
       <div className="msub">Turno de: <b style={{color:"#fff"}}>{playerName}</b></div>
 
       {phase==="pick"&&(<>
         {}
         <div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.22)",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:"1.3rem"}}>✨</span>
+          <span style={{fontSize:"1.3rem"}}>\u2728</span>
           <div style={{flex:1}}>
-            <div style={{fontWeight:900,fontSize:".82rem",color:"var(--t)"}}>{apiKey?"✨ Gemini 2.5 Flash — Activo":"⏳ Cargando configuración…"}</div>
-            <div style={{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>{apiKey?"IA incluida · Lista para usar":"La key se carga desde Firebase automáticamente"}</div>
+            <div style={{fontWeight:900,fontSize:".82rem",color:"var(--t)"}}>{apiKey?"\u2728 Gemini 2.5 Flash \u2014 Activo":"\u23F3 Cargando configuraci\u00F3n\u2026"}</div>
+            <div style={{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>{apiKey?"IA incluida \u00B7 Lista para usar":"La key se carga desde Firebase autom\u00E1ticamente"}</div>
           </div>
           <button onClick={()=>{snd('tap');setShowKeyEdit(v=>!v);}} style={{background:"none",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.4)",borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:".68rem",fontWeight:700}}>
-            {showKeyEdit?"▲":"⚙"}
+            {showKeyEdit?"\u25B2":"\u2699"}
           </button>
         </div>
         {showKeyEdit&&(
           <div className="api-box" style={{marginBottom:12}}>
             <p>Cambiar IA o key (opcional):</p>
             <div className="ai-tabs">
-              <button className={`ai-tab ${provider==="gemini"?"on":""}`} onClick={()=>{snd('tap');setProvider("gemini");setApiKey(aiConfig.key||"");}}>✨ Gemini<br/><span style={{fontSize:".6rem",opacity:.7}}>GRATIS</span></button>
-              <button className={`ai-tab ${provider==="anthropic"?"on":""}`} onClick={()=>{snd('tap');setProvider("anthropic");setApiKey(aiConfig.claudeKey||aiConfig.key||"");}}>🟠 Claude<br/><span style={{fontSize:".6rem",opacity:.7}}>$0.001/img</span></button>
+              <button className={`ai-tab ${provider==="gemini"?"on":""}`} onClick={()=>{snd('tap');setProvider("gemini");setApiKey(aiConfig.key||"");}}>\u2728 Gemini<br/><span style={{fontSize:".6rem",opacity:.7}}>GRATIS</span></button>
+              <button className={`ai-tab ${provider==="anthropic"?"on":""}`} onClick={()=>{snd('tap');setProvider("anthropic");setApiKey(aiConfig.claudeKey||aiConfig.key||"");}}>\u1F7E0 Claude<br/><span style={{fontSize:".6rem",opacity:.7}}>$0.001/img</span></button>
             </div>
             <input className="inp" style={{margin:0,fontSize:".82rem"}} placeholder={provider==="gemini"?"AIzaSy...":"sk-ant-api03-..."} value={apiKey} onChange={e=>setApiKey(e.target.value)} onFocus={()=>snd('tap')}/>
           </div>
@@ -1416,12 +1416,12 @@ Responde ÚNICAMENTE con este JSON sin markdown:
         <input ref={fileRef} type="file" accept="image}
         <div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"8px 12px",marginBottom:8,textAlign:"center"}}>
           <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}}>
-            🔢 Modo: solo números base · Ajusta chips después del scan
+            \u1F522 Modo: solo n\u00FAmeros base \u00B7 Ajusta chips despu\u00E9s del scan
           </span>
         </div>
         <div className="mr2">
-          <button className="mc" onClick={()=>{snd('tap');retake();}}>🔄 Otra foto</button>
-          <button className="mo" onClick={()=>{snd('tap');analyze();}}>🔍 Analizar</button>
+          <button className="mc" onClick={()=>{snd('tap');retake();}}>\u1F504 Otra foto</button>
+          <button className="mo" onClick={()=>{snd('tap');analyze();}}>\u1F50D Analizar</button>
         </div>
       </>)}
 
@@ -1429,7 +1429,7 @@ Responde ÚNICAMENTE con este JSON sin markdown:
         <div className="cv" style={{position:"relative"}}>
           <img src={img} alt="" style={{opacity:.4,width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
           <div className="sov"><div className="spin"/>
-            <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}}>Analizando con {provider==="gemini"?"Gemini ✨":"Claude 🟠"}…</div>
+            <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}}>Analizando con {provider==="gemini"?"Gemini \u2728":"Claude \u1F7E0"}\u2026</div>
           </div>
         </div>
       )}
@@ -1440,21 +1440,21 @@ Responde ÚNICAMENTE con este JSON sin markdown:
 
       {phase==="error"&&(<>
         <div style={{textAlign:"center",padding:"20px 0"}}>
-          <div style={{fontSize:"2.5rem",marginBottom:10}}>{errMsg.includes("Cuota")?"⏱":"⚠️"}</div>
+          <div style={{fontSize:"2.5rem",marginBottom:10}}>{errMsg.includes("Cuota")?"\u23F1":"\u26A0\uFE0F"}</div>
           <p style={{fontWeight:800,marginBottom:10,fontSize:".82rem",lineHeight:1.5,textAlign:"left",whiteSpace:"pre-wrap",background:"rgba(0,0,0,.3)",padding:"10px",borderRadius:10,maxHeight:200,overflowY:"auto",wordBreak:"break-all"}}>{errMsg}</p>
           {errMsg.includes("Cuota")&&<div style={{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--y)"}}>
-            💡 Tip: la cuota gratuita es 15 req/min.<br/>Usa ✏️ Manual mientras esperas.
+            \u1F4A1 Tip: la cuota gratuita es 15 req/min.<br/>Usa \u270F\uFE0F Manual mientras esperas.
           </div>}
-          {(errMsg.includes("404")||errMsg.includes("🔍"))&&<div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--t)"}}>
-            💡 Pasos para resolver:<br/>
+          {(errMsg.includes("404")||errMsg.includes("\u1F50D"))&&<div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--t)"}}>
+            \u1F4A1 Pasos para resolver:<br/>
             1. Ve a <b>aistudio.google.com</b><br/>
-            2. Claves de API → Elimina la actual → Crea una nueva<br/>
-            3. Abre ⚙ en el scan y pega la nueva key
+            2. Claves de API \u2192 Elimina la actual \u2192 Crea una nueva<br/>
+            3. Abre \u2699 en el scan y pega la nueva key
           </div>}
         </div>
         <div className="mr2">
           <button className="mc" onClick={()=>{snd('tap');onClose();}}>Cerrar</button>
-          <button className="mo" onClick={()=>{snd('tap');retake();}}>🔄 Reintentar</button>
+          <button className="mo" onClick={()=>{snd('tap');retake();}}>\u1F504 Reintentar</button>
         </div>
       </>)}
     </div></div>
@@ -1485,7 +1485,7 @@ function ResultEditor({res, onResult, onRetake}){
   }
 
   function pressNum(d){
-    if(d==="⌫"){setNewVal(v=>v.slice(0,-1));snd('del');return;}
+    if(d==="\u232B"){setNewVal(v=>v.slice(0,-1));snd('del');return;}
     if(newVal.length>=2)return;
     snd('num');
     setNewVal(v=>v+d);
@@ -1505,13 +1505,13 @@ function ResultEditor({res, onResult, onRetake}){
       {}
       <div style={{marginBottom:10}}>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:8,textAlign:"center"}}>
-          CARTAS DETECTADAS — toca ✕ para quitar
+          CARTAS DETECTADAS \u2014 toca \u2715 para quitar
         </div>
 
         {}
         <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",minHeight:48,alignItems:"center"}}>
           {cards.length===0&&(
-            <div style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}}>Sin cartas — agrega manualmente</div>
+            <div style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}}>Sin cartas \u2014 agrega manualmente</div>
           )}
           {cards.map((n,i)=>(
             <div key={i} style={{
@@ -1533,7 +1533,7 @@ function ResultEditor({res, onResult, onRetake}){
                 color:"white",fontSize:".7rem",cursor:"pointer",
                 display:"flex",alignItems:"center",justifyContent:"center",
                 fontWeight:900,lineHeight:1
-              }}>✕</button>
+              }}>\u2715</button>
             </div>
           ))}
         </div>
@@ -1551,7 +1551,7 @@ function ResultEditor({res, onResult, onRetake}){
             {multiplier||plusCards.length>0 ? (
               <>
                 <span style={{color:"rgba(255,255,255,.5)"}}>Base: {cards.map(Number).join("+")} = {baseTotal}</span>
-                {multiplier&&<><br/><span style={{color:"rgba(255,120,120,.8)"}}>× {multiplier} = {baseTotal*multiplier}</span></>}
+                {multiplier&&<><br/><span style={{color:"rgba(255,120,120,.8)"}}>\u00D7 {multiplier} = {baseTotal*multiplier}</span></>}
                 {plusCards.length>0&&<><br/><span style={{color:"rgba(100,220,150,.8)"}}>+ {plusCards.join("+")} = {total}</span></>}
               </>
             ) : (
@@ -1561,7 +1561,7 @@ function ResultEditor({res, onResult, onRetake}){
         )}
         {res.note&&(
           <div style={{color:"rgba(255,255,255,.25)",fontSize:".68rem",fontWeight:700,marginTop:5,fontStyle:"italic",lineHeight:1.4}}>
-            💬 {res.note}
+            \u1F4AC {res.note}
           </div>
         )}
       </div>
@@ -1569,13 +1569,13 @@ function ResultEditor({res, onResult, onRetake}){
       {}
       <div style={{marginBottom:10}}>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6,textAlign:"center"}}>
-          MODIFICADORES — toca para aplicar
+          MODIFICADORES \u2014 toca para aplicar
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:6}}>
           {}
           <button onClick={()=>{snd('op');setMultiplier(m=>m?null:2);}}
             style={{border:`2px solid ${multiplier===2?MOD_TEXT_COLOR:"rgba(242,90,122,.3)"}`,background:multiplier===2?MOD_BG_COLOR:"rgba(246,166,35,.1)",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:multiplier===2?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:56,textAlign:"center"}}>
-            ×2
+            \u00D72
             {multiplier===2&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}}>ACTIVO</div>}
           </button>
           {}
@@ -1585,14 +1585,14 @@ function ResultEditor({res, onResult, onRetake}){
               <button key={n} onClick={()=>{snd('op');setPlusCards(p=>active?p.filter(x=>x!==n):[...p,n]);}}
                 style={{border:`2px solid ${active?MOD_TEXT_COLOR:"rgba(242,90,122,.25)"}`,background:active?MOD_BG_COLOR:"rgba(246,166,35,.08)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:48,textAlign:"center"}}>
                 +{n}
-                {active&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}}>✓</div>}
+                {active&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}}>\u2713</div>}
               </button>
             );
           })}
         </div>
         {(multiplier||plusCards.length>0)&&(
           <div style={{background:"rgba(246,166,35,.15)",border:"1px solid rgba(246,166,35,.4)",borderRadius:9,padding:"6px 12px",textAlign:"center",fontSize:".76rem",fontWeight:800,color:"var(--y)"}}>
-            {multiplier?"×2 activado: ":""}
+            {multiplier?"\u00D72 activado: ":""}
             {multiplier?`(${baseTotal}) × 2 = ${baseTotal*2}`:`base = ${baseTotal}`}
             {plusCards.length>0?` + ${plusCards.join("+")} = ${multiplier?baseTotal*2+plusCards.reduce((a,b)=>a+b,0):baseTotal+plusCards.reduce((a,b)=>a+b,0)}`:""}
           </div>
@@ -1603,11 +1603,11 @@ function ResultEditor({res, onResult, onRetake}){
       {!adding?(
         <button onClick={()=>{snd('tap');setAdding(true);setNewVal("");}}
           style={{width:"100%",background:"rgba(255,255,255,.06)",border:"2px dashed rgba(255,255,255,.2)",borderRadius:12,padding:"10px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:1,marginBottom:12}}>
-          ➕ AGREGAR CARTA BASE (0–12)
+          \u2795 AGREGAR CARTA BASE (0\u201312)
         </button>
       ):(
         <div style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,padding:"12px",marginBottom:12}}>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"}}>¿QUÉ NÚMERO? (0–12)</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"}}>\u00BFQU\u00C9 N\u00DAMERO? (0\u201312)</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"3rem",color:"var(--t)",textAlign:"center",marginBottom:8,lineHeight:1}}>
             {newVal||"_"}
           </div>
@@ -1618,12 +1618,12 @@ function ResultEditor({res, onResult, onRetake}){
           </div>
           <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:6,marginBottom:8}}>
             <button className="npb zero-key" style={{padding:"12px 4px",fontSize:"1.1rem"}} onClick={()=>pressNum("0")}>0</button>
-            <button className="npb del-key" style={{padding:"12px 4px"}} onClick={()=>pressNum("⌫")}>⌫</button>
+            <button className="npb del-key" style={{padding:"12px 4px"}} onClick={()=>pressNum("\u232B")}>\u232B</button>
           </div>
           <div className="mr2">
             <button className="mc" onClick={()=>{snd('tap');setAdding(false);}}>Cancelar</button>
             <button className="mo" onClick={addCard} disabled={!newVal}>
-              ➕ Agregar {newVal?`carta ${newVal}`:""}
+              \u2795 Agregar {newVal?`carta ${newVal}`:""}
             </button>
           </div>
         </div>
@@ -1631,10 +1631,10 @@ function ResultEditor({res, onResult, onRetake}){
 
       {}
       <div className="mr2">
-        <button className="mc" onClick={()=>{snd('tap');onRetake();}}>🔄 Repetir foto</button>
+        <button className="mc" onClick={()=>{snd('tap');onRetake();}}>\u1F504 Repetir foto</button>
         <button className="mo" onClick={()=>{snd('score');onResult(total);}}
           disabled={cards.length===0}>
-          ✅ Confirmar {total} pts
+          \u2705 Confirmar {total} pts
         </button>
       </div>
     </>
@@ -1679,7 +1679,7 @@ function ManualModal({playerName,onSubmit,onClose}){
   return(
     <div className="mbg"><div className="ms">
       <div className="mh"/>
-      <div className="mt2">🧮 Captura Manual</div>
+      <div className="mt2">\u1F9EE Captura Manual</div>
       <div className="msub">Puntos de <b style={{color:"#fff"}}>{playerName}</b> esta ronda</div>
 
       {}
@@ -1700,14 +1700,14 @@ function ManualModal({playerName,onSubmit,onClose}){
       {}
       <div className="np-bottom">
         <button className="npb zero-key" onClick={()=>pressNum('0')}>0</button>
-        <button className="npb del-key" onClick={pressDel}>⌫</button>
+        <button className="npb del-key" onClick={pressDel}>\u232B</button>
       </div>
 
       {}
       <div className="np-ops">
         <button className="npb op-key" onClick={()=>pressOp('+')}>+</button>
-        <button className="npb op-key" onClick={()=>pressOp('-')}>−</button>
-        <button className="npb op-key" onClick={()=>pressOp('*')}>×</button>
+        <button className="npb op-key" onClick={()=>pressOp('-')}>\u2212</button>
+        <button className="npb op-key" onClick={()=>pressOp('*')}>\u00D7</button>
         <button className="npb clr-key" onClick={pressClear}>CLR</button>
       </div>
 
@@ -1716,7 +1716,7 @@ function ManualModal({playerName,onSubmit,onClose}){
         if(error||(!expr&&finalVal===0)){snd('zero');onSubmit(0);}
         else{snd('score');onSubmit(Math.max(0,Math.round(finalVal)));}
       }}>
-        ✓ CONFIRMAR — <span style={{fontSize:"1.4rem"}}>{error?"0":Math.max(0,Math.round(finalVal))}</span> puntos
+        \u2713 CONFIRMAR \u2014 <span style={{fontSize:"1.4rem"}}>{error?"0":Math.max(0,Math.round(finalVal))}</span> puntos
       </button>
       <div style={{height:10}}/>
       <button className="mc" style={{width:"100%"}} onClick={()=>{snd('tap');onClose();}}>Cancelar</button>
@@ -1730,8 +1730,8 @@ function WinnerScreen({winner,onClose,onNew,T}){
   return(
     <div className="wb">
       {dots.map(d=><div key={d.id} style={{position:"absolute",background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:d.sh,animation:`cf ${d.dr} ${d.dl} linear infinite`}}/>)}
-      <div className="wc">{isTie?"🤝":"🃏"}</div>
-      <div className="wl">{isTie?"¡EMPATE!":{T.winner2}}</div>
+      <div className="wc">{isTie?"\u1F91D":"\u1F0CF"}</div>
+      <div className="wl">{isTie?"\u00A1EMPATE!":{T.winner2}}</div>
       <div className="wbig">FLIP 7</div>
       {isTie?(
         <>
@@ -1750,18 +1750,17 @@ function WinnerScreen({winner,onClose,onNew,T}){
       ):(
         <>
           <div className="wnm">{winner.emoji} {winner.name}</div>
-          <div className="wpt">{winner.total} PUNTOS · RACE TO 200!</div>
+          <div className="wpt">{winner.total} PUNTOS \u00B7 RACE TO 200!</div>
         </>
       )}
-      <button className="btn btn-y" onClick={()=>{snd('tap');onNew();}} style={{maxWidth:270,marginBottom:10}}>🎮 NUEVO JUEGO</button>
+      <button className="btn btn-y" onClick={()=>{snd('tap');onNew();}} style={{maxWidth:270,marginBottom:10}}>\u1F3AE NUEVO JUEGO</button>
       <button className="btn btn-g" onClick={()=>{snd('tap');onClose();}} style={{maxWidth:270}}>Ver marcador final</button>
     </div>
   );
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
-
-</script>
+`</script>
 
 </body>
 </html>
