@@ -1110,8 +1110,17 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
           </div>
         </div>
       )}
-      {!room.finished&&allDone&&<div className="alert al-g">{isHost?T.allReady:T.waitingHost}</div>}
-      {!room.finished&&!allDone&&room.players.some(p=>room.(roundScores&&roundScores[p.id]))&&<div className="alert al-y">{T.waitingCaps}</div>}
+const hasAnyScore = room?.players?.some((p) => roundScores?.[p.id] !== undefined);
+
+{!room?.finished && allDone && (
+  <div className="alert al-g">
+    {isHost ? T.allReady : T.waitingHost}
+  </div>
+)}
+
+{!room?.finished && !allDone && hasAnyScore && (
+  <div className="alert al-y">{T.waitingCaps}</div>
+)}
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>{T.players2}</p>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
