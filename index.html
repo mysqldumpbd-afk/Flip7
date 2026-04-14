@@ -566,14 +566,57 @@ async function finalizeRound() {
   room.players = newPlayers;
 }
     
-    const maxScore=Math.max.apply(null,newPlayers.map(function(p){return p.total;}));
-    const champs=newPlayers.filter(p=>p.total>=WIN&&p.total===maxScore);
-    const isFinished=champs.length>0;
-    
-    const winner=champs.length===1?champs[0]:{tied:true,players:champs,total:maxScore,name:champs.map(p=>p.name).join(" & "),emoji:""};
-    var finUpdate=Object.assign({},room,{players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
-    await dbRef.current.set("rooms/"+roomCode,finUpdate);
-  }
+async function finalizeRound() {
+  snd('round');
+
+  const newPlayers = room.players.map((p) => {
+    const entry = roundScores?.[p.id];
+    const pts = entry?.score ?? 0;
+    const method = entry?.method ?? "zero";
+
+    return {
+      ...p,
+      total: (p.total ?? 0) + pts,
+      rounds: [
+        ...(p.rounds ?? []),
+        { score: pts, method }
+      ]
+    };
+  });
+
+  const totals = newPlayers.map((p) => p.total ?? 0);
+  const maxScore = totals.length ? Math.max(...totals) : 0;
+
+  const champs = newPlayers.filter(
+    (p) => (p.total ?? 0) >= WIN && (p.total ?? 0) === maxScore
+  );
+
+  const isFinished = champs.length > 0;
+
+  const winner =
+    !isFinished
+      ? null
+      : champs.length === 1
+        ? champs[0]
+        : {
+            tied: true,
+            players: champs,
+            total: maxScore,
+            name: champs.map((p) => p.name).join(" & "),
+            emoji: ""
+          };
+
+  const finUpdate = {
+    ...room,
+    players: newPlayers,
+    roundScores: {},
+    round: isFinished ? room.round : (room.round ?? 0) + 1,
+    finished: isFinished,
+    winner
+  };
+
+  await dbRef.current.set(`rooms/${roomCode}`, finUpdate);
+}
 
   async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors}){
     const db=makeDB(demo);dbRef.current=db;
