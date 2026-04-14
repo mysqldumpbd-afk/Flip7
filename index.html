@@ -1223,143 +1223,379 @@ function SesCards({sessions, onClear, T}){
 
 </script>
 <script type="text/babel">
-
-
-
-
-
-
-
-
 function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
-  const[phase,setPhase]=useState("pick");
-  const[img,setImg]=useState(null);
-  const[b64,setB64]=useState(null);
-  const[mime,setMime]=useState("image/jpeg");
-  const[res,setRes]=useState(null);
-  const[errMsg,setErrMsg]=useState("");
-  const[provider,setProvider]=useState(aiConfig.provider||"gemini");
-  
-  const getInitialKey=()=>{
-    if((aiConfig.provider||"gemini")==="anthropic") return aiConfig.claudeKey||aiConfig.key||"";
-    return aiConfig.key||"";
-  };
-  const[apiKey,setApiKey]=useState(getInitialKey());
-  const[showKeyEdit,setShowKeyEdit]=useState(false);
-  const[scanMode,setScanMode]=useState("full");
-  const fileRef=useRef();
+  var useState=React.useState, useRef=React.useRef, useEffect=React.useEffect;
+  var ph=useState("pick"), img_=useState(null), b64_=useState(null), mime_=useState("image/jpeg");
+  var res_=useState(null), err_=useState(""), prov_=useState(aiConfig.provider||"gemini");
+  var key_=useState(aiConfig.key||""), edit_=useState(false), mode_=useState("full");
+  var phase=ph[0],setPhase=ph[1], img=img_[0],setImg=img_[1], b64=b64_[0],setB64=b64_[1];
+  var mime=mime_[0],setMime=mime_[1], res=res_[0],setRes=res_[1];
+  var errMsg=err_[0],setErrMsg=err_[1], provider=prov_[0],setProvider=prov_[1];
+  var apiKey=key_[0],setApiKey=key_[1], showKeyEdit=edit_[0],setShowKeyEdit=edit_[1];
+  var scanMode=mode_[0],setScanMode=mode_[1];
+  var fileRef=useRef();
+
+  useEffect(function(){
+    if(aiConfig.key) setApiKey(aiConfig.key);
+  },[aiConfig.key]);
+
+  var PROMPT="Mira esta foto de cartas del juego Flip 7.\n\nTu UNICA tarea: lee los numeros que aparecen en las cartas de fondo BLANCO o CREMA.\nLas cartas base tienen escrito el numero en grande y debajo el nombre en ingles (SEVEN, TEN, TWELVE, etc.)\n\nIGNORA completamente:\n- Cualquier carta de fondo AMARILLO o DORADO\n- Cualquier carta de accion (Flip, Freeze, Second Chance)\n- Cualquier simbolo como x2, +2, +4, +6, +8, +10\n\nNOTA sobre colores de numeros:\n- Carta 7: color CAFE/MARRON claro, texto SEVEN\n- Carta 12: color GRIS oscuro, texto TWELVE\n- Carta 11: color AZUL/LILA, texto ELEVEN\n- Carta 10: color ROJO brillante, texto TEN\n\nSOLO reporta los numeros de cartas blancas/crema que veas claramente.\n\nResponde UNICAMENTE con este JSON sin markdown:\n{\"cards\":[<lista de numeros enteros>],\"total\":<suma>,\"note\":\"<que cartas viste>\"}";
 
   function handleFile(e){
-    const f=e.target.files[0]; if(!f) return;
-    const r=new FileReader();
-    r.onload=ev=>{
-      const original=ev.target.result;
-      
-      const img=new Image();
-      img.onload=()=>{
-        const MAX=1024;
-        let w=img.width, h=img.height;
+    var f=e.target.files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(ev){
+      var original=ev.target.result;
+      var imgEl=new Image();
+      imgEl.onload=function(){
+        var MAX=1024, w=imgEl.width, h=imgEl.height;
         if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
-        const canvas=document.createElement('canvas');
+        var canvas=document.createElement("canvas");
         canvas.width=w; canvas.height=h;
-        canvas.getContext('2d').drawImage(img,0,0,w,h);
-        const compressed=canvas.toDataURL('image/jpeg',0.75);
-        setImg(compressed);
-        setB64(compressed.split(",")[1]);
-        setMime("image/jpeg");
-        setPhase("preview");
+        canvas.getContext("2d").drawImage(imgEl,0,0,w,h);
+        var compressed=canvas.toDataURL("image/jpeg",0.75);
+        setImg(compressed); setB64(compressed.split(",")[1]); setMime("image/jpeg"); setPhase("preview");
       };
-      img.onerror=()=>{ setImg(original); setB64(original.split(",")[1]); setMime(original.split(";")[0].split(":")[1]||"image/jpeg"); setPhase("preview"); };
-      img.src=original;
+      imgEl.onerror=function(){ setImg(original); setB64(original.split(",")[1]); setMime("image/jpeg"); setPhase("preview"); };
+      imgEl.src=original;
     };
     r.readAsDataURL(f);
   }
 
-  const PROMPT="Mira esta foto de cartas del juego Flip 7.\n\nTu \u00DANICA tarea: lee los n\u00FAmeros que aparecen en las cartas de fondo BLANCO o CREMA.\nLas cartas base tienen escrito el n\u00FAmero en grande y debajo el nombre en ingl\u00E9s (SEVEN, TEN, TWELVE, etc.)\n\nIGNORA completamente:\n- Cualquier carta de fondo AMARILLO o DORADO\n- Cualquier carta de acci\u00F3n (Flip, Freeze, Second Chance)\n- Cualquier s\u00EDmbolo como x2, +2, +4, +6, +8, +10\n\nSOLO reporta los n\u00FAmeros de cartas blancas/crema que veas claramente.\nNOTA IMPORTANTE sobre colores de n\u00FAmeros en cartas base:\n- Carta 7: n\u00FAmero color CAF\u00C9/MARR\u00D3N claro (salmon/beige), texto SEVEN\n- Carta 12: n\u00FAmero color GRIS/CAF\u00C9 oscuro con doble contorno, texto TWELVE\n- Carta 11: n\u00FAmero color AZUL/LILA, texto ELEVEN\n- Carta 10: n\u00FAmero color ROJO brillante, texto TEN\n- Carta 9: n\u00FAmero color NARANJA/MELOCOT\u00D3N, texto NINE\nNO confundas las cartas AMARILLAS/DORADAS de fondo con las cartas base.\n\nResponde \u00DANICAMENTE con este JSON sin markdown:\n{\"cards\":[<lista de n\u00FAmeros enteros que le\u00EDste>],\"total\":<suma de esos n\u00FAmeros>,\"note\":\"<qu\u00E9 cartas viste: ej NINE=9, TEN=10, TWELVE=12>\"}";
-
   async function analyze(){
     var key=apiKey.trim();
-    if(!key){setErrMsg("Ingresa tu API Key arriba.");setPhase("error");return;}
-    setAiConfig({provider:provider,key:key});
+    if(!key){setErrMsg("Ingresa tu API Key.");setPhase("error");return;}
+    setAiConfig({provider:provider,key:key,claudeKey:aiConfig.claudeKey});
     setPhase("analyzing");
     var ACTIVE_PROMPT=scanMode==="base_only"
-      ? "Mira esta foto de cartas del juego Flip 7. SOLO lee los numeros de las cartas con fondo BLANCO o CREMA. Ignora completamente cualquier carta amarilla. Suma esos numeros. Responde SOLO con JSON sin markdown: {"total":<numero>,"cards":[<lista>],"note":"Solo numeros base"}"
+      ? "Mira esta foto. SOLO lee numeros de cartas blancas/crema. Ignora cartas amarillas. Responde JSON: {\"total\":<n>,\"cards\":[<lista>],\"note\":\"base only\"}"
       : PROMPT;
     try{
       var parsed=null;
       if(provider==="gemini"){
         var MODELS=["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-2.5-pro"];
         var lastErr=null;
-        var debugLog=[];
         for(var mi=0;mi<MODELS.length;mi++){
           var model=MODELS[mi];
           try{
-            var body={
-              contents:[{parts:[
-                {inline_data:{mime_type:mime,data:b64}},
-                {text:ACTIVE_PROMPT}
-              ]}]
-            };
+            var body={contents:[{parts:[
+              {inline_data:{mime_type:mime,data:b64}},
+              {text:ACTIVE_PROMPT}
+            ]}]};
             var resp=await fetch(
               "https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+key,
               {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}
             );
             var rawBody=await resp.text();
-            if(resp.status===429){lastErr=new Error("Cuota excedida (429). Espera 1 minuto.");continue;}
-            if(resp.status===404){lastErr=new Error("Modelo "+model+" no disponible (404).");continue;}
+            if(resp.status===429){lastErr=new Error("Cuota excedida (429). Espera 1 min.");continue;}
+            if(resp.status===404){lastErr=new Error("Modelo "+model+" no encontrado (404).");continue;}
             if(resp.status===400){lastErr=new Error("Error 400: "+rawBody.slice(0,200));continue;}
             if(resp.status===403){lastErr=new Error("API Key sin permisos (403).");continue;}
             if(!resp.ok){lastErr=new Error("HTTP "+resp.status+": "+rawBody.slice(0,150));continue;}
             var data=JSON.parse(rawBody);
             if(data.promptFeedback&&data.promptFeedback.blockReason){lastErr=new Error("Bloqueado: "+data.promptFeedback.blockReason);continue;}
-            var rawTxt=(data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0]&&data.candidates[0].content.parts[0].text)||"";
-            if(!rawTxt){lastErr=new Error("Respuesta vacia del modelo.");continue;}
+            var rawTxt=(((data.candidates||[])[0]||{}).content||{}).parts;
+            rawTxt=rawTxt?rawTxt[0].text:"";
+            if(!rawTxt){lastErr=new Error("Respuesta vacia.");continue;}
             var cleanTxt=rawTxt.replace(/```json/g,"").replace(/```/g,"").trim();
-            var jsonStart=cleanTxt.indexOf("{");
-            var jsonEnd=cleanTxt.lastIndexOf("}")+1;
-            if(jsonStart>=0) cleanTxt=cleanTxt.slice(jsonStart,jsonEnd);
+            var js=cleanTxt.indexOf("{"), je=cleanTxt.lastIndexOf("}")+1;
+            if(js>=0) cleanTxt=cleanTxt.slice(js,je);
             parsed=JSON.parse(cleanTxt);
             break;
           }catch(ex){lastErr=ex;}
         }
-        if(!parsed) throw lastErr||new Error("Todos los modelos de Gemini fallaron.");
+        if(!parsed) throw lastErr||new Error("Todos los modelos fallaron.");
       } else {
+        var ckey=aiConfig.claudeKey||apiKey;
         var resp2=await fetch("https://api.anthropic.com/v1/messages",{
           method:"POST",
-          headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+          headers:{"Content-Type":"application/json","x-api-key":ckey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
           body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:300,messages:[{role:"user",content:[
             {type:"image",source:{type:"base64",media_type:mime,data:b64}},
             {type:"text",text:ACTIVE_PROMPT}
           ]}]})
         });
-        if(!resp2.ok){var t=await resp2.text();throw new Error("Anthropic "+resp2.status+": "+t.slice(0,120));}
-        var data2=await resp2.json();
-        var txt2=(data2.content||[]).map(function(c){return c.text||"";}).join("");
+        if(!resp2.ok){var t2=await resp2.text();throw new Error("Anthropic "+resp2.status+": "+t2.slice(0,120));}
+        var d2=await resp2.json();
+        var txt2=(d2.content||[]).map(function(c){return c.text||"";}).join("");
         parsed=JSON.parse(txt2.replace(/```json/g,"").replace(/```/g,"").trim());
       }
       snd("score");setRes(parsed);setPhase("result");
     }catch(e){
       var m=e.message||"";
       var friendly=m;
-      if(m.includes("429")||m.includes("Cuota")||m.includes("quota"))
+      if(m.includes("429")||m.includes("Cuota"))
         friendly="Cuota de Gemini excedida. Espera ~1 minuto e intenta de nuevo.";
       else if(m.includes("404")||m.includes("not found"))
-        friendly="Modelo no encontrado. Se probaron todos los disponibles.";
-      else if(m.includes("403")||m.includes("API key"))
+        friendly="Modelo no encontrado. Prueba de nuevo en unos minutos.";
+      else if(m.includes("403")||m.includes("permisos"))
         friendly="API Key invalida o sin permisos.";
       else if(m.includes("fetch")||m.includes("network"))
-        friendly="Error de red. Verifica tu conexion a internet.";
+        friendly="Error de red. Verifica tu conexion.";
       setErrMsg(friendly);
       setPhase("error");
     }
   }
 
-  function retake(){setImg(null);setB64(null);setRes(null);setPhase(\"pick\");if(fileRef.current)fileRef.current.value=\"\";}\n\n  return(\n    <div className=\"mbg\"><div className=\"ms\">\n      <div className=\"mh\"/>\n      <div className=\"mt2\">7 Scan con IA</div>\n      <div className=\"msub\">Turno de: <b style={{color:\"#fff\"}}>{playerName}</b></div>\n\n      {phase===\"pick\"&&(<>\n        {}\n        <div style={{background:\"rgba(46,196,182,.08)\",border:\"1px solid rgba(46,196,182,.22)\",borderRadius:12,padding:\"10px 14px\",marginBottom:12,display:\"flex\",alignItems:\"center\",gap:10}}>\n          <span style={{fontSize:\"1.3rem\"}}></span>\n          <div style={{flex:1}}>\n            <div style={{fontWeight:900,fontSize:\".82rem\",color:\"var(--t)\"}}>{apiKey?\" Gemini 2.5 Flash  Activo\":\" Cargando configuraci\u00F3n\"}</div>\n            <div style={{fontSize:\".68rem\",color:\"rgba(255,255,255,.4)\",fontWeight:700}}>{apiKey?\"IA incluida  Lista para usar\":\"La key se carga desde Firebase autom\u00E1ticamente\"}</div>\n          </div>\n          <button onClick={()=>{snd('tap');setShowKeyEdit(v=>!v);}} style={{background:\"none\",border:\"1px solid rgba(255,255,255,.15)\",color:\"rgba(255,255,255,.4)\",borderRadius:8,padding:\"4px 8px\",cursor:\"pointer\",fontSize:\".68rem\",fontWeight:700}}>\n            {showKeyEdit?\"\":\"\"}\n          </button>\n        </div>\n        {showKeyEdit&&(\n          <div className=\"api-box\" style={{marginBottom:12}}>\n            <p>Cambiar IA o key (opcional):</p>\n            <div className=\"ai-tabs\">\n              <button className={"ai-tab ${provider==="gemini"?"on":""}"} onClick={()=>{snd('tap');setProvider(\"gemini\");setApiKey(aiConfig.key||\"\");}}>Gemini<br/><span style={{fontSize:\".6rem\",opacity:.7}}>GRATIS</span></button>\n              <button className={"ai-tab ${provider==="anthropic"?"on":""}"} onClick={()=>{snd('tap');setProvider(\"anthropic\");setApiKey(aiConfig.claudeKey||aiConfig.key||\"\");}}>0 Claude<br/><span style={{fontSize:\".6rem\",opacity:.7}}>$0.001/img</span></button>\n            </div>\n            <input className=\"inp\" style={{margin:0,fontSize:\".82rem\"}} placeholder={provider===\"gemini\"?\"AIzaSy...\":\"sk-ant-api03-...\"} value={apiKey} onChange={e=>setApiKey(e.target.value)} onFocus={()=>snd('tap')}/>\n          </div>\n        )}\n        <input ref={fileRef} type=\"file\" accept=\"image}\n        <div style={{background:\"rgba(46,196,182,.08)\",border:\"1px solid rgba(46,196,182,.2)\",borderRadius:10,padding:\"8px 12px\",marginBottom:8,textAlign:\"center\"}}>\n          <span style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".68rem\",color:\"var(--t)\",letterSpacing:1}}>\n            2 Modo: solo n\u00FAmeros base  Ajusta chips despu\u00E9s del scan\n          </span>\n        </div>\n        <div className=\"mr2\">\n          <button className=\"mc\" onClick={()=>{snd('tap');retake();}}>4 Otra foto</button>\n          <button className=\"mo\" onClick={()=>{snd('tap');analyze();}}>D Analizar</button>\n        </div>\n      </>)}\n\n      {phase===\"analyzing\"&&(\n        <div className=\"cv\" style={{position:\"relative\"}}>\n          <img src={img} alt=\"\" style={{opacity:.4,width:\"100%\",height:\"100%\",objectFit:\"cover\",display:\"block\"}}/>\n          <div className=\"sov\"><div className=\"spin\"/>\n            <div style={{fontFamily:\"'Lilita One',sans-serif\",color:\"var(--y)\",fontSize:\"1rem\"}}>Analizando con {provider===\"gemini\"?\"Gemini \":\"Claude 0\"}</div>\n          </div>\n        </div>\n      )}\n\n      {phase===\"result\"&&res&&(\n        <ResultEditor res={res} onResult={onResult} onRetake={retake}/>\n      )}\n\n      {phase===\"error\"&&(<>\n        <div style={{textAlign:\"center\",padding:\"20px 0\"}}>\n          <div style={{fontSize:\"2.5rem\",marginBottom:10}}>{errMsg.includes(\"Cuota\")?\"\":\"\"}</div>\n          <p style={{fontWeight:800,marginBottom:10,fontSize:\".82rem\",lineHeight:1.5,textAlign:\"left\",whiteSpace:\"pre-wrap\",background:\"rgba(0,0,0,.3)\",padding:\"10px\",borderRadius:10,maxHeight:200,overflowY:\"auto\",wordBreak:\"break-all\"}}>{errMsg}</p>\n          {errMsg.includes(\"Cuota\")&&<div style={{background:\"rgba(245,200,0,.1)\",border:\"1px solid rgba(245,200,0,.25)\",borderRadius:10,padding:\"10px 14px\",fontSize:\".8rem\",fontWeight:800,color:\"var(--y)\"}}>\n            1 Tip: la cuota gratuita es 15 req/min.<br/>Usa  Manual mientras esperas.\n          </div>}\n          {(errMsg.includes(\"404\")||errMsg.includes(\"D\"))&&<div style={{background:\"rgba(46,196,182,.08)\",border:\"1px solid rgba(46,196,182,.2)\",borderRadius:10,padding:\"10px 14px\",fontSize:\".8rem\",fontWeight:800,color:\"var(--t)\"}}>\n            1 Pasos para resolver:<br/>\n            1. Ve a <b>aistudio.google.com</b><br/>\n            2. Claves de API  Elimina la actual  Crea una nueva<br/>\n            3. Abre  en el scan y pega la nueva key\n          </div>}\n        </div>\n        <div className=\"mr2\">\n          <button className=\"mc\" onClick={()=>{snd('tap');onClose();}}>Cerrar</button>\n          <button className=\"mo\" onClick={()=>{snd('tap');retake();}}>4 Reintentar</button>\n        </div>\n      </>)}\n    </div></div>\n  );\n}\nconst CARD_TEXT_MAP={0:\"#FF2FA3\",1:\"#B7A9C9\",2:\"#D8E81B\",3:\"#FF4B78\",4:\"#19C7D8\",5:\"#10C96C\",6:\"#C86AE3\",7:\"#F48A9A\",8:\"#9EDB92\",9:\"#FFA33A\",10:\"#FF3B3B\",11:\"#6EBBFF\",12:\"#B9AEC9\"};\nconst CARD_BG_MAP={0:\"#F6EFD9\",1:\"#F6EFD9\",2:\"#F6EFD9\",3:\"#F6EFD9\",4:\"#F6EFD9\",5:\"#F6EFD9\",6:\"#F6EFD9\",7:\"#F6EFD9\",8:\"#F6EFD9\",9:\"#F6EFD9\",10:\"#F6EFD9\",11:\"#F6EFD9\",12:\"#F6EFD9\"};\nconst MOD_TEXT_COLOR=\"#F25A7A\";\nconst MOD_BG_COLOR=\"#F6A623\";\n\nfunction ResultEditor({res, onResult, onRetake}){\n  \n  const initCards = (res.cards||res.base_cards||[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=12);\n  const[cards,setCards]=React.useState(initCards);\n  const[adding,setAdding]=React.useState(false);\n  const[newVal,setNewVal]=React.useState(\"\");\n  \n  const[multiplier,setMultiplier]=React.useState(res.multiplier||null);\n  const[plusCards,setPlusCards]=React.useState((res.plus_cards||[]).map(Number).filter(n=>n>0));\n\n  const baseTotal = cards.reduce((a,b)=>Number(a)+Number(b),0);\n  const afterMult = multiplier ? baseTotal * multiplier : baseTotal;\n  const total = afterMult + plusCards.reduce((a,b)=>Number(a)+Number(b),0);\n\n  function removeCard(idx){\n    snd('del');\n    setCards(c=>c.filter((_,i)=>i!==idx));\n  }\n\n  function pressNum(d){\n    if(d===\"\"){setNewVal(v=>v.slice(0,-1));snd('del');return;}\n    if(newVal.length>=2)return;\n    snd('num');\n    setNewVal(v=>v+d);\n  }\n\n  function addCard(){\n    const n=parseInt(newVal);\n    if(isNaN(n)||n<0||n>12){snd('del');return;}\n    snd('score');\n    setCards(c=>[...c,n]);\n    setNewVal(\"\");\n    setAdding(false);\n  }\n\n  return(\n    <>\n      {}\n      <div style={{marginBottom:10}}>\n        <div style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".65rem\",color:\"rgba(255,255,255,.35)\",letterSpacing:3,marginBottom:8,textAlign:\"center\"}}>\n          CARTAS DETECTADAS  toca  para quitar\n        </div>\n\n        {}\n        <div style={{display:\"flex\",flexWrap:\"wrap\",gap:8,justifyContent:\"center\",minHeight:48,alignItems:\"center\"}}>\n          {cards.length===0&&(\n            <div style={{color:\"rgba(255,255,255,.3)\",fontWeight:700,fontSize:\".85rem\"}}>Sin cartas  agrega manualmente</div>\n          )}\n          {cards.map((n,i)=>(\n            <div key={i} style={{\n              background:CARD_BG_MAP[n]||\"#F6EFD9\",\n              border:\"3px solid rgba(0,0,0,.12)\",\n              borderRadius:10,\n              padding:\"6px 10px\",\n              display:\"flex\",alignItems:\"center\",gap:6,\n              boxShadow:\"0 3px 8px rgba(0,0,0,.4)\",\n              position:\"relative\",\n              minWidth:52,\n              justifyContent:\"center\"\n            }}>\n              <span style={{fontFamily:\"'Anton',sans-serif\",fontSize:\"1.8rem\",color:CARD_TEXT_MAP[n]||\"#333\",lineHeight:1}}>{n}</span>\n              <button onClick={()=>removeCard(i)} style={{\n                position:\"absolute\",top:-8,right:-8,\n                width:20,height:20,\n                background:\"var(--r)\",border:\"none\",borderRadius:\"50%\",\n                color:\"white\",fontSize:\".7rem\",cursor:\"pointer\",\n                display:\"flex\",alignItems:\"center\",justifyContent:\"center\",\n                fontWeight:900,lineHeight:1\n              }}></button>\n            </div>\n          ))}\n        </div>\n      </div>\n\n      {}\n      <div style={{textAlign:\"center\",padding:\"8px 0 10px\",borderTop:\"1px solid rgba(255,255,255,.08)\",borderBottom:\"1px solid rgba(255,255,255,.08)\",marginBottom:12}}>\n        <div style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".62rem\",color:\"rgba(255,255,255,.3)\",letterSpacing:3,marginBottom:2}}>TOTAL FINAL</div>\n        <div style={{fontFamily:\"'Anton',sans-serif\",fontSize:\"4.5rem\",color:\"var(--y)\",lineHeight:1,textShadow:\"4px 4px 0 var(--or)\"}}>\n          {total}\n        </div>\n        {}\n        {cards.length>0&&(\n          <div style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".7rem\",color:\"rgba(255,255,255,.35)\",marginTop:4,lineHeight:1.6}}>\n            {multiplier||plusCards.length>0 ? (\n              <>\n                <span style={{color:\"rgba(255,255,255,.5)\"}}>Base: {cards.map(Number).join(\"+\")} = {baseTotal}</span>\n                {multiplier&&<><br/><span style={{color:\"rgba(255,120,120,.8)\"}}>\u00D7 {multiplier} = {baseTotal*multiplier}</span></>}\n                {plusCards.length>0&&<><br/><span style={{color:\"rgba(100,220,150,.8)\"}}>+ {plusCards.join(\"+\")} = {total}</span></>}\n              </>\n            ) : (\n              <span>{cards.map(Number).join(\" + \")} = {baseTotal}</span>\n            )}\n          </div>\n        )}\n        {res.note&&(\n          <div style={{color:\"rgba(255,255,255,.25)\",fontSize:\".68rem\",fontWeight:700,marginTop:5,fontStyle:\"italic\",lineHeight:1.4}}>\n            C {res.note}\n          </div>\n        )}\n      </div>\n\n      {}\n      <div style={{marginBottom:10}}>\n        <div style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".62rem\",color:\"rgba(255,255,255,.3)\",letterSpacing:2,marginBottom:6,textAlign:\"center\"}}>\n          MODIFICADORES  toca para aplicar\n        </div>\n        <div style={{display:\"flex\",gap:6,flexWrap:\"wrap\",justifyContent:\"center\",marginBottom:6}}>\n          {}\n          <button onClick={()=>{snd('op');setMultiplier(m=>m?null:2);}}\n            style={{border:"2px solid ${multiplier===2?MOD_TEXT_COLOR:"rgba(242,90,122,.3)"}",background:multiplier===2?MOD_BG_COLOR:\"rgba(246,166,35,.1)\",borderRadius:10,padding:\"8px 14px\",cursor:\"pointer\",fontFamily:\"'Anton',sans-serif\",fontSize:\"1.2rem\",color:multiplier===2?\"#fff\":MOD_TEXT_COLOR,transition:\"all .2s\",minWidth:56,textAlign:\"center\"}}>\n            \u00D72\n            {multiplier===2&&<div style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".55rem\",color:\"#fff\",letterSpacing:1,marginTop:1}}>ACTIVO</div>}\n          </button>\n          {}\n          {[2,4,6,8,10].map(n=>{\n            const active=plusCards.includes(n);\n            return(\n              <button key={n} onClick={()=>{snd('op');setPlusCards(p=>active?p.filter(x=>x!==n):[...p,n]);}}\n                style={{border:"2px solid ${active?MOD_TEXT_COLOR:"rgba(242,90,122,.25)"}",background:active?MOD_BG_COLOR:\"rgba(246,166,35,.08)\",borderRadius:10,padding:\"8px 12px\",cursor:\"pointer\",fontFamily:\"'Anton',sans-serif\",fontSize:\"1.1rem\",color:active?\"#fff\":MOD_TEXT_COLOR,transition:\"all .2s\",minWidth:48,textAlign:\"center\"}}>\n                +{n}\n                {active&&<div style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".55rem\",color:\"#fff\",letterSpacing:1,marginTop:1}}></div>}\n              </button>\n            );\n          })}\n        </div>\n        {(multiplier||plusCards.length>0)&&(\n          <div style={{background:\"rgba(246,166,35,.15)\",border:\"1px solid rgba(246,166,35,.4)\",borderRadius:9,padding:\"6px 12px\",textAlign:\"center\",fontSize:\".76rem\",fontWeight:800,color:\"var(--y)\"}}>\n            {multiplier?\"\u00D72 activado: \":\"\"}\n            {multiplier?"(${baseTotal}) x2 = ${baseTotal*2}":"base = ${baseTotal}"}\n            {plusCards.length>0?" + ${plusCards.join("+")} = ${multiplier?baseTotal*2+plusCards.reduce((a,b)=>a+b,0):baseTotal+plusCards.reduce((a,b)=>a+b,0)}":\"\"}\n          </div>\n        )}\n      </div>\n\n      {}\n      {!adding?(\n        <button onClick={()=>{snd('tap');setAdding(true);setNewVal(\"\");}}\n          style={{width:\"100%\",background:\"rgba(255,255,255,.06)\",border:\"2px dashed rgba(255,255,255,.2)\",borderRadius:12,padding:\"10px\",cursor:\"pointer\",fontFamily:\"'Righteous',sans-serif\",fontSize:\".78rem\",color:\"rgba(255,255,255,.5)\",letterSpacing:1,marginBottom:12}}>\n           AGREGAR CARTA BASE (012)\n        </button>\n      ):(\n        <div style={{background:\"rgba(255,255,255,.05)\",border:\"1px solid rgba(255,255,255,.12)\",borderRadius:12,padding:\"12px\",marginBottom:12}}>\n          <div style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".62rem\",color:\"rgba(255,255,255,.35)\",letterSpacing:2,marginBottom:8,textAlign:\"center\"}}>QU\u00C9 N\u00DAMERO? (012)</div>\n          <div style={{fontFamily:\"'Anton',sans-serif\",fontSize:\"3rem\",color:\"var(--t)\",textAlign:\"center\",marginBottom:8,lineHeight:1}}>\n            {newVal||\"_\"}\n          </div>\n          <div style={{display:\"grid\",gridTemplateColumns:\"repeat(3,1fr)\",gap:6,marginBottom:6}}>\n            {[\"7\",\"8\",\"9\",\"4\",\"5\",\"6\",\"1\",\"2\",\"3\"].map(d=>(\n              <button key={d} className=\"npb\" style={{padding:\"12px 4px\",fontSize:\"1.1rem\"}} onClick={()=>pressNum(d)}>{d}</button>\n            ))}\n          </div>\n          <div style={{display:\"grid\",gridTemplateColumns:\"2fr 1fr\",gap:6,marginBottom:8}}>\n            <button className=\"npb zero-key\" style={{padding:\"12px 4px\",fontSize:\"1.1rem\"}} onClick={()=>pressNum(\"0\")}>0</button>\n            <button className=\"npb del-key\" style={{padding:\"12px 4px\"}} onClick={()=>pressNum(\"\")}></button>\n          </div>\n          <div className=\"mr2\">\n            <button className=\"mc\" onClick={()=>{snd('tap');setAdding(false);}}>Cancelar</button>\n            <button className=\"mo\" onClick={addCard} disabled={!newVal}>\n               Agregar {newVal?"carta ${newVal}":\"\"}\n            </button>\n          </div>\n        </div>\n      )}\n\n      {}\n      <div className=\"mr2\">\n        <button className=\"mc\" onClick={()=>{snd('tap');onRetake();}}>4 Repetir foto</button>\n        <button className=\"mo\" onClick={()=>{snd('score');onResult(total);}}\n          disabled={cards.length===0}>\n           Confirmar {total} pts\n        </button>\n      </div>\n    </>\n  );\n}\nfunction ManualModal({playerName,onSubmit,onClose}){\n  const[expr,setExpr]=useState(\"\");\n  const[calcResult,setCalcResult]=useState(0);\n  const[error,setError]=useState(false);\n\n  function pressNum(d){\n    snd('num');\n    setExpr(v=>v+d);\n  }\n  function pressOp(op){\n    snd('op');\n    setExpr(v=>{\n      if(!v)return v;\n      const last=v.slice(-1);\n      if(['+','-','*','/'].includes(last))return v.slice(0,-1)+op;\n      return v+op;\n    });\n  }\n  function pressDel(){\n    snd('del');\n    setExpr(v=>v.slice(0,-1));\n  }\n  function pressClear(){\n    snd('del');setExpr(\"\");setCalcResult(0);setError(false);\n  }\n\n  useEffect(()=>{\n    if(!expr){setCalcResult(0);setError(false);return;}\n    const r=safeEval(expr);\n    if(r===null){setError(true);}\n    else{setError(false);setCalcResult(r);}\n  },[expr]);\n\n  const display=expr||\"0\";\n  const finalVal=error?0:calcResult;\n\n  return(\n    <div className=\"mbg\"><div className=\"ms\">\n      <div className=\"mh\"/>\n      <div className=\"mt2\">E Captura Manual</div>\n      <div className=\"msub\">Puntos de <b style={{color:\"#fff\"}}>{playerName}</b> esta ronda</div>\n\n      {}\n      <div className=\"calc-display\">\n        <div className=\"calc-expr\">{display}</div>\n        <div className={"calc-result ${error?"error":""}"}>\n          {error?\"ERROR\":finalVal}\n        </div>\n      </div>\n\n      {}\n      <div className=\"np-grid\">\n        {[\"7\",\"8\",\"9\",\"4\",\"5\",\"6\",\"1\",\"2\",\"3\"].map(d=>(\n          <button key={d} className=\"npb\" onClick={()=>pressNum(d)}>{d}</button>\n        ))}\n      </div>\n\n      {}\n      <div className=\"np-bottom\">\n        <button className=\"npb zero-key\" onClick={()=>pressNum('0')}>0</button>\n        <button className=\"npb del-key\" onClick={pressDel}></button>\n      </div>\n\n      {}\n      <div className=\"np-ops\">\n        <button className=\"npb op-key\" onClick={()=>pressOp('+')}>+</button>\n        <button className=\"npb op-key\" onClick={()=>pressOp('-')}></button>\n        <button className=\"npb op-key\" onClick={()=>pressOp('*')}>\u00D7</button>\n        <button className=\"npb clr-key\" onClick={pressClear}>CLR</button>\n      </div>\n\n      {}\n      <button className=\"npb ok-key\" onClick={()=>{\n        if(error||(!expr&&finalVal===0)){snd('zero');onSubmit(0);}\n        else{snd('score');onSubmit(Math.max(0,Math.round(finalVal)));}\n      }}>\n         CONFIRMAR  <span style={{fontSize:\"1.4rem\"}}>{error?\"0\":Math.max(0,Math.round(finalVal))}</span> puntos\n      </button>\n      <div style={{height:10}}/>\n      <button className=\"mc\" style={{width:\"100%\"}} onClick={()=>{snd('tap');onClose();}}>Cancelar</button>\n    </div></div>\n  );\n}\nfunction WinnerScreen({winner,onClose,onNew,T}){\n  React.useEffect(()=>{ setTimeout(()=>snd('victory'),300); },[]);\n  const isTie=winner?.tied;\n  const dots=Array.from({length:40},(_,i)=>({id:i,c:CONF[i%CONF.length],l:"${Math.random()*100}%",dl:"${Math.random()*2.5}s",dr:"${2.5+Math.random()*2.5}s",sz:"${7+Math.random()*10}px",sh:Math.random()>.5?\"2px\":\"50%\"}));\n  return(\n    <div className=\"wb\">\n      {dots.map(d=><div key={d.id} style={{position:\"absolute\",background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:d.sh,animation:"cf ${d.dr} ${d.dl} linear infinite"}}/>)}\n      <div className=\"wc\">{isTie?\"D\":\"F\"}</div>\n      <div className=\"wl\">{isTie?\"EMPATE!\":{T.winner2}}</div>\n      <div className=\"wbig\">FLIP 7</div>\n      {isTie?(\n        <>\n          <div style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".85rem\",color:\"var(--t)\",letterSpacing:3,marginBottom:8}}>\n            {winner.players.length} GANADORES\n          </div>\n          {winner.players.map(p=>(\n            <div key={p.id} style={{fontFamily:\"'Lilita One',sans-serif\",fontSize:\"2rem\",color:\"white\",letterSpacing:1,marginBottom:4,textShadow:\"0 0 20px rgba(245,200,0,.4)\"}}>\n              {p.emoji} {p.name}\n            </div>\n          ))}\n          <div style={{fontFamily:\"'Righteous',sans-serif\",fontSize:\".9rem\",color:\"var(--y)\",marginBottom:30,letterSpacing:2,marginTop:6}}>\n            {winner.total} PUNTOS CADA UNO\n          </div>\n        </>\n      ):(\n        <>\n          <div className=\"wnm\">{winner.emoji} {winner.name}</div>\n          <div className=\"wpt\">{winner.total} PUNTOS  RACE TO 200!</div>\n        </>\n      )}\n      <button className=\"btn btn-y\" onClick={()=>{snd('tap');onNew();}} style={{maxWidth:270,marginBottom:10}}>E NUEVO JUEGO</button>\n      <button className=\"btn btn-g\" onClick={()=>{snd('tap');onClose();}} style={{maxWidth:270}}>Ver marcador final</button>\n    </div>\n  );\n}\n\nReactDOM.createRoot(document.getElementById(\"root\")).render(React.createElement(App));\n"
+  function retake(){setImg(null);setB64(null);setRes(null);setPhase("pick");if(fileRef.current)fileRef.current.value="";}
 
+  return(
+    React.createElement("div",{className:"mbg"},
+      React.createElement("div",{className:"ms"},
+        React.createElement("div",{className:"mh"}),
+        React.createElement("div",{className:"mt2"},"Scan con IA"),
+        React.createElement("div",{className:"msub"},"Turno de: ",React.createElement("b",{style:{color:"#fff"}},playerName)),
 
+        phase==="pick"&&React.createElement(React.Fragment,null,
+          React.createElement("div",{style:{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.22)",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}},
+            React.createElement("div",{style:{flex:1}},
+              React.createElement("div",{style:{fontWeight:900,fontSize:".82rem",color:"var(--t)"}},apiKey?"Gemini 2.5 Flash - Activo":"Cargando configuracion..."),
+              React.createElement("div",{style:{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}},apiKey?"IA incluida - Lista para usar":"La key se carga de Firebase")
+            ),
+            React.createElement("button",{onClick:function(){snd("tap");setShowKeyEdit(function(v){return !v;});},style:{background:"none",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.4)",borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:".68rem",fontWeight:700}},showKeyEdit?"Cerrar":"Config")
+          ),
+          showKeyEdit&&React.createElement("div",{className:"api-box",style:{marginBottom:12}},
+            React.createElement("p",null,"Cambiar IA o key:"),
+            React.createElement("div",{className:"ai-tabs"},
+              React.createElement("button",{className:"ai-tab "+(provider==="gemini"?"on":""),onClick:function(){snd("tap");setProvider("gemini");setApiKey(aiConfig.key||"");}},
+                "Gemini",React.createElement("br"),React.createElement("span",{style:{fontSize:".6rem",opacity:.7}},"GRATIS")
+              ),
+              React.createElement("button",{className:"ai-tab "+(provider==="anthropic"?"on":""),onClick:function(){snd("tap");setProvider("anthropic");setApiKey(aiConfig.claudeKey||aiConfig.key||"");}},
+                "Claude",React.createElement("br"),React.createElement("span",{style:{fontSize:".6rem",opacity:.7}},"$0.001/img")
+              )
+            ),
+            React.createElement("input",{className:"inp",style:{margin:0,fontSize:".82rem"},placeholder:provider==="gemini"?"AIzaSy...":"sk-ant-api03-...",value:apiKey,onChange:function(e){setApiKey(e.target.value);},onFocus:function(){snd("tap");}})
+          ),
+          React.createElement("input",{ref:fileRef,type:"file",accept:"image/*",capture:"environment",style:{display:"none"},onChange:handleFile}),
+          React.createElement("div",{className:"ce",onClick:function(){snd("tap");if(fileRef.current)fileRef.current.click();}},
+            React.createElement("div",{style:{fontSize:"2.8rem"}},""),
+            React.createElement("div",null,"Toca para abrir la camara"),
+            React.createElement("div",{style:{fontSize:".7rem",opacity:.5}},"Apunta a tus cartas y toma foto")
+          ),
+          React.createElement("p",{style:{textAlign:"center",color:"rgba(255,255,255,.3)",fontSize:".75rem",fontWeight:700,cursor:"pointer",marginBottom:12},
+            onClick:function(){snd("tap");if(fileRef.current){fileRef.current.removeAttribute("capture");fileRef.current.click();setTimeout(function(){if(fileRef.current)fileRef.current.setAttribute("capture","environment");},600);}}},"o elegir de galeria"),
+          React.createElement("div",{className:"mr2"},
+            React.createElement("button",{className:"mc",onClick:function(){snd("tap");onClose();}},"Cancelar")
+          )
+        ),
 
+        phase==="preview"&&React.createElement(React.Fragment,null,
+          React.createElement("div",{className:"cv"},React.createElement("img",{src:img,alt:"preview"})),
+          React.createElement("p",{style:{textAlign:"center",color:"rgba(255,255,255,.45)",fontWeight:700,fontSize:".82rem",marginBottom:8}},"Se ven bien todas las cartas?"),
+          React.createElement("div",{style:{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"8px 12px",marginBottom:8,textAlign:"center"}},
+            React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}},"Modo: solo numeros base - Ajusta chips despues del scan")
+          ),
+          React.createElement("div",{className:"mr2"},
+            React.createElement("button",{className:"mc",onClick:function(){snd("tap");retake();}},"Otra foto"),
+            React.createElement("button",{className:"mo",onClick:function(){snd("tap");analyze();}},"Analizar")
+          )
+        ),
 
+        phase==="analyzing"&&React.createElement("div",{className:"cv",style:{position:"relative"}},
+          React.createElement("img",{src:img,alt:"",style:{opacity:.4,width:"100%",height:"100%",objectFit:"cover",display:"block"}}),
+          React.createElement("div",{className:"sov"},
+            React.createElement("div",{className:"spin"}),
+            React.createElement("div",{style:{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}},"Analizando con "+(provider==="gemini"?"Gemini":"Claude")+"...")
+          )
+        ),
 
+        phase==="result"&&res&&React.createElement(ResultEditor,{res:res,onResult:onResult,onRetake:retake}),
+
+        phase==="error"&&React.createElement(React.Fragment,null,
+          React.createElement("div",{style:{textAlign:"center",padding:"20px 0"}},
+            React.createElement("div",{style:{fontSize:"2.5rem",marginBottom:10}},"!"),
+            React.createElement("p",{style:{fontWeight:800,marginBottom:10,fontSize:".82rem",lineHeight:1.5,textAlign:"left",whiteSpace:"pre-wrap",background:"rgba(0,0,0,.3)",padding:"10px",borderRadius:10,maxHeight:200,overflowY:"auto",wordBreak:"break-all"}},errMsg),
+            errMsg.includes("Cuota")&&React.createElement("div",{style:{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--y)"}},
+              "Tip: la cuota gratuita es 15 req/min. Usa Manual mientras esperas."
+            ),
+            (errMsg.includes("404")||errMsg.includes("no encontrado"))&&React.createElement("div",{style:{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--t)"}},
+              "Ve a aistudio.google.com - Claves de API - Crea una nueva key"
+            )
+          ),
+          React.createElement("div",{className:"mr2"},
+            React.createElement("button",{className:"mc",onClick:function(){snd("tap");onClose();}},"Cerrar"),
+            React.createElement("button",{className:"mo",onClick:function(){snd("tap");retake();}},"Reintentar")
+          )
+        )
+      )
+    )
+  );
+}
+
+const CARD_TEXT_MAP={0:"#FF2FA3",1:"#B7A9C9",2:"#D8E81B",3:"#FF4B78",4:"#19C7D8",5:"#10C96C",6:"#C86AE3",7:"#F48A9A",8:"#9EDB92",9:"#FFA33A",10:"#FF3B3B",11:"#6EBBFF",12:"#B9AEC9"};
+const CARD_BG_MAP={0:"#F6EFD9",1:"#F6EFD9",2:"#F6EFD9",3:"#F6EFD9",4:"#F6EFD9",5:"#F6EFD9",6:"#F6EFD9",7:"#F6EFD9",8:"#F6EFD9",9:"#F6EFD9",10:"#F6EFD9",11:"#F6EFD9",12:"#F6EFD9"};
+const MOD_TEXT_COLOR="#F25A7A";
+const MOD_BG_COLOR="#F6A623";
+
+function ResultEditor({res,onResult,onRetake}){
+  const initCards=(res.cards||res.base_cards||[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=12);
+  const[cards,setCards]=React.useState(initCards);
+  const[adding,setAdding]=React.useState(false);
+  const[newVal,setNewVal]=React.useState("");
+  const[multiplier,setMultiplier]=React.useState(res.multiplier||null);
+  const[plusCards,setPlusCards]=React.useState((res.plus_cards||[]).map(Number).filter(n=>n>0));
+  const baseTotal=cards.reduce((a,b)=>Number(a)+Number(b),0);
+  const afterMult=multiplier?baseTotal*multiplier:baseTotal;
+  const total=afterMult+plusCards.reduce((a,b)=>Number(a)+Number(b),0);
+  function removeCard(idx){snd("del");setCards(c=>c.filter((_,i)=>i!==idx));}
+  function pressNum(d){
+    if(d==="back"){setNewVal(v=>v.slice(0,-1));snd("del");return;}
+    if(newVal.length>=2)return;
+    snd("num");setNewVal(v=>v+d);
+  }
+  function addCard(){
+    const n=parseInt(newVal);
+    if(isNaN(n)||n<0||n>12){snd("del");return;}
+    snd("score");setCards(c=>[...c,n]);setNewVal("");setAdding(false);
+  }
+  return(
+    React.createElement(React.Fragment,null,
+      React.createElement("div",{style:{marginBottom:10}},
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:8,textAlign:"center"}},"CARTAS DETECTADAS - toca X para quitar"),
+        React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",minHeight:48,alignItems:"center"}},
+          cards.length===0&&React.createElement("div",{style:{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}},"Sin cartas - agrega manualmente"),
+          cards.map((n,i)=>React.createElement("div",{key:i,style:{background:CARD_BG_MAP[n]||"#F6EFD9",border:"3px solid rgba(0,0,0,.12)",borderRadius:10,padding:"6px 10px",display:"flex",alignItems:"center",gap:6,boxShadow:"0 3px 8px rgba(0,0,0,.4)",position:"relative",minWidth:52,justifyContent:"center"}},
+            React.createElement("span",{style:{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:CARD_TEXT_MAP[n]||"#333",lineHeight:1}},n),
+            React.createElement("button",{onClick:()=>removeCard(i),style:{position:"absolute",top:-8,right:-8,width:20,height:20,background:"var(--r)",border:"none",borderRadius:"50%",color:"white",fontSize:".7rem",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,lineHeight:1}},"x")
+          ))
+        )
+      ),
+      React.createElement("div",{style:{textAlign:"center",padding:"8px 0 10px",borderTop:"1px solid rgba(255,255,255,.08)",borderBottom:"1px solid rgba(255,255,255,.08)",marginBottom:12}},
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2}},"TOTAL FINAL"),
+        React.createElement("div",{style:{fontFamily:"'Anton',sans-serif",fontSize:"4.5rem",color:"var(--y)",lineHeight:1,textShadow:"4px 4px 0 var(--or)"}},total),
+        cards.length>0&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",marginTop:4,lineHeight:1.6}},
+          multiplier||plusCards.length>0?React.createElement(React.Fragment,null,
+            React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},"Base: "+cards.map(Number).join("+")+" = "+baseTotal),
+            multiplier&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(255,120,120,.8)"}},"x"+multiplier+" = "+(baseTotal*multiplier))),
+            plusCards.length>0&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(100,220,150,.8)"}},"+ "+plusCards.join("+")+" = "+total))
+          ):React.createElement("span",null,cards.map(Number).join(" + ")+" = "+baseTotal)
+        ),
+        res.note&&React.createElement("div",{style:{color:"rgba(255,255,255,.25)",fontSize:".68rem",fontWeight:700,marginTop:5,fontStyle:"italic",lineHeight:1.4}},res.note)
+      ),
+      React.createElement("div",{style:{marginBottom:10}},
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6,textAlign:"center"}},"MODIFICADORES - toca para aplicar"),
+        React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:6}},
+          React.createElement("button",{onClick:()=>{snd("op");setMultiplier(m=>m?null:2);},
+            style:{border:"2px solid "+(multiplier===2?MOD_TEXT_COLOR:"rgba(242,90,122,.3)"),background:multiplier===2?MOD_BG_COLOR:"rgba(246,166,35,.1)",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:multiplier===2?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:56,textAlign:"center"}},
+            "x2",multiplier===2&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}},"ACTIVO")
+          ),
+          [2,4,6,8,10].map(n=>{
+            const active=plusCards.includes(n);
+            return React.createElement("button",{key:n,onClick:()=>{snd("op");setPlusCards(p=>active?p.filter(x=>x!==n):[...p,n]);},
+              style:{border:"2px solid "+(active?MOD_TEXT_COLOR:"rgba(242,90,122,.25)"),background:active?MOD_BG_COLOR:"rgba(246,166,35,.08)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:48,textAlign:"center"}},
+              "+"+n,active&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}},"ok")
+            );
+          })
+        ),
+        (multiplier||plusCards.length>0)&&React.createElement("div",{style:{background:"rgba(246,166,35,.15)",border:"1px solid rgba(246,166,35,.4)",borderRadius:9,padding:"6px 12px",textAlign:"center",fontSize:".76rem",fontWeight:800,color:"var(--y)"}},
+          (multiplier?"x2: ("+baseTotal+") x2 = "+(baseTotal*2):"base = "+baseTotal)+
+          (plusCards.length>0?" + "+plusCards.join("+")+" = "+total:"")
+        )
+      ),
+      !adding?React.createElement("button",{onClick:()=>{snd("tap");setAdding(true);setNewVal("");},style:{width:"100%",background:"rgba(255,255,255,.06)",border:"2px dashed rgba(255,255,255,.2)",borderRadius:12,padding:"10px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:1,marginBottom:12}},
+        "+ AGREGAR CARTA BASE (0-12)"
+      ):React.createElement("div",{style:{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,padding:"12px",marginBottom:12}},
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"}},"QUE NUMERO? (0-12)"),
+        React.createElement("div",{style:{fontFamily:"'Anton',sans-serif",fontSize:"3rem",color:"var(--t)",textAlign:"center",marginBottom:8,lineHeight:1}},newVal||"_"),
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:6}},
+          ["7","8","9","4","5","6","1","2","3"].map(d=>React.createElement("button",{key:d,className:"npb",style:{padding:"12px 4px",fontSize:"1.1rem"},onClick:()=>pressNum(d)},d))
+        ),
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr",gap:6,marginBottom:8}},
+          React.createElement("button",{className:"npb zero-key",style:{padding:"12px 4px",fontSize:"1.1rem"},onClick:()=>pressNum("0")},"0"),
+          React.createElement("button",{className:"npb del-key",style:{padding:"12px 4px"},onClick:()=>pressNum("back")},"<")
+        ),
+        React.createElement("div",{className:"mr2"},
+          React.createElement("button",{className:"mc",onClick:()=>{snd("tap");setAdding(false);}},"Cancelar"),
+          React.createElement("button",{className:"mo",onClick:addCard,disabled:!newVal},"+ Agregar "+(newVal?"carta "+newVal:""))
+        )
+      ),
+      React.createElement("div",{className:"mr2"},
+        React.createElement("button",{className:"mc",onClick:()=>{snd("tap");onRetake();}},"Repetir foto"),
+        React.createElement("button",{className:"mo",onClick:()=>{snd("score");onResult(total);},disabled:cards.length===0},"Confirmar "+total+" pts")
+      )
+    )
+  );
+}
+
+function ManualModal({playerName,onSubmit,onClose}){
+  const[expr,setExpr]=useState("");
+  const[calcResult,setCalcResult]=useState(0);
+  const[error,setError]=useState(false);
+  function pressNum(d){snd("num");setExpr(v=>v+d);}
+  function pressOp(op){snd("op");setExpr(v=>{if(!v)return v;const last=v.slice(-1);if(["+","-","*","/"].includes(last))return v.slice(0,-1)+op;return v+op;});}
+  function pressDel(){snd("del");setExpr(v=>v.slice(0,-1));}
+  function pressClear(){snd("del");setExpr("");setCalcResult(0);setError(false);}
+  useEffect(()=>{
+    if(!expr){setCalcResult(0);setError(false);return;}
+    const r=safeEval(expr);
+    if(r===null){setError(true);}else{setError(false);setCalcResult(r);}
+  },[expr]);
+  const display=expr||"0";
+  const finalVal=error?0:calcResult;
+  return(
+    React.createElement("div",{className:"mbg"},React.createElement("div",{className:"ms"},
+      React.createElement("div",{className:"mh"}),
+      React.createElement("div",{className:"mt2"},"Captura Manual"),
+      React.createElement("div",{className:"msub"},"Puntos de ",React.createElement("b",{style:{color:"#fff"}},playerName)," esta ronda"),
+      React.createElement("div",{className:"calc-display"},
+        React.createElement("div",{className:"calc-expr"},display),
+        React.createElement("div",{className:"calc-result"+(error?" error":"")},error?"ERROR":finalVal)
+      ),
+      React.createElement("div",{className:"np-grid"},
+        ["7","8","9","4","5","6","1","2","3"].map(d=>React.createElement("button",{key:d,className:"npb",onClick:()=>pressNum(d)},d))
+      ),
+      React.createElement("div",{className:"np-bottom"},
+        React.createElement("button",{className:"npb zero-key",onClick:()=>pressNum("0")},"0"),
+        React.createElement("button",{className:"npb del-key",onClick:pressDel},"<")
+      ),
+      React.createElement("div",{className:"np-ops"},
+        React.createElement("button",{className:"npb op-key",onClick:()=>pressOp("+")}," + "),
+        React.createElement("button",{className:"npb op-key",onClick:()=>pressOp("-")}," - "),
+        React.createElement("button",{className:"npb op-key",onClick:()=>pressOp("*")}," x "),
+        React.createElement("button",{className:"npb clr-key",onClick:pressClear},"CLR")
+      ),
+      React.createElement("button",{className:"npb ok-key",onClick:()=>{
+        if(error||(!expr&&finalVal===0)){snd("zero");onSubmit(0);}
+        else{snd("score");onSubmit(Math.max(0,Math.round(finalVal)));}
+      }},"CONFIRMAR - ",React.createElement("span",{style:{fontSize:"1.4rem"}},error?"0":Math.max(0,Math.round(finalVal)))," pts"),
+      React.createElement("div",{style:{height:10}}),
+      React.createElement("button",{className:"mc",style:{width:"100%"},onClick:()=>{snd("tap");onClose();}},"Cancelar")
+    ))
+  );
+}
+
+function WinnerScreen({winner,onClose,onNew,T}){
+  React.useEffect(()=>{setTimeout(()=>snd("victory"),300);},[]);
+  const isTie=winner&&winner.tied;
+  const dots=Array.from({length:40},(_,i)=>({
+    id:i,c:CONF[i%CONF.length],
+    l:Math.round(Math.random()*100)+"%",
+    dl:Math.round(Math.random()*25)/10+"s",
+    dr:Math.round((2.5+Math.random()*2.5)*10)/10+"s",
+    sz:Math.round(7+Math.random()*10)+"px",
+    sh:Math.random()>.5?"2px":"50%"
+  }));
+  return(
+    React.createElement("div",{className:"wb"},
+      dots.map(d=>React.createElement("div",{key:d.id,style:{position:"absolute",background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:d.sh,animation:"cf "+d.dr+" "+d.dl+" linear infinite"}})),
+      React.createElement("div",{className:"wc"},isTie?"":""),
+      React.createElement("div",{className:"wl"},isTie?"EMPATE!":(T&&T.winner2)||"Ganador!"),
+      React.createElement("div",{className:"wbig"},"FLIP 7"),
+      isTie?React.createElement(React.Fragment,null,
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",color:"var(--t)",letterSpacing:3,marginBottom:8}},winner.players.length+" GANADORES"),
+        winner.players.map(p=>React.createElement("div",{key:p.id,style:{fontFamily:"'Lilita One',sans-serif",fontSize:"2rem",color:"white",letterSpacing:1,marginBottom:4,textShadow:"0 0 20px rgba(245,200,0,.4)"}},p.emoji+" "+p.name)),
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"var(--y)",marginBottom:30,letterSpacing:2,marginTop:6}},winner.total+" PUNTOS CADA UNO")
+      ):React.createElement(React.Fragment,null,
+        React.createElement("div",{className:"wnm"},(winner.emoji||"")+" "+(winner.name||"")),
+        React.createElement("div",{className:"wpt"},(winner.total||0)+" PUNTOS - RACE TO 200!")
+      ),
+      React.createElement("button",{className:"btn btn-y",onClick:()=>{snd("tap");onNew();},style:{maxWidth:270,marginBottom:10}},"NUEVO JUEGO"),
+      React.createElement("button",{className:"btn btn-g",onClick:()=>{snd("tap");onClose();},style:{maxWidth:270}},"Ver marcador final")
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 
 </script>
 
