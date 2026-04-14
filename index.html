@@ -312,7 +312,7 @@ function classifyError(e){
   if(!navigator.onLine)return{msg:"📵 Sin conexión.",steps:["Verifica tu internet"]};
   if(m.includes("PERMISSION_DENIED"))return{msg:"🔒 Sin permisos Firebase.",steps:['Reglas → ".read":true,".write":true → Publicar']};
   if(m.includes("fetch")||m.includes("network"))return{msg:"🌐 Error de red.",steps:["Verifica conexión e intenta de nuevo"]};
-  return{msg:`⚠️ ${m.slice(0,100)}`,steps:["Recarga la página"]};
+  return{msg:"⚠️ "+m.slice(0,100),steps:["Recarga la página"]};
 }
 function App(){
   const[lang,setLang]=useState(()=>localStorage.getItem("f7lang")||"es");
@@ -1193,6 +1193,7 @@ function SesCards({sessions, onClear, T}){
 }
 </script>
 <script type="text/babel">
+
 function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   const[phase,setPhase]=useState("pick");
   const[img,setImg]=useState(null);
@@ -1282,7 +1283,7 @@ Responde ÚNICAMENTE con este JSON sin markdown:
 
         for(const model of MODELS){
           try{
-            debugLog.push(`→ ${model}`);
+            debugLog.push("-> "+model);
 
             const body={
               contents:[{
@@ -1310,13 +1311,13 @@ Responde ÚNICAMENTE con este JSON sin markdown:
             );
 
             const rawBody=await resp.text();
-            debugLog.push(`[${resp.status}] ${rawBody.slice(0,400)}`);
+            debugLog.push("["+resp.status+"] "+rawBody.slice(0,400));
 
             if(resp.status===429){lastErr=new Error(`⏱ Cuota excedida (429). Espera 1 min.`);continue;}
             if(resp.status===404){lastErr=new Error(`Modelo ${model} no encontrado (404)`);continue;}
-            if(resp.status===400){lastErr=new Error(`Error 400: ${rawBody.slice(0,300)}`);continue;}
-            if(resp.status===403){lastErr=new Error(`🔑 API Key sin permisos (403): ${rawBody.slice(0,200)}`);continue;}
-            if(!resp.ok){lastErr=new Error(`HTTP ${resp.status}: ${rawBody.slice(0,200)}`);continue;}
+            if(resp.status===400){lastErr=new Error("Error 400: "+rawBody.slice(0,300));continue;}
+            if(resp.status===403){lastErr=new Error("🔑 API Key sin permisos (403): "+rawBody.slice(0,200));continue;}
+            if(!resp.ok){lastErr=new Error("HTTP "+resp.status+": "+rawBody.slice(0,200));continue;}
 
             const data=JSON.parse(rawBody);
             const safeBlock=data.promptFeedback?.blockReason;
@@ -1325,10 +1326,10 @@ Responde ÚNICAMENTE con este JSON sin markdown:
             if(safeBlock){lastErr=new Error(`Bloqueado por seguridad: ${safeBlock}`);continue;}
 
             const rawTxt=data.candidates?.[0]?.content?.parts?.[0]?.text||"";
-            debugLog.push(`TEXTO="${rawTxt.slice(0,300)}" finish=${finishReason}`);
+            debugLog.push("TEXTO="+rawTxt.slice(0,50)+" finish="+finishReason);
 
             if(!rawTxt){
-              lastErr=new Error(`Respuesta vacía. finish=${finishReason}. fullResp=${JSON.stringify(data).slice(0,400)}`);
+              lastErr=new Error("Respuesta vacía. finish="+finishReason+". fullResp="+JSON.stringify(data).slice(0,300));
               continue;
             }
 
@@ -1338,20 +1339,17 @@ Responde ÚNICAMENTE con este JSON sin markdown:
             const jsonEnd=jsonStr.lastIndexOf("}")+1;
             if(jsonStart>=0) jsonStr=jsonStr.slice(jsonStart,jsonEnd);
             parsed=JSON.parse(jsonStr);
-            debugLog.push(`✅ ÉXITO total=${parsed.total}`);
+            debugLog.push("OK total="+parsed.total);
             break;
 
           }catch(ex){
-            debugLog.push(`EX: ${ex.message}`);
+            debugLog.push("EX: "+ex.message);
             lastErr=ex;
           }
         }
 
         if(!parsed){
-          throw new Error(
-            (lastErr?.message||"Sin respuesta")+
-            `\n\n── DEBUG ──\n${debugLog.join("\n").slice(0,800)}`
-          );
+          throw new Error((lastErr?.message||"Sin respuesta")+"\n\nDEBUG:\n"+debugLog.join("\n").slice(0,400));
         }
       } else {
         
@@ -1363,7 +1361,7 @@ Responde ÚNICAMENTE con este JSON sin markdown:
             {type:"text",text:ACTIVE_PROMPT}
           ]}]})
         });
-        if(!resp.ok){const t=await resp.text();throw new Error(`Anthropic ${resp.status}: ${t.slice(0,120)}`);}
+        if(!resp.ok){const t=await resp.text();throw new Error("Anthropic "+resp.status+": "+t.slice(0,120));}
         const data=await resp.json();
         const txt=data.content?.map(c=>c.text||"").join("")||"";
         parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
@@ -1462,6 +1460,11 @@ Responde ÚNICAMENTE con este JSON sin markdown:
     </div></div>
   );
 }
+const CARD_TEXT_MAP={0:"#FF2FA3",1:"#B7A9C9",2:"#D8E81B",3:"#FF4B78",4:"#19C7D8",5:"#10C96C",6:"#C86AE3",7:"#F48A9A",8:"#9EDB92",9:"#FFA33A",10:"#FF3B3B",11:"#6EBBFF",12:"#B9AEC9"};
+const CARD_BG_MAP={0:"#F6EFD9",1:"#F6EFD9",2:"#F6EFD9",3:"#F6EFD9",4:"#F6EFD9",5:"#F6EFD9",6:"#F6EFD9",7:"#F6EFD9",8:"#F6EFD9",9:"#F6EFD9",10:"#F6EFD9",11:"#F6EFD9",12:"#F6EFD9"};
+const MOD_TEXT_COLOR="#F25A7A";
+const MOD_BG_COLOR="#F6A623";
+
 function ResultEditor({res, onResult, onRetake}){
   
   const initCards = (res.cards||res.base_cards||[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=12);
@@ -1512,8 +1515,8 @@ function ResultEditor({res, onResult, onRetake}){
           )}
           {cards.map((n,i)=>(
             <div key={i} style={{
-              background:"linear-gradient(135deg,#f5f0e8,#ede8d8)",
-              border:"3px solid #d4af37",
+              background:CARD_BG_MAP[n]||"#F6EFD9",
+              border:"3px solid rgba(0,0,0,.12)",
               borderRadius:10,
               padding:"6px 10px",
               display:"flex",alignItems:"center",gap:6,
@@ -1522,7 +1525,7 @@ function ResultEditor({res, onResult, onRetake}){
               minWidth:52,
               justifyContent:"center"
             }}>
-              <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"#222",lineHeight:1}}>{n}</span>
+              <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:CARD_TEXT_MAP[n]||"#333",lineHeight:1}}>{n}</span>
               <button onClick={()=>removeCard(i)} style={{
                 position:"absolute",top:-8,right:-8,
                 width:20,height:20,
@@ -1571,24 +1574,24 @@ function ResultEditor({res, onResult, onRetake}){
         <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:6}}>
           {}
           <button onClick={()=>{snd('op');setMultiplier(m=>m?null:2);}}
-            style={{border:`2px solid ${multiplier===2?"var(--r)":"rgba(230,57,70,.3)"}`,background:multiplier===2?"rgba(230,57,70,.25)":"rgba(230,57,70,.08)",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:multiplier===2?"#ff8888":"rgba(255,100,100,.6)",transition:"all .2s",minWidth:56,textAlign:"center"}}>
+            style={{border:`2px solid ${multiplier===2?MOD_TEXT_COLOR:"rgba(242,90,122,.3)"}`,background:multiplier===2?MOD_BG_COLOR:"rgba(246,166,35,.1)",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:multiplier===2?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:56,textAlign:"center"}}>
             ×2
-            {multiplier===2&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,150,150,.8)",letterSpacing:1,marginTop:1}}>ACTIVO</div>}
+            {multiplier===2&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}}>ACTIVO</div>}
           </button>
           {}
           {[2,4,6,8,10].map(n=>{
             const active=plusCards.includes(n);
             return(
               <button key={n} onClick={()=>{snd('op');setPlusCards(p=>active?p.filter(x=>x!==n):[...p,n]);}}
-                style={{border:`2px solid ${active?"var(--gr)":"rgba(59,178,115,.25)"}`,background:active?"rgba(59,178,115,.22)":"rgba(59,178,115,.06)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"var(--gr)":"rgba(59,178,115,.5)",transition:"all .2s",minWidth:48,textAlign:"center"}}>
+                style={{border:`2px solid ${active?MOD_TEXT_COLOR:"rgba(242,90,122,.25)"}`,background:active?MOD_BG_COLOR:"rgba(246,166,35,.08)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:48,textAlign:"center"}}>
                 +{n}
-                {active&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(100,220,150,.8)",letterSpacing:1,marginTop:1}}>✓</div>}
+                {active&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}}>✓</div>}
               </button>
             );
           })}
         </div>
         {(multiplier||plusCards.length>0)&&(
-          <div style={{background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",borderRadius:9,padding:"6px 12px",textAlign:"center",fontSize:".76rem",fontWeight:800,color:"var(--y)"}}>
+          <div style={{background:"rgba(246,166,35,.15)",border:"1px solid rgba(246,166,35,.4)",borderRadius:9,padding:"6px 12px",textAlign:"center",fontSize:".76rem",fontWeight:800,color:"var(--y)"}}>
             {multiplier?"×2 activado: ":""}
             {multiplier?`(${baseTotal}) × 2 = ${baseTotal*2}`:`base = ${baseTotal}`}
             {plusCards.length>0?` + ${plusCards.join("+")} = ${multiplier?baseTotal*2+plusCards.reduce((a,b)=>a+b,0):baseTotal+plusCards.reduce((a,b)=>a+b,0)}`:""}
@@ -1757,6 +1760,7 @@ function WinnerScreen({winner,onClose,onNew,T}){
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+
 </script>
 
 </body>
