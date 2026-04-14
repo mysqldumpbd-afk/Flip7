@@ -390,6 +390,11 @@ function safeEval(expr){
 
 
 
+
+
+
+
+
 const{useState,useEffect,useRef,useCallback}=React;
 
 const WIN=200;
@@ -410,7 +415,7 @@ function makeDB(demo){
 }
 
 function classifyError(e){
-  const m=String(e?.message||e);
+  const m=String((e&&e.message)||e);
   if(!navigator.onLine)return{msg:" Sin conexi\u00F3n.",steps:["Verifica tu internet"]};
   if(m.includes("PERMISSION_DENIED"))return{msg:" Sin permisos Firebase.",steps:['Reglas  ".read":true,".write":true  Publicar']};
   if(m.includes("fetch")||m.includes("network"))return{msg:" Error de red.",steps:["Verifica conexi\u00F3n e intenta de nuevo"]};
@@ -426,7 +431,7 @@ function App(){
   const[myPlayerId,setMyPlayerId]=useState(null);
   const[room,setRoom]=useState(null);
   const[roomCode,setRoomCode]=useState("");
-  const[sessions,setSessions]=useState(()=>{try{return JSON.parse(localStorage.getItem("f7sess")||"[]")}catch{return[]}});
+  const[sessions,setSessions]=useState(()=>{try{return JSON.parse(localStorage.getItem("f7sess")||"[]")}catch(e){return[]}});
   const[tab,setTab]=useState("round");
   const[winner,setWinner]=useState(null);
   const[aiConfig,setAiConfig]=useState({provider:"gemini",key:""});
@@ -445,9 +450,9 @@ function App(){
         const claudeCfg = claudeSnap.val();
         
         const config = {
-          provider: gemCfg?.provider||"gemini",
-          key:      gemCfg?.key||"",
-          claudeKey: claudeCfg?.key||""
+          provider: (gemCfg&&gemCfg.provider)||"gemini",
+          key:      (gemCfg&&gemCfg.key)||"",
+          claudeKey: (claudeCfg&&claudeCfg.key)||""
         };
         setAiConfig(config);
         setAiLoaded(true);
@@ -457,7 +462,7 @@ function App(){
       try{
         const s=JSON.parse(localStorage.getItem("f7ai")||"{}");
         setAiConfig({provider:s.provider||"gemini", key:s.key||"", claudeKey:s.claudeKey||""});
-      }catch{}
+      }catch(e){}
       setAiLoaded(true);
     }
     loadAiConfig();
@@ -467,27 +472,28 @@ function App(){
   const dbRef=useRef(makeDB(false));
   const prevSortedRef=useRef([]);
 
-  useEffect(()=>{try{localStorage.setItem("f7ai",JSON.stringify(aiConfig))}catch{};},[aiConfig]);
+  useEffect(()=>{try{localStorage.setItem("f7ai",JSON.stringify(aiConfig))}catch(e){};},[aiConfig]);
 
   function subscribe(code,db){
     if(!db)db=dbRef.current;
     if(unsubRef.current)unsubRef.current();
     unsubRef.current=db.listen("rooms/"+code,data=>{
       if(!data)return;
-      const newSorted=[...data.players].sort((a,b)=>b.total-a.total);
+      const newSorted=data.players.slice().sort(function(a,b){return b.total-a.total;});
       const prev=prevSortedRef.current;
       newSorted.forEach((p,ni)=>{
         const oi=prev.findIndex(x=>x.id===p.id);
         if(oi!==-1&&oi!==ni){p._moved=ni<oi?'up':'down';if(ni<oi)snd('up');else snd('down');}
       });
-      prevSortedRef.current=newSorted.map(p=>({...p}));
+      prevSortedRef.current=newSorted.map(function(p){return Object.assign({},p);});
       setRoom(data);
       if(data.finished&&data.winner&&!winnerShown.current){
         winnerShown.current=true;setWinner(data.winner);snd('winner');setTimeout(()=>snd('victory'),400);
         setSessions(prev=>{
           if(prev.find(s=>s.code===data.code&&s.date===data.createdAt))return prev;
-          const s=[{id:uid(),date:data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,...prev].slice(0,20);
-          try{localStorage.setItem("f7sess",JSON.stringify(s))}catch{} return s;
+          var newEntry={id:uid(),date:data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code};
+          var s=[newEntry].concat(prev).slice(0,20);
+          try{localStorage.setItem("f7sess",JSON.stringify(s))}catch(e){} return s;
         });
       }
     });
@@ -516,7 +522,7 @@ function App(){
     const db=makeDB(false);dbRef.current=db;
     const code=uid4();
     
-    const freshPlayers=prevPlayers.map(p=>({...p,total:0,rounds:[],roundScores:{}}));
+    const freshPlayers=prevPlayers.map(function(p){return Object.assign({},p,{total:0,rounds:[],roundScores:{}});});
     await db.set("rooms/"+code,{
       code,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
       players:freshPlayers
@@ -530,27 +536,29 @@ function App(){
 
   async function submitScore(pid,score,method){
     snd('score');
-    const cur=room?.roundScores||{};
-    await dbRef.current.set("rooms/"+roomCode,{...room,roundScores:{...cur,[pid]:{score,method}}});
+    const cur=(room&&room.roundScores)||{};
+    var newRoundScores=Object.assign({},cur); newRoundScores[pid]={score:score,method:method};
+    await dbRef.current.set("rooms/"+roomCode,Object.assign({},room,{roundScores:newRoundScores}));
   }
   async function undoScore(pid){
     snd('tap');
-    const ns={...room?.roundScores};delete ns[pid];
-    await dbRef.current.set("rooms/"+roomCode,{...room,roundScores:ns});
+    const ns=Object.assign({},room&&room.roundScores);delete ns[pid];
+    await dbRef.current.set("rooms/"+roomCode,Object.assign({},room,{roundScores:ns}));
   }
   async function finalizeRound(){
     snd('round');
     const newPlayers=room.players.map(p=>{
-      const e=room.roundScores?.[p.id];const pts=e?e.score:0;
-      return{...p,total:p.total+pts,rounds:[...(p.rounds||[]),{score:pts,method:e?.method||"zero"}]};
+      const e=room.(roundScores&&roundScores[p.id]);const pts=e?e.score:0;
+      return Object.assign({},p,{total:p.total+pts,rounds:(p.rounds||[]).concat([{score:pts,method:(e&&e.method)||"zero"}])});
     });
     
-    const maxScore=Math.max(...newPlayers.map(p=>p.total));
+    const maxScore=Math.max.apply(null,newPlayers.map(function(p){return p.total;}));
     const champs=newPlayers.filter(p=>p.total>=WIN&&p.total===maxScore);
     const isFinished=champs.length>0;
     
     const winner=champs.length===1?champs[0]:{tied:true,players:champs,total:maxScore,name:champs.map(p=>p.name).join(" & "),emoji:""};
-    await dbRef.current.set("rooms/"+roomCode,{...room,players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
+    var finUpdate=Object.assign({},room,{players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
+    await dbRef.current.set("rooms/"+roomCode,finUpdate);
   }
 
   async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors}){
@@ -575,8 +583,8 @@ function App(){
     winnerShown.current=false;prevSortedRef.current=[];
   }
 
-  const allDone=room&&room.players.every(p=>room.roundScores?.[p.id]!==undefined);
-  const sorted=room?[...room.players].sort((a,b)=>b.total-a.total):[];
+  const allDone=room&&room.players.every(p=>room.(roundScores&&roundScores[p.id])!==undefined);
+  const sorted=room?room.players.slice().sort(function(a,b){return b.total-a.total;}):[];
 
   if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
@@ -605,7 +613,7 @@ function App(){
         {tab==="round"&&!room&&<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 16px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando</p></div>}
         {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig} onRematch={startRematch} onEndGame={leaveGame} roomCode={roomCode} T={T}/>}
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room} T={T}/>}
-        {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}} T={T}/>}
+        {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch(e){}}} T={T}/>}
       </div>
       {winner&&<WinnerScreen winner={winner} onClose={()=>{setWinner(null);setTab("scores");}} onNew={leaveGame} onRematch={()=>{if(room&&room.players)startRematch(room.players);}} T={T}/>}
     </div>
@@ -763,8 +771,16 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
 
 
 
+
+
+
+
+
 </script>
 <script type="text/babel">
+
+
+
 
 
 
@@ -786,8 +802,8 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
   const[pickingPlayer,setPickingPlayer]=useState(false);
   
   React.useEffect(()=>{
-    setPlayerEmojis(p=>{const a=[...p];while(a.length<names.length){const next=EMOJIS.find(e=>!a.includes(e))||EMOJIS[a.length%8];a.push(next);}return a.slice(0,names.length);});
-    setPlayerColors(p=>{const a=[...p];while(a.length<names.length){const next=COLORS.find(c=>!a.includes(c))||COLORS[a.length%8];a.push(next);}return a.slice(0,names.length);});
+    setPlayerEmojis(function(p){var a=p.slice();while(a.length<names.length){const next=EMOJIS.find(e=>!a.includes(e))||EMOJIS[a.length%8];a.push(next);}return a.slice(0,names.length);});
+    setPlayerColors(function(p){var a=p.slice();while(a.length<names.length){const next=COLORS.find(c=>!a.includes(c))||COLORS[a.length%8];a.push(next);}return a.slice(0,names.length);});
   },[names.length]);
   const go=v=>{snd('tap');setErr(null);setView(v);setRoomPlayers(null);setPickingPlayer(false);};
 
@@ -839,7 +855,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
     try{
       const r=await makeDB(false).get("rooms/"+jcode.toUpperCase());
       const newP={id:uid(),name:jname.trim(),emoji:EMOJIS[r.players.length%EMOJIS.length],color:COLORS[r.players.length%COLORS.length],total:0,rounds:[]};
-      r.players=[...r.players,newP];
+      r.players=r.players.concat([newP]);
       await _db.ref("rooms/"+jcode.toUpperCase()).set(r);
       snd('join');
       await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:newP.id});
@@ -866,7 +882,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
           onRemove={()=>{snd('tap');setNames(p=>p.filter((_,j)=>j!==i));setPlayerEmojis(p=>p.filter((_,j)=>j!==i));setPlayerColors(p=>p.filter((_,j)=>j!==i));}}
         />
       ))}
-      {names.length<8&&<button className="btn-add" onClick={()=>{snd('tap');setNames(p=>[...p,""]);}}>+ {T.addPlayer}</button>}
+      {names.length<8&&<button className="btn-add" onClick={()=>{snd('tap');setNames(function(p){return p.concat([""]);});}}>+ {T.addPlayer}</button>}
       {err&&<ErrBox err={err}/>}
       <button className="btn btn-y" onClick={()=>{snd('tap');createReal();}} disabled={busy||names.filter(n=>n.trim()).length<2}>
         {busy?T.creating:T.create}
@@ -947,7 +963,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
       <div className="g8"/>
       <button className="btn btn-t" onClick={()=>go("join")}> {T.joinGame}</button>
 
-      {sessions.length>0&&<><div className="div"/><p className="sec">{T.recentSessions}</p><SesCards sessions={sessions} T={T} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}}/></>}
+      {sessions.length>0&&<><div className="div"/><p className="sec">{T.recentSessions}</p><SesCards sessions={sessions} T={T} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch(e){}}}/></>}
       <div style={{textAlign:"center",marginTop:20,paddingBottom:8}}>
         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.15)",letterSpacing:2}}>v2.4  FLIP 7</span>
         <button onClick={()=>{localStorage.clear();sessionStorage.clear();window.location.reload();}} style={{display:"block",margin:"6px auto 0",background:"none",border:"none",color:"rgba(255,255,255,.15)",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",cursor:"pointer",letterSpacing:1,textDecoration:"underline"}}>
@@ -962,7 +978,7 @@ function ErrBox({err}){
   return(
     <div className="alert al-r">
       <div style={{fontWeight:900}}>{err.msg}</div>
-      {err.steps?.length>0&&<ul style={{marginTop:5,paddingLeft:16,fontWeight:700,fontSize:".78rem",opacity:.85}}>{err.steps.map((s,i)=><li key={i}>{s}</li>)}</ul>}
+      {err.(steps&&steps.length)>0&&<ul style={{marginTop:5,paddingLeft:16,fontWeight:700,fontSize:".78rem",opacity:.85}}>{err.steps.map((s,i)=><li key={i}>{s}</li>)}</ul>}
     </div>
   );
 }
@@ -973,8 +989,15 @@ function ErrBox({err}){
 
 
 
+
+
+
 </script>
 <script type="text/babel">
+
+
+
+
 
 
 
@@ -1011,7 +1034,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
         </div>
       )}
       {!room.finished&&allDone&&<div className="alert al-g">{isHost?T.allReady:T.waitingHost}</div>}
-      {!room.finished&&!allDone&&room.players.some(p=>room.roundScores?.[p.id])&&<div className="alert al-y">{T.waitingCaps}</div>}
+      {!room.finished&&!allDone&&room.players.some(p=>room.(roundScores&&roundScores[p.id]))&&<div className="alert al-y">{T.waitingCaps}</div>}
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>{T.players2}</p>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -1020,7 +1043,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
         </div>
       </div>
       {room.players.map(p=>{
-        const entry=room.roundScores?.[p.id];const done=entry!==undefined;const mine=canControl(p.id);
+        const entry=room.(roundScores&&roundScores[p.id]);const done=entry!==undefined;const mine=canControl(p.id);
         return(
           <div key={p.id} className={"pr "+(done?"done":"")} style={{"--clr":p.color}}>
             <div className="ava" style={{background:p.color+"22",color:p.color,border:"2px solid "+p.color+"55",boxShadow:"0 0 10px "+p.color+"33"}}>{p.emoji}</div>
@@ -1123,7 +1146,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
   React.useEffect(()=>{ snd('spec_join'); setTimeout(()=>{setShowJoinAnim(false);setJoined(true);},2800); },[]);
   React.useEffect(()=>{ if(winner) setShowWinnerOverlay(true); },[winner]);
 
-  const maxRound=(room?.round||1)-1;
+  const maxRound=((room&&room.round)||1)-1;
 
   return(
     <div className="spec-wrap" style={{maxWidth:480,margin:"0 auto",minHeight:"100dvh"}}>
@@ -1177,7 +1200,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
       <div style={{padding:"10px 16px 0",textAlign:"center"}}>
         <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase"}}> MARCADOR EN VIVO</div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.3)",letterSpacing:2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:3}}>
-          <span className="dot"/>SALA {roomCode}  RONDA {room?.round||""}
+          <span className="dot"/>SALA {roomCode}  RONDA {(room&&room.round)||""}
         </div>
       </div>
 
@@ -1288,7 +1311,7 @@ function SesCards({sessions, onClear, T}){
       )}
       {sessions.map(s=>{
         const isOpen=expanded===s.id;
-        const sorted=[...s.players].sort((a,b)=>b.total-a.total);
+        const sorted=s.players.slice().sort((a,b)=>b.total-a.total);
         return(
           <div key={s.id} className="hc" style={{cursor:"pointer"}} onClick={()=>{snd('tap');setExpanded(isOpen?null:s.id);}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
@@ -1320,7 +1343,7 @@ function SesCards({sessions, onClear, T}){
                   </div>
                 ))}
                 {}
-                {s.players[0]?.rounds?.length>0&&(
+                {(s.players[0]&&s.players[0].rounds&&s.players[0].rounds.length>0)&&(
                   <div style={{marginTop:10,overflowX:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:".78rem"}}>
                       <thead>
@@ -1363,8 +1386,15 @@ function SesCards({sessions, onClear, T}){
 
 
 
+
+
+
+
 </script>
 <script type="text/babel">
+
+
+
 function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   var useState=React.useState, useRef=React.useRef, useEffect=React.useEffect;
   var ph=useState("pick"), img_=useState(null), b64_=useState(null), mime_=useState("image/jpeg");
@@ -1588,7 +1618,7 @@ function ResultEditor({res,onResult,onRetake}){
   function addCard(){
     const n=parseInt(newVal);
     if(isNaN(n)||n<0||n>12){snd("del");return;}
-    snd("score");setCards(c=>[...c,n]);setNewVal("");setAdding(false);
+    snd("score");setCards(function(c){return c.concat([n]);});setNewVal("");setAdding(false);
   }
   return(
     React.createElement(React.Fragment,null,
@@ -1623,7 +1653,7 @@ function ResultEditor({res,onResult,onRetake}){
           ),
           [2,4,6,8,10].map(n=>{
             const active=plusCards.includes(n);
-            return React.createElement("button",{key:n,onClick:()=>{snd("op");setPlusCards(p=>active?p.filter(x=>x!==n):[...p,n]);},
+            return React.createElement("button",{key:n,onClick:()=>{snd("op");setPlusCards(p=>active?p.filter(x=>x!==n):p.concat([n]));},
               style:{border:"2px solid "+(active?MOD_TEXT_COLOR:"rgba(242,90,122,.25)"),background:active?MOD_BG_COLOR:"rgba(246,166,35,.08)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:48,textAlign:"center"}},
               "+"+n,active&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}},"ok")
             );
@@ -1738,6 +1768,9 @@ function WinnerScreen({winner,onClose,onNew,onRematch,T}){
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+
+
+
 
 </script>
 
