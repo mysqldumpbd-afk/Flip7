@@ -211,6 +211,52 @@ tbody tr:last-child td{border-bottom:none}
 .ai-tabs{display:flex;gap:6px;margin-bottom:10px}
 .ai-tab{flex:1;border:2px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 6px;cursor:pointer;text-align:center;font-family:'Righteous',sans-serif;font-size:.68rem;letter-spacing:1px;transition:all .2s;background:none;color:rgba(255,255,255,.45)}
 .ai-tab.on{border-color:var(--y);background:rgba(245,200,0,.1);color:var(--y)}
+
+/* ENHANCED GLOWS & EFFECTS */
+:root{--glow-y:0 0 20px rgba(245,200,0,.4);--glow-t:0 0 20px rgba(46,196,182,.4);--glow-r:0 0 20px rgba(230,57,70,.4);}
+.logo-f{text-shadow:3px 3px 0 var(--r),0 0 30px rgba(245,200,0,.3)!important}
+.logo-7{text-shadow:3px 3px 0 var(--y),0 0 30px rgba(230,57,70,.3)!important}
+.hero-logo{filter:drop-shadow(3px 3px 0 rgba(230,57,70,.4))}
+.hero-tag{text-shadow:0 0 20px rgba(46,196,182,.4)}
+.btn-y{box-shadow:0 6px 20px rgba(245,200,0,.35)!important}
+.btn-y:hover{box-shadow:0 8px 28px rgba(245,200,0,.55)!important}
+.btn-r{background:linear-gradient(135deg,#E63946,#c0392b)!important;color:white!important;box-shadow:0 6px 20px rgba(230,57,70,.4)!important}
+.btn-r:hover{box-shadow:0 8px 28px rgba(230,57,70,.6)!important}
+.btn-lobby{background:linear-gradient(135deg,#7B2D8B,#5A2070)!important;color:white!important;box-shadow:0 6px 20px rgba(123,45,139,.4)!important}
+.sc.first{box-shadow:0 4px 20px rgba(245,200,0,.15),inset 0 1px 0 rgba(245,200,0,.2)!important}
+.sc.first .sc-rank{text-shadow:0 0 20px rgba(245,200,0,.6)!important}
+.sc.first .sc-pts{text-shadow:0 0 20px rgba(245,200,0,.5)!important}
+.sbc.first{box-shadow:0 6px 30px rgba(245,200,0,.2)!important}
+.sbc.first .sbc-pts{text-shadow:0 0 30px rgba(245,200,0,.6)!important}
+.rbd{box-shadow:0 2px 10px rgba(123,45,139,.3)}
+/* PLAYER ROW */
+.prow{margin-bottom:10px;background:rgba(255,255,255,.04);border-radius:14px;padding:11px 12px;border:2px solid rgba(255,255,255,.07);transition:border-color .3s}
+.prow-top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.emoji-btn{width:46px;height:46px;border-radius:12px;font-size:1.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07)}
+.emoji-btn:hover{transform:scale(1.1);box-shadow:0 0 15px rgba(255,255,255,.1)}
+.emoji-dropdown{position:absolute;top:52px;left:0;z-index:300;background:#1a1c2e;border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;box-shadow:0 10px 40px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.05);min-width:170px}
+.emoji-opt{font-size:1.4rem;padding:7px;border-radius:9px;border:2px solid transparent;background:rgba(255,255,255,.05);cursor:pointer;transition:all .15s;text-align:center;display:flex;align-items:center;justify-content:center}
+.emoji-opt:hover{background:rgba(255,255,255,.15);transform:scale(1.15)}
+.emoji-opt.sel{border-color:var(--y);background:rgba(245,200,0,.2);box-shadow:0 0 10px rgba(245,200,0,.3)}
+.color-row{display:flex;gap:5px;align-items:center;padding-top:7px;border-top:1px solid rgba(255,255,255,.06);flex-wrap:wrap}
+.color-dot{width:22px;height:22px;border-radius:50%;cursor:pointer;transition:all .2s;border:2px solid rgba(255,255,255,.1);flex-shrink:0}
+.color-dot:hover{transform:scale(1.2);border-color:rgba(255,255,255,.5)}
+.color-dot.sel{border:3px solid white;transform:scale(1.25);box-shadow:0 0 10px var(--clr,#fff)}
+.color-dot.taken{opacity:.18;cursor:not-allowed;transform:none}
+.prow-rm{background:none;border:none;color:var(--r);font-size:1.1rem;cursor:pointer;padding:0 4px;transition:all .2s;flex-shrink:0;font-weight:900}
+.prow-rm:hover{color:#ff4444;text-shadow:0 0 10px rgba(230,57,70,.6);transform:scale(1.2)}
+/* LOBBY CARD */
+.lobby-code{font-family:'Anton',sans-serif;font-size:3rem;letter-spacing:10px;color:var(--y);text-align:center;text-shadow:0 0 30px rgba(245,200,0,.5);animation:gp 2s ease-in-out infinite}
+@keyframes gp{0%,100%{text-shadow:0 0 20px rgba(245,200,0,.3)}50%{text-shadow:0 0 40px rgba(245,200,0,.7)}}
+/* PR with player color */
+.pr{border-radius:16px;border:2px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);padding:12px 14px;margin-bottom:9px;display:flex;align-items:center;gap:10px;transition:all .25s;position:relative;overflow:hidden}
+.pr::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--clr,transparent);border-radius:4px 0 0 4px}
+.pr.done{border-color:rgba(59,178,115,.45);background:rgba(59,178,115,.07)}
+.pr.me{border-color:rgba(245,200,0,.3);box-shadow:0 0 15px rgba(245,200,0,.08)}
+.me-tag{font-size:.58rem;background:rgba(245,200,0,.2);color:var(--y);border-radius:10px;padding:2px 7px;font-family:'Righteous',sans-serif;letter-spacing:1px;box-shadow:0 0 8px rgba(245,200,0,.2)}
+/* WIN OVERLAY ANIM */
+@keyframes wovIn{0%{opacity:0;transform:scale(.8)}100%{opacity:1;transform:scale(1)}}
+
 </style>
 </head>
 <body>
@@ -288,6 +334,10 @@ function safeEval(expr){
 </script>
 
 <script type="text/babel">
+
+
+
+
 
 
 
@@ -395,6 +445,16 @@ function App(){
     });
   }
 
+  async function createLobby(){
+    snd("join");
+    var code=uid4();
+    await _DB.set("rooms/"+code,{code:code,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),players:[],lobbyMode:true});
+    setRoomCode(code);setIsSpectator(false);setMyPlayerId(null);
+    subscribe(code);
+    setScreen("game");setTab("round");
+    winnerShown.current=false;prevSorted.current=[];
+  }
+
   function leaveGame(){
     if(unsubRef.current){unsubRef.current();unsubRef.current=null;}
     winnerShown.current=false;prevSortedRef.current=[];
@@ -470,7 +530,7 @@ function App(){
   const allDone=room&&room.players.every(p=>room.roundScores?.[p.id]!==undefined);
   const sorted=room?[...room.players].sort((a,b)=>b.total-a.total):[];
 
-  if(screen==="home")return<HomeScreen onEnter={enterGame} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T}/>;
+  if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
   return(
     <div className="wrap">
@@ -499,7 +559,7 @@ function App(){
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room} T={T}/>}
         {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}} T={T}/>}
       </div>
-      {winner&&<WinnerScreen winner={winner} onClose={()=>{setWinner(null);setTab("scores");}} onNew={leaveGame} T={T}/>}
+      {winner&&<WinnerScreen winner={winner} onClose={()=>{setWinner(null);setTab("scores");}} onNew={leaveGame} onRematch={()=>{if(room&&room.players)startRematch(room.players);}} T={T}/>}
     </div>
   );
 }
@@ -647,8 +707,13 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
 
 
 
+
+
+
+
 </script>
 <script type="text/babel">
+
 
 
 
@@ -853,8 +918,13 @@ function ErrBox({err}){
 
 
 
+
 </script>
 <script type="text/babel">
+
+
+
+
 
 
 
@@ -895,7 +965,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
         const entry=room.roundScores?.[p.id];const done=entry!==undefined;const mine=canControl(p.id);
         return(
           <div key={p.id} className={"pr "+done?"done":""} style={{"--clr":p.color}}>
-            <div className="ava" style={{background:p.color+"22",color:p.color}}>{p.emoji}</div>
+            <div className="ava" style={{background:p.color+"22",color:p.color,border:"2px solid "+p.color+"55",boxShadow:"0 0 10px "+p.color+"33"}}>{p.emoji}</div>
             <div style={{flex:1}}>
               <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:8}}>
                 <div className="pr-name">
@@ -930,9 +1000,16 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
           </div>
         );
       })}
+      {room.players.length===0&&(
+        <div style={{textAlign:"center",padding:"20px 0",borderRadius:16,border:"2px dashed rgba(245,200,0,.3)",marginBottom:14}}>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:8}}>SALA EN MODO LOBBY</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.5rem",color:"var(--y)",letterSpacing:8,textShadow:"0 0 30px rgba(245,200,0,.5)",animation:"gp 2s ease-in-out infinite"}}>{roomCode}</div>
+          <div style={{fontSize:".78rem",color:"rgba(255,255,255,.4)",fontWeight:700,marginTop:6}}>Comparte este codigo para que los jugadores se unan</div>
+        </div>
+      )}
       {!room.finished&&isHost&&(
         <div style={{marginTop:14}}>
-          <button className="btn btn-y" disabled={!allDone} onClick={onFinalize}>{T.closeRound} {room.round}</button>
+          <button className="btn btn-y" disabled={!allDone||room.players.length<2} onClick={onFinalize}>{T.closeRound} {room.round}</button>
         </div>
       )}
       {scanModal&&<ScanModal playerName={scanModal.name} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{onSubmit(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
@@ -951,7 +1028,7 @@ function ScoreTab({sorted,room,T}){
           <div key={p.id} className={"sc "+cls+" "+p._moved==='up'?'moved-up':p._moved==='down'?'moved-down':''}>
             <div className="sc-rank">{i===0?"":i===1?"":i===2?"":"#"+i+1}</div>
             <div style={{flex:1}}>
-              <div style={{fontWeight:900,fontSize:".98rem"}}>{p.emoji} {p.name}</div>
+              <div style={{fontWeight:900,fontSize:".98rem",display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:"1.2rem"}}>{p.emoji}</span><span style={{color:p.color,textShadow:"0 0 10px "+p.color+"44"}}>{p.name}</span></div>
               <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>{(p.rounds||[]).length} ronda{(p.rounds||[]).length!==1?"s":""}  faltan {Math.max(0,WIN-p.total)} pts</div>
             </div>
             <div className="sc-pts">{p.total}</div>
@@ -969,7 +1046,7 @@ function ScoreTab({sorted,room,T}){
           <thead><tr><th>Jugador</th>{Array.from({length:mr},(_,i)=><th key={i}>R{i+1}</th>)}<th>Total</th></tr></thead>
           <tbody>{sorted.map((p,ri)=>(
             <tr key={p.id} className={ri===0?"lr":""}>
-              <td>{p.emoji} {p.name}</td>
+              <td><span style={{color:p.color}}>{p.emoji}</span> {p.name}</td>
               {(p.rounds||[]).map((r,i)=><td key={i} className={r.score===0?"rz":""}>{r.score}</td>)}
               {Array.from({length:mr-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
               <td className="tc">{p.total}</td>
@@ -994,7 +1071,53 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
     <div className="spec-wrap" style={{maxWidth:480,margin:"0 auto",minHeight:"100dvh"}}>
       {}
       {showJoinAnim&&<div style={{position:"fixed",inset:0,background:"linear-gradient(135deg,#0a0a18,#1a1a2e)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:500,animation:"fadeOut 2.5s forwards"}}>
-        <style>{"@keyframes fadeOut{0%{opacity:1}70%{opacity:1}100%{opacity:0;pointer-events:none}} @keyframes zoomIn{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.15) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}} @keyframes slidePill{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}"}</style>
+        <style>{"@keyframes fadeOut{0%{opacity:1}70%{opacity:1}100%{opacity:0;pointer-events:none}} @keyframes zoomIn{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.15) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}} @keyframes slidePill{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}"}
+/* ENHANCED GLOWS & EFFECTS */
+:root{--glow-y:0 0 20px rgba(245,200,0,.4);--glow-t:0 0 20px rgba(46,196,182,.4);--glow-r:0 0 20px rgba(230,57,70,.4);}
+.logo-f{text-shadow:3px 3px 0 var(--r),0 0 30px rgba(245,200,0,.3)!important}
+.logo-7{text-shadow:3px 3px 0 var(--y),0 0 30px rgba(230,57,70,.3)!important}
+.hero-logo{filter:drop-shadow(3px 3px 0 rgba(230,57,70,.4))}
+.hero-tag{text-shadow:0 0 20px rgba(46,196,182,.4)}
+.btn-y{box-shadow:0 6px 20px rgba(245,200,0,.35)!important}
+.btn-y:hover{box-shadow:0 8px 28px rgba(245,200,0,.55)!important}
+.btn-r{background:linear-gradient(135deg,#E63946,#c0392b)!important;color:white!important;box-shadow:0 6px 20px rgba(230,57,70,.4)!important}
+.btn-r:hover{box-shadow:0 8px 28px rgba(230,57,70,.6)!important}
+.btn-lobby{background:linear-gradient(135deg,#7B2D8B,#5A2070)!important;color:white!important;box-shadow:0 6px 20px rgba(123,45,139,.4)!important}
+.sc.first{box-shadow:0 4px 20px rgba(245,200,0,.15),inset 0 1px 0 rgba(245,200,0,.2)!important}
+.sc.first .sc-rank{text-shadow:0 0 20px rgba(245,200,0,.6)!important}
+.sc.first .sc-pts{text-shadow:0 0 20px rgba(245,200,0,.5)!important}
+.sbc.first{box-shadow:0 6px 30px rgba(245,200,0,.2)!important}
+.sbc.first .sbc-pts{text-shadow:0 0 30px rgba(245,200,0,.6)!important}
+.rbd{box-shadow:0 2px 10px rgba(123,45,139,.3)}
+/* PLAYER ROW */
+.prow{margin-bottom:10px;background:rgba(255,255,255,.04);border-radius:14px;padding:11px 12px;border:2px solid rgba(255,255,255,.07);transition:border-color .3s}
+.prow-top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.emoji-btn{width:46px;height:46px;border-radius:12px;font-size:1.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07)}
+.emoji-btn:hover{transform:scale(1.1);box-shadow:0 0 15px rgba(255,255,255,.1)}
+.emoji-dropdown{position:absolute;top:52px;left:0;z-index:300;background:#1a1c2e;border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;box-shadow:0 10px 40px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.05);min-width:170px}
+.emoji-opt{font-size:1.4rem;padding:7px;border-radius:9px;border:2px solid transparent;background:rgba(255,255,255,.05);cursor:pointer;transition:all .15s;text-align:center;display:flex;align-items:center;justify-content:center}
+.emoji-opt:hover{background:rgba(255,255,255,.15);transform:scale(1.15)}
+.emoji-opt.sel{border-color:var(--y);background:rgba(245,200,0,.2);box-shadow:0 0 10px rgba(245,200,0,.3)}
+.color-row{display:flex;gap:5px;align-items:center;padding-top:7px;border-top:1px solid rgba(255,255,255,.06);flex-wrap:wrap}
+.color-dot{width:22px;height:22px;border-radius:50%;cursor:pointer;transition:all .2s;border:2px solid rgba(255,255,255,.1);flex-shrink:0}
+.color-dot:hover{transform:scale(1.2);border-color:rgba(255,255,255,.5)}
+.color-dot.sel{border:3px solid white;transform:scale(1.25);box-shadow:0 0 10px var(--clr,#fff)}
+.color-dot.taken{opacity:.18;cursor:not-allowed;transform:none}
+.prow-rm{background:none;border:none;color:var(--r);font-size:1.1rem;cursor:pointer;padding:0 4px;transition:all .2s;flex-shrink:0;font-weight:900}
+.prow-rm:hover{color:#ff4444;text-shadow:0 0 10px rgba(230,57,70,.6);transform:scale(1.2)}
+/* LOBBY CARD */
+.lobby-code{font-family:'Anton',sans-serif;font-size:3rem;letter-spacing:10px;color:var(--y);text-align:center;text-shadow:0 0 30px rgba(245,200,0,.5);animation:gp 2s ease-in-out infinite}
+@keyframes gp{0%,100%{text-shadow:0 0 20px rgba(245,200,0,.3)}50%{text-shadow:0 0 40px rgba(245,200,0,.7)}}
+/* PR with player color */
+.pr{border-radius:16px;border:2px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);padding:12px 14px;margin-bottom:9px;display:flex;align-items:center;gap:10px;transition:all .25s;position:relative;overflow:hidden}
+.pr::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--clr,transparent);border-radius:4px 0 0 4px}
+.pr.done{border-color:rgba(59,178,115,.45);background:rgba(59,178,115,.07)}
+.pr.me{border-color:rgba(245,200,0,.3);box-shadow:0 0 15px rgba(245,200,0,.08)}
+.me-tag{font-size:.58rem;background:rgba(245,200,0,.2);color:var(--y);border-radius:10px;padding:2px 7px;font-family:'Righteous',sans-serif;letter-spacing:1px;box-shadow:0 0 8px rgba(245,200,0,.2)}
+/* WIN OVERLAY ANIM */
+@keyframes wovIn{0%{opacity:0;transform:scale(.8)}100%{opacity:1;transform:scale(1)}}
+
+</style>
         <div style={{animation:"zoomIn .6s cubic-bezier(.34,1.56,.64,1) forwards",textAlign:"center"}}>
           <div style={{fontSize:"5rem",marginBottom:10}}></div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--t),#1A9A94)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:6}}>MARCADOR</div>
@@ -1216,6 +1339,10 @@ function SesCards({sessions, onClear, T}){
     </>
   );
 }
+
+
+
+
 
 
 
@@ -1564,7 +1691,7 @@ function ManualModal({playerName,onSubmit,onClose}){
   );
 }
 
-function WinnerScreen({winner,onClose,onNew,T}){
+function WinnerScreen({winner,onClose,onNew,onRematch,T}){
   React.useEffect(()=>{setTimeout(()=>snd("victory"),300);},[]);
   const isTie=winner&&winner.tied;
   const dots=Array.from({length:40},(_,i)=>({
