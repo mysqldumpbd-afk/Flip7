@@ -640,8 +640,13 @@ async function finalizeRound() {
     winnerShown.current=false;prevSortedRef.current=[];
   }
 
-  const allDone=room&&room.players.every(p=>room.(roundScores&&roundScores[p.id])!==undefined);
-  const sorted=room?room.players.slice().sort(function(a,b){return b.total-a.total;}):[];
+const allDone = room && room.players.every(
+  (p) => roundScores?.[p.id] !== undefined
+);
+
+const sorted = room
+  ? [...room.players].sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
+  : [];
 
   if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
