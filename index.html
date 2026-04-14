@@ -545,12 +545,26 @@ function App(){
     const ns=Object.assign({},room&&room.roundScores);delete ns[pid];
     await dbRef.current.set("rooms/"+roomCode,Object.assign({},room,{roundScores:ns}));
   }
-  async function finalizeRound(){
-    snd('round');
-    const newPlayers=room.players.map(p=>{
-      const e=room.(roundScores&&roundScores[p.id]);const pts=e?e.score:0;
-      return Object.assign({},p,{total:p.total+pts,rounds:(p.rounds||[]).concat([{score:pts,method:(e&&e.method)||"zero"}])});
-    });
+async function finalizeRound() {
+  snd('round');
+
+  const newPlayers = room.players.map((p) => {
+    const entry = roundScores?.[p.id];
+    const pts = entry?.score ?? 0;
+    const method = entry?.method ?? "zero";
+
+    return {
+      ...p,
+      total: (p.total ?? 0) + pts,
+      rounds: [
+        ...(p.rounds ?? []),
+        { score: pts, method }
+      ]
+    };
+  });
+
+  room.players = newPlayers;
+}
     
     const maxScore=Math.max.apply(null,newPlayers.map(function(p){return p.total;}));
     const champs=newPlayers.filter(p=>p.total>=WIN&&p.total===maxScore);
