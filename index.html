@@ -1036,11 +1036,26 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
   );
 }
 
-function ErrBox({err}){
-  return(
+function ErrBox({ err }) {
+  return (
     <div className="alert al-r">
-      <div style={{fontWeight:900}}>{err.msg}</div>
-      {err.(steps&&steps.length)>0&&<ul style={{marginTop:5,paddingLeft:16,fontWeight:700,fontSize:".78rem",opacity:.85}}>{err.steps.map((s,i)=><li key={i}>{s}</li>)}</ul>}
+      <div style={{ fontWeight: 900 }}>{err?.msg}</div>
+
+      {err?.steps && err.steps.length > 0 && (
+        <ul
+          style={{
+            marginTop: 5,
+            paddingLeft: 16,
+            fontWeight: 700,
+            fontSize: ".78rem",
+            opacity: 0.85
+          }}
+        >
+          {err.steps.map((s, i) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
