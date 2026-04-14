@@ -288,10 +288,12 @@ function safeEval(expr){
 </script>
 
 <script type="text/babel">
+
+
 const{useState,useEffect,useRef,useCallback}=React;
 
 const WIN=200;
-const EMOJIS=["🔴","🔵","🟡","🟢","🟣","🟠","⚪","🩷","🐯","🦁","🐻","🦊","🐸","🐺","🐼","🦋","⚡","🔥","💎","🌙","⭐","🎯","👑","🚀"];
+const EMOJIS=["","","","","","","","","","","","","","","","","","","","","","","",""];
 const COLORS=["#E63946","#2EC4B6","#F5C800","#3BB273","#7B2D8B","#FF6B35","#aaa","#ff69b4","#00B4D8","#F77F00","#06D6A0","#EF476F","#118AB2","#FFD166","#A8DADC","#457B9D"];
 const CONF=["#F5C800","#E63946","#2EC4B6","#FF6B35","#fff","#3BB273","#7B2D8B"];
 const uid4=()=>Math.random().toString(36).slice(2,6).toUpperCase();
@@ -309,10 +311,10 @@ function makeDB(demo){
 
 function classifyError(e){
   const m=String(e?.message||e);
-  if(!navigator.onLine)return{msg:"📵 Sin conexión.",steps:["Verifica tu internet"]};
-  if(m.includes("PERMISSION_DENIED"))return{msg:"🔒 Sin permisos Firebase.",steps:['Reglas → ".read":true,".write":true → Publicar']};
-  if(m.includes("fetch")||m.includes("network"))return{msg:"🌐 Error de red.",steps:["Verifica conexión e intenta de nuevo"]};
-  return{msg:"⚠️ "+m.slice(0,100),steps:["Recarga la página"]};
+  if(!navigator.onLine)return{msg:" Sin conexión.",steps:["Verifica tu internet"]};
+  if(m.includes("PERMISSION_DENIED"))return{msg:" Sin permisos Firebase.",steps:['Reglas  ".read":true,".write":true  Publicar']};
+  if(m.includes("fetch")||m.includes("network"))return{msg:" Error de red.",steps:["Verifica conexión e intenta de nuevo"]};
+  return{msg:" "+m.slice(0,100),steps:["Recarga la página"]};
 }
 function App(){
   const[lang,setLang]=useState(()=>localStorage.getItem("f7lang")||"es");
@@ -436,7 +438,7 @@ function App(){
     const champs=newPlayers.filter(p=>p.total>=WIN&&p.total===maxScore);
     const isFinished=champs.length>0;
     
-    const winner=champs.length===1?champs[0]:{tied:true,players:champs,total:maxScore,name:champs.map(p=>p.name).join(" & "),emoji:"🏆"};
+    const winner=champs.length===1?champs[0]:{tied:true,players:champs,total:maxScore,name:champs.map(p=>p.name).join(" & "),emoji:""};
     await dbRef.current.set(`rooms/${roomCode}`,{...room,players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
   }
 
@@ -477,9 +479,9 @@ function App(){
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <div className={`badge ${demoMode?"demo":""}`}><span className={`dot ${demoMode?"demo":""}`}/>{demoMode?"DEMO":`${T.codeLabel}: ${roomCode}`}</div>
           <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.6)",borderRadius:9,padding:"5px 8px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".7rem",letterSpacing:1}}>
-            {lang==="es"?"🇬🇧":"🇪🇸"}
+            {lang==="es"?"":""}
           </button>
-          <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');leaveGame();}}>✕</button>
+          <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');leaveGame();}}></button>
         </div>
       </div>
       <div className="nav">
@@ -488,8 +490,8 @@ function App(){
         ))}
       </div>
       <div className="page">
-        {demoMode&&tab==="round"&&<div className="demo-banner">🧪 <span>MODO DEMO — local, sin Firebase</span></div>}
-        {tab==="round"&&!room&&<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 16px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando…</p></div>}
+        {demoMode&&tab==="round"&&<div className="demo-banner"> <span>MODO DEMO  local, sin Firebase</span></div>}
+        {tab==="round"&&!room&&<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 16px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando</p></div>}
         {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig} onRematch={startRematch} onEndGame={leaveGame} roomCode={roomCode} T={T}/>}
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room} T={T}/>}
         {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}} T={T}/>}
@@ -500,41 +502,41 @@ function App(){
 }
 const LANGS = {
   es: {
-    appTag:"¡Primero en llegar a 200 gana!",
+    appTag:"Primero en llegar a 200 gana!",
     createGame:"CREAR NUEVO JUEGO", joinGame:"UNIRME CON CÓDIGO",
     recentSessions:"ÚLTIMAS SESIONES",
     createRoom:"CREAR SALA", newGame:"Nuevo juego",
     players:"JUGADORES", addPlayer:"Agregar jugador",
-    creating:"⏳ Creando sala…", create:"🎮 CREAR SALA",
-    back:"← Volver",
+    creating:" Creando sala", create:" CREAR SALA",
+    back:" Volver",
     join:"UNIRSE", roomCode:"CÓDIGO DE SALA", yourName:"TU NOMBRE",
-    joinBtn:"🃏 UNIRME AL JUEGO", joining:"⏳ Conectando…",
+    joinBtn:" UNIRME AL JUEGO", joining:" Conectando",
     spectator:"MODO ESPECTADOR", spectatorDesc:"Solo ver marcador, sin controles",
-    spectatorBtn:"📺 ENTRAR COMO ESPECTADOR",
-    round:"🃏 Ronda", table:"🏆 Tabla", history:"📋 Historial",
-    players2:"JUGADORES", winner:"ganó", allReady:"✅ ¡Todos listos! Cierra la ronda.",
-    waitingHost:"Esperando al host…", waitingCaps:"⏳ Esperando capturas…",
-    closeRound:"🎲 CERRAR RONDA", rematch:"🔄 Revancha", endGame:"🚪 Terminar",
+    spectatorBtn:" ENTRAR COMO ESPECTADOR",
+    round:" Ronda", table:" Tabla", history:" Historial",
+    players2:"JUGADORES", winner:"ganó", allReady:" Todos listos! Cierra la ronda.",
+    waitingHost:"Esperando al host", waitingCaps:" Esperando capturas",
+    closeRound:" CERRAR RONDA", rematch:" Revancha", endGame:" Terminar",
     ranking:"CLASIFICACIÓN", rounds2:"TABLA DE RONDAS", goal:"META: 200 PUNTOS",
     noSessions:"Sin sesiones aún", noSessionsDesc:"Completa una partida para verla aquí",
-    clearHistory:"🗑 Borrar historial", confirmClear:"¿Borrar todo el historial?",
+    clearHistory:" Borrar historial", confirmClear:"Borrar todo el historial?",
     finalRanking:"CLASIFICACIÓN FINAL",
-    scanTitle:"📷 Scan con IA", turnOf:"Turno de:",
-    geminiReady:"✨ Gemini 2.5 Flash — Activo", geminiDesc:"IA incluida · Lista para usar",
-    geminiLoading:"⏳ Cargando configuración…", geminiLoadDesc:"La key se carga automáticamente",
+    scanTitle:" Scan con IA", turnOf:"Turno de:",
+    geminiReady:" Gemini 2.5 Flash  Activo", geminiDesc:"IA incluida  Lista para usar",
+    geminiLoading:" Cargando configuración", geminiLoadDesc:"La key se carga automáticamente",
     changeKey:"Cambiar IA o key (opcional):",
     tapCamera:"Toca para abrir la cámara", tapHint:"Apunta a tus cartas y toma foto",
     orGallery:"o elegir de galería",
-    goodCards:"¿Se ven bien todas las cartas?", modeNotice:"🔢 Modo: solo números base · Ajusta chips después del scan",
-    anotherPhoto:"🔄 Otra foto", analyze:"🔍 Analizar",
-    analyzing:"Analizando con", cardsDetected:"CARTAS DETECTADAS — toca ✕ para quitar",
-    totalLabel:"TOTAL FINAL", modifiers:"MODIFICADORES — toca para aplicar",
-    addCard:"➕ AGREGAR CARTA BASE (0–12)", whatNum:"¿QUÉ NÚMERO? (0–12)",
-    cancel:"Cancelar", add:"➕ Agregar", repeatPhoto:"🔄 Repetir foto", confirm:"✅ Confirmar",
-    manualTitle:"🧮 Captura Manual", pointsOf:"Puntos de", thisRound:"esta ronda",
-    winner2:"¡Ganador!", winners:"GANADORES", ptsEach:"PUNTOS CADA UNO",
-    newGame2:"🎮 NUEVO JUEGO", seeFinal:"Ver marcador final",
-    liveBoard:"📺 MARCADOR EN VIVO", autoUpdate:"AUTO-ACTUALIZA · META 200 PTS",
+    goodCards:"Se ven bien todas las cartas?", modeNotice:" Modo: solo números base  Ajusta chips después del scan",
+    anotherPhoto:" Otra foto", analyze:" Analizar",
+    analyzing:"Analizando con", cardsDetected:"CARTAS DETECTADAS  toca  para quitar",
+    totalLabel:"TOTAL FINAL", modifiers:"MODIFICADORES  toca para aplicar",
+    addCard:" AGREGAR CARTA BASE (012)", whatNum:"QUÉ NÚMERO? (012)",
+    cancel:"Cancelar", add:" Agregar", repeatPhoto:" Repetir foto", confirm:" Confirmar",
+    manualTitle:" Captura Manual", pointsOf:"Puntos de", thisRound:"esta ronda",
+    winner2:"Ganador!", winners:"GANADORES", ptsEach:"PUNTOS CADA UNO",
+    newGame2:" NUEVO JUEGO", seeFinal:"Ver marcador final",
+    liveBoard:" MARCADOR EN VIVO", autoUpdate:"AUTO-ACTUALIZA  META 200 PTS",
     roundProgress:"AVANCE POR RONDAS",
     codeLabel:"SALA",
   },
@@ -544,36 +546,36 @@ const LANGS = {
     recentSessions:"RECENT SESSIONS",
     createRoom:"CREATE ROOM", newGame:"New game",
     players:"PLAYERS", addPlayer:"Add player",
-    creating:"⏳ Creating room…", create:"🎮 CREATE ROOM",
-    back:"← Back",
+    creating:" Creating room", create:" CREATE ROOM",
+    back:" Back",
     join:"JOIN", roomCode:"ROOM CODE", yourName:"YOUR NAME",
-    joinBtn:"🃏 JOIN GAME", joining:"⏳ Connecting…",
+    joinBtn:" JOIN GAME", joining:" Connecting",
     spectator:"SPECTATOR MODE", spectatorDesc:"View scoreboard only, no controls",
-    spectatorBtn:"📺 ENTER AS SPECTATOR",
-    round:"🃏 Round", table:"🏆 Table", history:"📋 History",
-    players2:"PLAYERS", winner:"won", allReady:"✅ Everyone ready! Close the round.",
-    waitingHost:"Waiting for host…", waitingCaps:"⏳ Waiting for captures…",
-    closeRound:"🎲 CLOSE ROUND", rematch:"🔄 Rematch", endGame:"🚪 End Game",
+    spectatorBtn:" ENTER AS SPECTATOR",
+    round:" Round", table:" Table", history:" History",
+    players2:"PLAYERS", winner:"won", allReady:" Everyone ready! Close the round.",
+    waitingHost:"Waiting for host", waitingCaps:" Waiting for captures",
+    closeRound:" CLOSE ROUND", rematch:" Rematch", endGame:" End Game",
     ranking:"RANKING", rounds2:"ROUND TABLE", goal:"GOAL: 200 POINTS",
     noSessions:"No sessions yet", noSessionsDesc:"Complete a game to see it here",
-    clearHistory:"🗑 Clear history", confirmClear:"Clear all history?",
+    clearHistory:" Clear history", confirmClear:"Clear all history?",
     finalRanking:"FINAL RANKING",
-    scanTitle:"📷 AI Scan", turnOf:"Turn of:",
-    geminiReady:"✨ Gemini 2.5 Flash — Ready", geminiDesc:"AI included · Ready to use",
-    geminiLoading:"⏳ Loading config…", geminiLoadDesc:"Key loads from Firebase automatically",
+    scanTitle:" AI Scan", turnOf:"Turn of:",
+    geminiReady:" Gemini 2.5 Flash  Ready", geminiDesc:"AI included  Ready to use",
+    geminiLoading:" Loading config", geminiLoadDesc:"Key loads from Firebase automatically",
     changeKey:"Change AI or key (optional):",
     tapCamera:"Tap to open camera", tapHint:"Point at your cards and take a photo",
     orGallery:"or choose from gallery",
-    goodCards:"Can you see all cards clearly?", modeNotice:"🔢 Mode: base numbers only · Adjust chips after scan",
-    anotherPhoto:"🔄 Another photo", analyze:"🔍 Analyze",
-    analyzing:"Analyzing with", cardsDetected:"DETECTED CARDS — tap ✕ to remove",
-    totalLabel:"FINAL TOTAL", modifiers:"MODIFIERS — tap to apply",
-    addCard:"➕ ADD BASE CARD (0–12)", whatNum:"WHAT NUMBER? (0–12)",
-    cancel:"Cancel", add:"➕ Add", repeatPhoto:"🔄 Retake photo", confirm:"✅ Confirm",
-    manualTitle:"🧮 Manual Entry", pointsOf:"Points for", thisRound:"this round",
+    goodCards:"Can you see all cards clearly?", modeNotice:" Mode: base numbers only  Adjust chips after scan",
+    anotherPhoto:" Another photo", analyze:" Analyze",
+    analyzing:"Analyzing with", cardsDetected:"DETECTED CARDS  tap  to remove",
+    totalLabel:"FINAL TOTAL", modifiers:"MODIFIERS  tap to apply",
+    addCard:" ADD BASE CARD (012)", whatNum:"WHAT NUMBER? (012)",
+    cancel:"Cancel", add:" Add", repeatPhoto:" Retake photo", confirm:" Confirm",
+    manualTitle:" Manual Entry", pointsOf:"Points for", thisRound:"this round",
     winner2:"Winner!", winners:"WINNERS", ptsEach:"POINTS EACH",
-    newGame2:"🎮 NEW GAME", seeFinal:"See final scoreboard",
-    liveBoard:"📺 LIVE SCOREBOARD", autoUpdate:"AUTO-UPDATES · GOAL 200 PTS",
+    newGame2:" NEW GAME", seeFinal:"See final scoreboard",
+    liveBoard:" LIVE SCOREBOARD", autoUpdate:"AUTO-UPDATES  GOAL 200 PTS",
     roundProgress:"ROUND PROGRESS",
     codeLabel:"ROOM",
   }
@@ -614,7 +616,7 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
           placeholder={`${(typeof T!=='undefined'?T.players:'Jugador')} ${idx+1}`} value={name}
           onChange={e=>{snd('num');onName(e.target.value);}} onFocus={()=>snd('tap')}/>
         {}
-        {canRemove&&<button onClick={onRemove} style={{background:"none",border:"none",color:"var(--r)",fontSize:"1.2rem",cursor:"pointer",flexShrink:0,padding:"0 4px"}}>✕</button>}
+        {canRemove&&<button onClick={onRemove} style={{background:"none",border:"none",color:"var(--r)",fontSize:"1.2rem",cursor:"pointer",flexShrink:0,padding:"0 4px"}}></button>}
       </div>
       {}
       <div style={{display:"flex",gap:6,marginTop:8,paddingTop:8,borderTop:"1px solid rgba(255,255,255,.06)"}}>
@@ -637,8 +639,12 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
     </div>
   );
 }
+
+
 </script>
 <script type="text/babel">
+
+
 function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
   const[view,setView]=useState("main");
   const[names,setNames]=useState(["","",""]);
@@ -716,7 +722,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
 
   if(view==="create")return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
-      <div className="hero"><div style={{fontSize:"2.8rem",marginBottom:6}}>🎮</div>
+      <div className="hero"><div style={{fontSize:"2.8rem",marginBottom:6}}></div>
         <div className="hero-logo" style={{fontSize:"2.4rem"}}>{T.createRoom}</div>
         <div className="hero-tag">{T.newGame}</div>
       </div>
@@ -745,7 +751,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
 
   if(view==="join")return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
-      <div className="hero"><div style={{fontSize:"2.8rem",marginBottom:6}}>🔑</div>
+      <div className="hero"><div style={{fontSize:"2.8rem",marginBottom:6}}></div>
         <div className="hero-logo" style={{fontSize:"2.4rem"}}>UNIRSE</div>
         <div className="hero-tag">Código de sala</div>
       </div>
@@ -760,18 +766,18 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
         {err&&<ErrBox err={err}/>}
         <div className="g12"/>
         <button className="btn btn-y" onClick={()=>{snd('tap');tryJoin(false);}} disabled={busy||jcode.length<4||!jname.trim()}>
-          {busy?"⏳ Buscando sala…":"🃏 UNIRME AL JUEGO"}
+          {busy?" Buscando sala":" UNIRME AL JUEGO"}
         </button>
         <div className="div"/>
         <p className="sec">SOLO VER MARCADOR</p>
         <button className="btn btn-t" onClick={()=>{snd('tap');tryJoin(true);}} disabled={busy||jcode.length<4}>
-          {busy?"⏳ …":"📺 ENTRAR COMO ESPECTADOR"}
+          {busy?" ":" ENTRAR COMO ESPECTADOR"}
         </button>
       </>)}
 
       {pickingPlayer&&roomPlayers&&(<>
         <div className="alert al-y" style={{marginBottom:14}}>
-          👤 <span>Nombre no encontrado. ¿Eres alguno de estos jugadores o entras como nuevo?</span>
+           <span>Nombre no encontrado. Eres alguno de estos jugadores o entras como nuevo?</span>
         </div>
         <p className="sec">ELIGE TU JUGADOR (reconectar)</p>
         {roomPlayers.map(p=>(
@@ -779,9 +785,9 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
             <div className="ava" style={{background:p.color+"22",color:p.color,width:42,height:42}}>{p.emoji}</div>
             <div style={{flex:1}}>
               <div style={{fontWeight:900,fontSize:"1rem"}}>{p.name}</div>
-              <div style={{fontSize:".72rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>{p.total} pts acumulados · {(p.rounds||[]).length} rondas</div>
+              <div style={{fontSize:".72rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>{p.total} pts acumulados  {(p.rounds||[]).length} rondas</div>
             </div>
-            <div style={{color:"rgba(255,255,255,.3)",fontSize:"1.2rem"}}>→</div>
+            <div style={{color:"rgba(255,255,255,.3)",fontSize:"1.2rem"}}></div>
           </div>
         ))}
         <div className="div"/>
@@ -789,7 +795,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
         <input className="inp" placeholder="Nombre del nuevo jugador" value={jname}
           onChange={e=>setJname(e.target.value)} onFocus={()=>snd('tap')}/>
         <button className="btn btn-y" onClick={()=>{snd('tap');joinAsNew();}} disabled={busy||!jname.trim()}>
-          ➕ AGREGAR JUGADOR NUEVO
+           AGREGAR JUGADOR NUEVO
         </button>
       </>)}
 
@@ -802,21 +808,21 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
       <div className="hero">
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
           <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.6)",borderRadius:9,padding:"5px 10px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:1}}>
-            {lang==="es"?"🇬🇧 English":"🇪🇸 Español"}
+            {lang==="es"?" English":" Español"}
           </button>
         </div>
-        <div style={{fontSize:"3.5rem",marginBottom:8}}>🃏</div>
+        <div style={{fontSize:"3.5rem",marginBottom:8}}></div>
         <div className="hero-logo">FLIP 7</div>
         <div className="hero-tag">Race to 200!</div>
         <p style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".8rem",maxWidth:240,margin:"0 auto"}}>{T.appTag}</p>
       </div>
       <button className="btn btn-y" onClick={()=>go("create")}>{T.createGame}</button>
       <div className="g8"/>
-      <button className="btn btn-t" onClick={()=>go("join")}>🔑 {T.joinGame}</button>
+      <button className="btn btn-t" onClick={()=>go("join")}> {T.joinGame}</button>
 
       {sessions.length>0&&<><div className="div"/><p className="sec">{T.recentSessions}</p><SesCards sessions={sessions} T={T} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}}/></>}
       <div style={{textAlign:"center",marginTop:20,paddingBottom:8}}>
-        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.15)",letterSpacing:2}}>v2.4 · FLIP 7</span>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.15)",letterSpacing:2}}>v2.4  FLIP 7</span>
         <button onClick={()=>{localStorage.clear();sessionStorage.clear();window.location.reload();}} style={{display:"block",margin:"6px auto 0",background:"none",border:"none",color:"rgba(255,255,255,.15)",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",cursor:"pointer",letterSpacing:1,textDecoration:"underline"}}>
           {lang==="es"?"Limpiar caché":"Clear cache"}
         </button>
@@ -833,8 +839,12 @@ function ErrBox({err}){
     </div>
   );
 }
+
+
 </script>
 <script type="text/babel">
+
+
 function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,aiConfig,setAiConfig,onRematch,onEndGame,roomCode,T}){
   const[scanModal,setScan]=useState(null);
   const[manModal,setMan]=useState(null);
@@ -844,9 +854,9 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
     <>
       {room.finished&&room.winner&&(
         <div style={{background:"linear-gradient(135deg,rgba(245,200,0,.15),rgba(255,107,53,.1))",border:"2px solid rgba(245,200,0,.4)",borderRadius:16,padding:"16px",marginBottom:14,textAlign:"center"}}>
-          <div style={{fontSize:"2.5rem",marginBottom:4}}>🏆</div>
-          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"var(--y)",letterSpacing:2,marginBottom:2}}>¡{room.winner.name} ganó!</div>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:2,marginBottom:14}}>{room.winner.total} PUNTOS · FIN DEL JUEGO</div>
+          <div style={{fontSize:"2.5rem",marginBottom:4}}></div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"var(--y)",letterSpacing:2,marginBottom:2}}>{room.winner.name} ganó!</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:2,marginBottom:14}}>{room.winner.total} PUNTOS  FIN DEL JUEGO</div>
           <div style={{display:"flex",gap:8}}>
             <button className="btn btn-y" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={()=>onRematch(room.players)}>
               {T.rematch}
@@ -875,7 +885,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
               <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:8}}>
                 <div className="pr-name">
                   {p.name}
-                  {myPlayerId===p.id&&<span style={{fontSize:".62rem",color:"rgba(255,255,255,.35)",marginLeft:5,fontWeight:700}}>← tú</span>}
+                  {myPlayerId===p.id&&<span style={{fontSize:".62rem",color:"rgba(255,255,255,.35)",marginLeft:5,fontWeight:700}}> tú</span>}
                 </div>
                 <div style={{display:"flex",alignItems:"baseline",gap:4,flexShrink:0}}>
                   <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:p.color,lineHeight:1,textShadow:`2px 2px 0 rgba(0,0,0,.4)`}}>{p.total}</span>
@@ -889,19 +899,19 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
               {done?(
                 <div style={{display:"flex",alignItems:"center",gap:7,marginTop:2}}>
                   <span className="pr-pts">+{entry.score}</span>
-                  <span className={`mtag mt-${entry.method}`}>{entry.method==="scan"?"📷":entry.method==="zero"?"0️⃣":"✏️"} {entry.method}</span>
+                  <span className={`mtag mt-${entry.method}`}>{entry.method==="scan"?"":entry.method==="zero"?"0":""} {entry.method}</span>
                 </div>
               ):mine?(
                 <div className="ar">
-                  {!demoMode&&<button className="ab ab-s" onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
-                  <button className="ab ab-z" onClick={()=>{snd('zero');onSubmit(p.id,0,"zero");}}>0️⃣ Cero</button>
-                  <button className="ab ab-m" onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name});}}>🧮 Manual</button>
+                  {!demoMode&&<button className="ab ab-s" onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}> Scan IA</button>}
+                  <button className="ab ab-z" onClick={()=>{snd('zero');onSubmit(p.id,0,"zero");}}>0 Cero</button>
+                  <button className="ab ab-m" onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name});}}> Manual</button>
                 </div>
               ):(
-                <div style={{fontSize:".72rem",color:"rgba(255,255,255,.28)",marginTop:3,fontWeight:700}}>⏳ esperando…</div>
+                <div style={{fontSize:".72rem",color:"rgba(255,255,255,.28)",marginTop:3,fontWeight:700}}> esperando</div>
               )}
             </div>
-            {done&&mine&&<button className="undo" onClick={()=>onUndo(p.id)}>✕</button>}
+            {done&&mine&&<button className="undo" onClick={()=>onUndo(p.id)}></button>}
           </div>
         );
       })}
@@ -924,10 +934,10 @@ function ScoreTab({sorted,room,T}){
         const cls=i===0?"first":i===1?"second":i===2?"third":"";
         return(
           <div key={p.id} className={`sc ${cls} ${p._moved==='up'?'moved-up':p._moved==='down'?'moved-down':''}`}>
-            <div className="sc-rank">{i===0?"👑":i===1?"🥈":i===2?"🥉":`#${i+1}`}</div>
+            <div className="sc-rank">{i===0?"":i===1?"":i===2?"":`#${i+1}`}</div>
             <div style={{flex:1}}>
               <div style={{fontWeight:900,fontSize:".98rem"}}>{p.emoji} {p.name}</div>
-              <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>{(p.rounds||[]).length} ronda{(p.rounds||[]).length!==1?"s":""} · faltan {Math.max(0,WIN-p.total)} pts</div>
+              <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>{(p.rounds||[]).length} ronda{(p.rounds||[]).length!==1?"s":""}  faltan {Math.max(0,WIN-p.total)} pts</div>
             </div>
             <div className="sc-pts">{p.total}</div>
             <div className="sc-bar" style={{width:`${Math.min(100,(p.total/WIN)*100)}%`}}/>
@@ -946,7 +956,7 @@ function ScoreTab({sorted,room,T}){
             <tr key={p.id} className={ri===0?"lr":""}>
               <td>{p.emoji} {p.name}</td>
               {(p.rounds||[]).map((r,i)=><td key={i} className={r.score===0?"rz":""}>{r.score}</td>)}
-              {Array.from({length:mr-(p.rounds||[]).length},(_,i)=><td key={"e"+i}>—</td>)}
+              {Array.from({length:mr-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
               <td className="tc">{p.total}</td>
             </tr>
           ))}</tbody>
@@ -971,10 +981,10 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
       {showJoinAnim&&<div style={{position:"fixed",inset:0,background:"linear-gradient(135deg,#0a0a18,#1a1a2e)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:500,animation:"fadeOut 2.5s forwards"}}>
         <style>{"@keyframes fadeOut{0%{opacity:1}70%{opacity:1}100%{opacity:0;pointer-events:none}} @keyframes zoomIn{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.15) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}} @keyframes slidePill{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}"}</style>
         <div style={{animation:"zoomIn .6s cubic-bezier(.34,1.56,.64,1) forwards",textAlign:"center"}}>
-          <div style={{fontSize:"5rem",marginBottom:10}}>📺</div>
+          <div style={{fontSize:"5rem",marginBottom:10}}></div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--t),#1A9A94)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:6}}>MARCADOR</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--y),var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:20}}>EN VIVO</div>
-          <div style={{animation:"slidePill .5s .4s both",fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)",letterSpacing:3,background:"rgba(255,255,255,.06)",padding:"8px 20px",borderRadius:30,border:"1px solid rgba(255,255,255,.1)"}}>SALA {roomCode} 🔴 LIVE</div>
+          <div style={{animation:"slidePill .5s .4s both",fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)",letterSpacing:3,background:"rgba(255,255,255,.06)",padding:"8px 20px",borderRadius:30,border:"1px solid rgba(255,255,255,.1)"}}>SALA {roomCode}  LIVE</div>
         </div>
       </div>}
 
@@ -985,18 +995,18 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
           {Array.from({length:40},(_,i)=>({c:["#F5C800","#E63946","#2EC4B6","#FF6B35","#fff","#3BB273"][i%6],l:`${Math.random()*100}%`,dl:`${Math.random()*2.5}s`,dr:`${2.5+Math.random()*2.5}s`,sz:`${7+Math.random()*10}px`,sh:Math.random()>.5?"2px":"50%"})).map((d,i)=>(
             <div key={i} style={{position:"absolute",background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:d.sh,animation:`cf ${d.dr} ${d.dl} linear infinite`}}/>
           ))}
-          <div style={{fontSize:"5rem",animation:"fl 2s ease-in-out infinite",marginBottom:8}}>🏆</div>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase",marginBottom:8}}>¡Ganador!</div>
+          <div style={{fontSize:"5rem",animation:"fl 2s ease-in-out infinite",marginBottom:8}}></div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase",marginBottom:8}}>Ganador!</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"5rem",letterSpacing:3,background:"linear-gradient(135deg,var(--y) 30%,var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:10}}>FLIP 7</div>
           {}
           <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:"3.2rem",color:"white",letterSpacing:2,lineHeight:1.1,marginBottom:6,textShadow:"0 0 30px rgba(245,200,0,.5)"}}>
             {winner.emoji} {winner.name}
           </div>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:"1.1rem",color:"var(--y)",marginBottom:30,letterSpacing:2}}>
-            {winner.total} PUNTOS · RACE TO 200!
+            {winner.total} PUNTOS  RACE TO 200!
           </div>
           <button className="btn btn-y" onClick={()=>setShowWinnerOverlay(false)} style={{maxWidth:260,marginBottom:10}}>
-            📊 Ver marcador final
+             Ver marcador final
           </button>
           <button className="btn btn-g" onClick={onBack} style={{maxWidth:260}}>Salir</button>
         </div>
@@ -1009,21 +1019,21 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
           <span className="logo-sub">Race to 200!</span>
         </div>
         <div style={{display:"flex",gap:6}}>
-          <div className="badge spec"><span className="dot"/>📺 {roomCode}</div>
-          <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>✕</button>
+          <div className="badge spec"><span className="dot"/> {roomCode}</div>
+          <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}></button>
         </div>
       </div>
 
       {}
       <div style={{padding:"10px 16px 0",textAlign:"center"}}>
-        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase"}}>📺 MARCADOR EN VIVO</div>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase"}}> MARCADOR EN VIVO</div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.3)",letterSpacing:2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:3}}>
-          <span className="dot"/>SALA {roomCode} · RONDA {room?.round||"—"}
+          <span className="dot"/>SALA {roomCode}  RONDA {room?.round||""}
         </div>
       </div>
 
       {!room?(
-        <div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando…</p></div>
+        <div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando</p></div>
       ):(
         <div style={{padding:"10px 12px 80px",overflowY:"auto"}}>
 
@@ -1034,7 +1044,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
               const isFirst=i===0;
               const isSecond=i===1;
               const isThird=i===2;
-              const rankEmoji=isFirst?"👑":isSecond?"🥈":isThird?"🥉":`#${i+1}`;
+              const rankEmoji=isFirst?"":isSecond?"":isThird?"":`#${i+1}`;
               const borderColor=isFirst?"rgba(245,200,0,.6)":isSecond?"rgba(192,192,192,.4)":isThird?"rgba(205,127,50,.4)":"rgba(255,255,255,.08)";
               const bg=isFirst?"linear-gradient(135deg,rgba(245,200,0,.15),rgba(255,107,53,.1))":isSecond?"rgba(192,192,192,.05)":isThird?"rgba(205,127,50,.05)":"rgba(255,255,255,.03)";
               const scoreColor=isFirst?"var(--y)":isSecond?"#C0C0C0":isThird?"#CD7F32":"rgba(255,255,255,.55)";
@@ -1056,7 +1066,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
                       {p.emoji} {p.name}
                     </div>
                     <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>
-                      faltan {Math.max(0,200-p.total)} pts · {Math.round(pct)}%
+                      faltan {Math.max(0,200-p.total)} pts  {Math.round(pct)}%
                     </div>
                     {}
                     <div style={{height:isFirst?6:4,background:"rgba(255,255,255,.08)",borderRadius:3,marginTop:5,overflow:"hidden"}}>
@@ -1094,7 +1104,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
                     <tr key={p.id} className={ri===0?"lr":""}>
                       <td style={{fontSize:".82rem"}}>{p.emoji} {p.name}</td>
                       {(p.rounds||[]).map((r,i)=><td key={i} className={r.score===0?"rz":""}>{r.score}</td>)}
-                      {Array.from({length:maxRound-(p.rounds||[]).length},(_,i)=><td key={"e"+i}>—</td>)}
+                      {Array.from({length:maxRound-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
                       <td className="tc">{p.total}</td>
                     </tr>
                   ))}
@@ -1104,7 +1114,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
           </>)}
 
           <p style={{textAlign:"center",color:"rgba(255,255,255,.2)",fontSize:".68rem",fontWeight:700,letterSpacing:2,paddingBottom:10}}>
-            AUTO-ACTUALIZA · META 200 PTS
+            AUTO-ACTUALIZA  META 200 PTS
           </p>
         </div>
       )}
@@ -1112,7 +1122,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
   );
 }
 function HistoryTab({sessions, onClear, T}){
-  if(!sessions.length)return<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>🃏</div><p style={{fontWeight:700}}>Sin sesiones aún</p><p style={{fontSize:".8rem",marginTop:6,color:"rgba(255,255,255,.3)"}}>Completa una partida para verla aquí</p></div>;
+  if(!sessions.length)return<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}></div><p style={{fontWeight:700}}>Sin sesiones aún</p><p style={{fontSize:".8rem",marginTop:6,color:"rgba(255,255,255,.3)"}}>Completa una partida para verla aquí</p></div>;
   return<SesCards sessions={sessions} onClear={onClear} T={T}/>;
 }
 function SesCards({sessions, onClear, T}){
@@ -1123,7 +1133,7 @@ function SesCards({sessions, onClear, T}){
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
           <button onClick={()=>{if(window.confirm(T.confirmClear))onClear();}}
             style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.3)",color:"var(--r)",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1}}>
-            🗑 Borrar historial
+             Borrar historial
           </button>
         </div>
       )}
@@ -1135,13 +1145,13 @@ function SesCards({sessions, onClear, T}){
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
               <div>
                 <div style={{fontWeight:900,fontSize:".84rem"}}>{fmtDate(s.date)}</div>
-                <div style={{fontSize:".7rem",color:"rgba(255,255,255,.32)",fontWeight:700}}>{s.players.length} jugadores · {s.rounds} rondas · Sala {s.code}</div>
+                <div style={{fontSize:".7rem",color:"rgba(255,255,255,.32)",fontWeight:700}}>{s.players.length} jugadores  {s.rounds} rondas  Sala {s.code}</div>
               </div>
-              <span style={{color:"rgba(255,255,255,.3)",fontSize:"1rem"}}>{isOpen?"▲":"▼"}</span>
+              <span style={{color:"rgba(255,255,255,.3)",fontSize:"1rem"}}>{isOpen?"":""}</span>
             </div>
             {}
             <div className="hw">
-              <span style={{fontSize:"1.3rem"}}>🏆</span>
+              <span style={{fontSize:"1.3rem"}}></span>
               <div>
                 <div style={{fontSize:".63rem",color:"rgba(255,255,255,.3)",fontWeight:700,letterSpacing:2}}>GANADOR</div>
                 <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1.1rem"}}>{s.winner}</div>
@@ -1154,7 +1164,7 @@ function SesCards({sessions, onClear, T}){
                 {sorted.map((p,i)=>(
                   <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,.05)"}}>
                     <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:i===0?"var(--y)":i===1?"#C0C0C0":i===2?"#CD7F32":"rgba(255,255,255,.3)",width:28,textAlign:"center"}}>
-                      {i===0?"👑":i===1?"🥈":i===2?"🥉":`#${i+1}`}
+                      {i===0?"":i===1?"":i===2?"":`#${i+1}`}
                     </div>
                     <div style={{fontWeight:900,flex:1}}>{p.emoji} {p.name}</div>
                     <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:i===0?"var(--y)":"rgba(255,255,255,.6)"}}>{p.total}</div>
@@ -1191,8 +1201,13 @@ function SesCards({sessions, onClear, T}){
     </>
   );
 }
+
+
 </script>
 <script type="text/babel">
+
+
+
 
 function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   const[phase,setPhase]=useState("pick");
@@ -1313,10 +1328,10 @@ Responde \u00DANICAMENTE con este JSON sin markdown:
             const rawBody=await resp.text();
             debugLog.push("["+resp.status+"] "+rawBody.slice(0,400));
 
-            if(resp.status===429){lastErr=new Error(`⏱ Cuota excedida (429). Espera 1 min.`);continue;}
+            if(resp.status===429){lastErr=new Error("Cuota excedida (429). Espera 1 min.");continue;}
             if(resp.status===404){lastErr=new Error(`Modelo ${model} no encontrado (404)`);continue;}
             if(resp.status===400){lastErr=new Error("Error 400: "+rawBody.slice(0,300));continue;}
-            if(resp.status===403){lastErr=new Error("\u1F511 API Key sin permisos (403): "+rawBody.slice(0,200));continue;}
+            if(resp.status===403){lastErr=new Error("1F511 API Key sin permisos (403): "+rawBody.slice(0,200));continue;}
             if(!resp.ok){lastErr=new Error("HTTP "+resp.status+": "+rawBody.slice(0,200));continue;}
 
             const data=JSON.parse(rawBody);
@@ -1329,7 +1344,7 @@ Responde \u00DANICAMENTE con este JSON sin markdown:
             debugLog.push("TEXTO="+rawTxt.slice(0,50)+" finish="+finishReason);
 
             if(!rawTxt){
-              lastErr=new Error("Respuesta vac\u00EDa. finish="+finishReason+". fullResp="+JSON.stringify(data).slice(0,300));
+              lastErr=new Error("Respuesta vacia. finish="+finishReason+". fullResp="+JSON.stringify(data).slice(0,300));
               continue;
             }
 
@@ -1371,13 +1386,13 @@ Responde \u00DANICAMENTE con este JSON sin markdown:
       const m=e.message||"";
       let friendly=m;
       if(m.includes("429")||m.includes("Cuota")||m.includes("quota"))
-        friendly="\u23F1 Cuota de Gemini excedida. Espera ~1 minuto e intenta de nuevo, o usa captura manual.";
+        friendly="Cuota de Gemini excedida. Espera ~1 minuto e intenta de nuevo, o usa captura manual.";
       else if(m.includes("404")||m.includes("not found"))
-        friendly="\u1F50D Modelo no encontrado. Se probaron todos los modelos disponibles.";
+        friendly="Modelo no encontrado. Se probaron todos los modelos disponibles.";
       else if(m.includes("403")||m.includes("API key"))
-        friendly="\u1F511 API Key inv\u00E1lida. Ve a aistudio.google.com y genera una nueva key.";
+        friendly="1 API Key inv\u00E1lida. Ve a aistudio.google.com y genera una nueva key.";
       else if(m.includes("fetch")||m.includes("network"))
-        friendly="\u1F310 Error de red. Verifica tu conexi\u00F3n a internet.";
+        friendly="Error de red. Verifica tu conexi\u00F3n a internet.";
       setErrMsg(friendly);
       setPhase("error");
     }
@@ -1388,27 +1403,27 @@ Responde \u00DANICAMENTE con este JSON sin markdown:
   return(
     <div className="mbg"><div className="ms">
       <div className="mh"/>
-      <div className="mt2">\u1F4F7 Scan con IA</div>
+      <div className="mt2">7 Scan con IA</div>
       <div className="msub">Turno de: <b style={{color:"#fff"}}>{playerName}</b></div>
 
       {phase==="pick"&&(<>
         {}
         <div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.22)",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:"1.3rem"}}>\u2728</span>
+          <span style={{fontSize:"1.3rem"}}></span>
           <div style={{flex:1}}>
-            <div style={{fontWeight:900,fontSize:".82rem",color:"var(--t)"}}>{apiKey?"\u2728 Gemini 2.5 Flash \u2014 Activo":"\u23F3 Cargando configuraci\u00F3n\u2026"}</div>
-            <div style={{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>{apiKey?"IA incluida \u00B7 Lista para usar":"La key se carga desde Firebase autom\u00E1ticamente"}</div>
+            <div style={{fontWeight:900,fontSize:".82rem",color:"var(--t)"}}>{apiKey?" Gemini 2.5 Flash  Activo":" Cargando configuraci\u00F3n"}</div>
+            <div style={{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>{apiKey?"IA incluida  Lista para usar":"La key se carga desde Firebase autom\u00E1ticamente"}</div>
           </div>
           <button onClick={()=>{snd('tap');setShowKeyEdit(v=>!v);}} style={{background:"none",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.4)",borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:".68rem",fontWeight:700}}>
-            {showKeyEdit?"\u25B2":"\u2699"}
+            {showKeyEdit?"":""}
           </button>
         </div>
         {showKeyEdit&&(
           <div className="api-box" style={{marginBottom:12}}>
             <p>Cambiar IA o key (opcional):</p>
             <div className="ai-tabs">
-              <button className={`ai-tab ${provider==="gemini"?"on":""}`} onClick={()=>{snd('tap');setProvider("gemini");setApiKey(aiConfig.key||"");}}>\u2728 Gemini<br/><span style={{fontSize:".6rem",opacity:.7}}>GRATIS</span></button>
-              <button className={`ai-tab ${provider==="anthropic"?"on":""}`} onClick={()=>{snd('tap');setProvider("anthropic");setApiKey(aiConfig.claudeKey||aiConfig.key||"");}}>\u1F7E0 Claude<br/><span style={{fontSize:".6rem",opacity:.7}}>$0.001/img</span></button>
+              <button className={`ai-tab ${provider==="gemini"?"on":""}`} onClick={()=>{snd('tap');setProvider("gemini");setApiKey(aiConfig.key||"");}}>Gemini<br/><span style={{fontSize:".6rem",opacity:.7}}>GRATIS</span></button>
+              <button className={`ai-tab ${provider==="anthropic"?"on":""}`} onClick={()=>{snd('tap');setProvider("anthropic");setApiKey(aiConfig.claudeKey||aiConfig.key||"");}}>0 Claude<br/><span style={{fontSize:".6rem",opacity:.7}}>$0.001/img</span></button>
             </div>
             <input className="inp" style={{margin:0,fontSize:".82rem"}} placeholder={provider==="gemini"?"AIzaSy...":"sk-ant-api03-..."} value={apiKey} onChange={e=>setApiKey(e.target.value)} onFocus={()=>snd('tap')}/>
           </div>
@@ -1416,12 +1431,12 @@ Responde \u00DANICAMENTE con este JSON sin markdown:
         <input ref={fileRef} type="file" accept="image}
         <div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"8px 12px",marginBottom:8,textAlign:"center"}}>
           <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}}>
-            \u1F522 Modo: solo n\u00FAmeros base \u00B7 Ajusta chips despu\u00E9s del scan
+            2 Modo: solo n\u00FAmeros base  Ajusta chips despu\u00E9s del scan
           </span>
         </div>
         <div className="mr2">
-          <button className="mc" onClick={()=>{snd('tap');retake();}}>\u1F504 Otra foto</button>
-          <button className="mo" onClick={()=>{snd('tap');analyze();}}>\u1F50D Analizar</button>
+          <button className="mc" onClick={()=>{snd('tap');retake();}}>4 Otra foto</button>
+          <button className="mo" onClick={()=>{snd('tap');analyze();}}>D Analizar</button>
         </div>
       </>)}
 
@@ -1429,7 +1444,7 @@ Responde \u00DANICAMENTE con este JSON sin markdown:
         <div className="cv" style={{position:"relative"}}>
           <img src={img} alt="" style={{opacity:.4,width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
           <div className="sov"><div className="spin"/>
-            <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}}>Analizando con {provider==="gemini"?"Gemini \u2728":"Claude \u1F7E0"}\u2026</div>
+            <div style={{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}}>Analizando con {provider==="gemini"?"Gemini ":"Claude 0"}</div>
           </div>
         </div>
       )}
@@ -1440,21 +1455,21 @@ Responde \u00DANICAMENTE con este JSON sin markdown:
 
       {phase==="error"&&(<>
         <div style={{textAlign:"center",padding:"20px 0"}}>
-          <div style={{fontSize:"2.5rem",marginBottom:10}}>{errMsg.includes("Cuota")?"\u23F1":"\u26A0\uFE0F"}</div>
+          <div style={{fontSize:"2.5rem",marginBottom:10}}>{errMsg.includes("Cuota")?"":""}</div>
           <p style={{fontWeight:800,marginBottom:10,fontSize:".82rem",lineHeight:1.5,textAlign:"left",whiteSpace:"pre-wrap",background:"rgba(0,0,0,.3)",padding:"10px",borderRadius:10,maxHeight:200,overflowY:"auto",wordBreak:"break-all"}}>{errMsg}</p>
           {errMsg.includes("Cuota")&&<div style={{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--y)"}}>
-            \u1F4A1 Tip: la cuota gratuita es 15 req/min.<br/>Usa \u270F\uFE0F Manual mientras esperas.
+            1 Tip: la cuota gratuita es 15 req/min.<br/>Usa  Manual mientras esperas.
           </div>}
-          {(errMsg.includes("404")||errMsg.includes("\u1F50D"))&&<div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--t)"}}>
-            \u1F4A1 Pasos para resolver:<br/>
+          {(errMsg.includes("404")||errMsg.includes("D"))&&<div style={{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--t)"}}>
+            1 Pasos para resolver:<br/>
             1. Ve a <b>aistudio.google.com</b><br/>
-            2. Claves de API \u2192 Elimina la actual \u2192 Crea una nueva<br/>
-            3. Abre \u2699 en el scan y pega la nueva key
+            2. Claves de API  Elimina la actual  Crea una nueva<br/>
+            3. Abre  en el scan y pega la nueva key
           </div>}
         </div>
         <div className="mr2">
           <button className="mc" onClick={()=>{snd('tap');onClose();}}>Cerrar</button>
-          <button className="mo" onClick={()=>{snd('tap');retake();}}>\u1F504 Reintentar</button>
+          <button className="mo" onClick={()=>{snd('tap');retake();}}>4 Reintentar</button>
         </div>
       </>)}
     </div></div>
@@ -1485,7 +1500,7 @@ function ResultEditor({res, onResult, onRetake}){
   }
 
   function pressNum(d){
-    if(d==="\u232B"){setNewVal(v=>v.slice(0,-1));snd('del');return;}
+    if(d===""){setNewVal(v=>v.slice(0,-1));snd('del');return;}
     if(newVal.length>=2)return;
     snd('num');
     setNewVal(v=>v+d);
@@ -1505,13 +1520,13 @@ function ResultEditor({res, onResult, onRetake}){
       {}
       <div style={{marginBottom:10}}>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:8,textAlign:"center"}}>
-          CARTAS DETECTADAS \u2014 toca \u2715 para quitar
+          CARTAS DETECTADAS  toca  para quitar
         </div>
 
         {}
         <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",minHeight:48,alignItems:"center"}}>
           {cards.length===0&&(
-            <div style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}}>Sin cartas \u2014 agrega manualmente</div>
+            <div style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}}>Sin cartas  agrega manualmente</div>
           )}
           {cards.map((n,i)=>(
             <div key={i} style={{
@@ -1533,7 +1548,7 @@ function ResultEditor({res, onResult, onRetake}){
                 color:"white",fontSize:".7rem",cursor:"pointer",
                 display:"flex",alignItems:"center",justifyContent:"center",
                 fontWeight:900,lineHeight:1
-              }}>\u2715</button>
+              }}></button>
             </div>
           ))}
         </div>
@@ -1561,7 +1576,7 @@ function ResultEditor({res, onResult, onRetake}){
         )}
         {res.note&&(
           <div style={{color:"rgba(255,255,255,.25)",fontSize:".68rem",fontWeight:700,marginTop:5,fontStyle:"italic",lineHeight:1.4}}>
-            \u1F4AC {res.note}
+            C {res.note}
           </div>
         )}
       </div>
@@ -1569,7 +1584,7 @@ function ResultEditor({res, onResult, onRetake}){
       {}
       <div style={{marginBottom:10}}>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6,textAlign:"center"}}>
-          MODIFICADORES \u2014 toca para aplicar
+          MODIFICADORES  toca para aplicar
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:6}}>
           {}
@@ -1585,7 +1600,7 @@ function ResultEditor({res, onResult, onRetake}){
               <button key={n} onClick={()=>{snd('op');setPlusCards(p=>active?p.filter(x=>x!==n):[...p,n]);}}
                 style={{border:`2px solid ${active?MOD_TEXT_COLOR:"rgba(242,90,122,.25)"}`,background:active?MOD_BG_COLOR:"rgba(246,166,35,.08)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:48,textAlign:"center"}}>
                 +{n}
-                {active&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}}>\u2713</div>}
+                {active&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}}></div>}
               </button>
             );
           })}
@@ -1603,11 +1618,11 @@ function ResultEditor({res, onResult, onRetake}){
       {!adding?(
         <button onClick={()=>{snd('tap');setAdding(true);setNewVal("");}}
           style={{width:"100%",background:"rgba(255,255,255,.06)",border:"2px dashed rgba(255,255,255,.2)",borderRadius:12,padding:"10px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:1,marginBottom:12}}>
-          \u2795 AGREGAR CARTA BASE (0\u201312)
+           AGREGAR CARTA BASE (012)
         </button>
       ):(
         <div style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",borderRadius:12,padding:"12px",marginBottom:12}}>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"}}>\u00BFQU\u00C9 N\u00DAMERO? (0\u201312)</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"}}>QU\u00C9 N\u00DAMERO? (012)</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"3rem",color:"var(--t)",textAlign:"center",marginBottom:8,lineHeight:1}}>
             {newVal||"_"}
           </div>
@@ -1618,12 +1633,12 @@ function ResultEditor({res, onResult, onRetake}){
           </div>
           <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:6,marginBottom:8}}>
             <button className="npb zero-key" style={{padding:"12px 4px",fontSize:"1.1rem"}} onClick={()=>pressNum("0")}>0</button>
-            <button className="npb del-key" style={{padding:"12px 4px"}} onClick={()=>pressNum("\u232B")}>\u232B</button>
+            <button className="npb del-key" style={{padding:"12px 4px"}} onClick={()=>pressNum("")}></button>
           </div>
           <div className="mr2">
             <button className="mc" onClick={()=>{snd('tap');setAdding(false);}}>Cancelar</button>
             <button className="mo" onClick={addCard} disabled={!newVal}>
-              \u2795 Agregar {newVal?`carta ${newVal}`:""}
+               Agregar {newVal?`carta ${newVal}`:""}
             </button>
           </div>
         </div>
@@ -1631,10 +1646,10 @@ function ResultEditor({res, onResult, onRetake}){
 
       {}
       <div className="mr2">
-        <button className="mc" onClick={()=>{snd('tap');onRetake();}}>\u1F504 Repetir foto</button>
+        <button className="mc" onClick={()=>{snd('tap');onRetake();}}>4 Repetir foto</button>
         <button className="mo" onClick={()=>{snd('score');onResult(total);}}
           disabled={cards.length===0}>
-          \u2705 Confirmar {total} pts
+           Confirmar {total} pts
         </button>
       </div>
     </>
@@ -1679,7 +1694,7 @@ function ManualModal({playerName,onSubmit,onClose}){
   return(
     <div className="mbg"><div className="ms">
       <div className="mh"/>
-      <div className="mt2">\u1F9EE Captura Manual</div>
+      <div className="mt2">E Captura Manual</div>
       <div className="msub">Puntos de <b style={{color:"#fff"}}>{playerName}</b> esta ronda</div>
 
       {}
@@ -1700,13 +1715,13 @@ function ManualModal({playerName,onSubmit,onClose}){
       {}
       <div className="np-bottom">
         <button className="npb zero-key" onClick={()=>pressNum('0')}>0</button>
-        <button className="npb del-key" onClick={pressDel}>\u232B</button>
+        <button className="npb del-key" onClick={pressDel}></button>
       </div>
 
       {}
       <div className="np-ops">
         <button className="npb op-key" onClick={()=>pressOp('+')}>+</button>
-        <button className="npb op-key" onClick={()=>pressOp('-')}>\u2212</button>
+        <button className="npb op-key" onClick={()=>pressOp('-')}></button>
         <button className="npb op-key" onClick={()=>pressOp('*')}>\u00D7</button>
         <button className="npb clr-key" onClick={pressClear}>CLR</button>
       </div>
@@ -1716,7 +1731,7 @@ function ManualModal({playerName,onSubmit,onClose}){
         if(error||(!expr&&finalVal===0)){snd('zero');onSubmit(0);}
         else{snd('score');onSubmit(Math.max(0,Math.round(finalVal)));}
       }}>
-        \u2713 CONFIRMAR \u2014 <span style={{fontSize:"1.4rem"}}>{error?"0":Math.max(0,Math.round(finalVal))}</span> puntos
+         CONFIRMAR  <span style={{fontSize:"1.4rem"}}>{error?"0":Math.max(0,Math.round(finalVal))}</span> puntos
       </button>
       <div style={{height:10}}/>
       <button className="mc" style={{width:"100%"}} onClick={()=>{snd('tap');onClose();}}>Cancelar</button>
@@ -1730,8 +1745,8 @@ function WinnerScreen({winner,onClose,onNew,T}){
   return(
     <div className="wb">
       {dots.map(d=><div key={d.id} style={{position:"absolute",background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:d.sh,animation:`cf ${d.dr} ${d.dl} linear infinite`}}/>)}
-      <div className="wc">{isTie?"\u1F91D":"\u1F0CF"}</div>
-      <div className="wl">{isTie?"\u00A1EMPATE!":{T.winner2}}</div>
+      <div className="wc">{isTie?"D":"F"}</div>
+      <div className="wl">{isTie?"EMPATE!":{T.winner2}}</div>
       <div className="wbig">FLIP 7</div>
       {isTie?(
         <>
@@ -1750,17 +1765,20 @@ function WinnerScreen({winner,onClose,onNew,T}){
       ):(
         <>
           <div className="wnm">{winner.emoji} {winner.name}</div>
-          <div className="wpt">{winner.total} PUNTOS \u00B7 RACE TO 200!</div>
+          <div className="wpt">{winner.total} PUNTOS  RACE TO 200!</div>
         </>
       )}
-      <button className="btn btn-y" onClick={()=>{snd('tap');onNew();}} style={{maxWidth:270,marginBottom:10}}>\u1F3AE NUEVO JUEGO</button>
+      <button className="btn btn-y" onClick={()=>{snd('tap');onNew();}} style={{maxWidth:270,marginBottom:10}}>E NUEVO JUEGO</button>
       <button className="btn btn-g" onClick={()=>{snd('tap');onClose();}} style={{maxWidth:270}}>Ver marcador final</button>
     </div>
   );
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
-`</script>
+`
+
+
+</script>
 
 </body>
 </html>
