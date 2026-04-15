@@ -1024,19 +1024,65 @@ function SesCards({sessions,onClear,T}){
   );
 }
 
-// ── SCANMODAL — arriba-centro; key fresca de Firebase; cartas grandes; paleta rápida ──
+// ── SCANMODAL — centrado en viewport; key cargada de Firebase al montar ──
 function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   var useState=React.useState,useRef=React.useRef,useEffect=React.useEffect;
   var ph=useState("pick"),img_=useState(null),b64_=useState(null),mime_=useState("image/jpeg");
   var res_=useState(null),err_=useState(""),prov_=useState(aiConfig.provider||"gemini");
-  var key_=useState(aiConfig.key||""),edit_=useState(false);
+  // Iniciamos con la key que ya tiene aiConfig (puede estar vacía aún)
+  var key_=useState(aiConfig.key||aiConfig.claudeKey||""),edit_=useState(false);
+  var keyLoaded_=useState(false); // indica si Firebase ya respondió
   var phase=ph[0],setPhase=ph[1],img=img_[0],setImg=img_[1],b64=b64_[0],setB64=b64_[1];
   var mime=mime_[0],setMime=mime_[1],res=res_[0],setRes=res_[1];
   var errMsg=err_[0],setErrMsg=err_[1],provider=prov_[0],setProvider=prov_[1];
   var apiKey=key_[0],setApiKey=key_[1],showKeyEdit=edit_[0],setShowKeyEdit=edit_[1];
+  var keyLoaded=keyLoaded_[0],setKeyLoaded=keyLoaded_[1];
   var fileRef=useRef();
 
-  useEffect(function(){if(aiConfig.key)setApiKey(aiConfig.key);},[aiConfig.key]);
+  // ── Cargar key de Firebase al abrir el modal (no esperar a analyze) ──
+  useEffect(function(){
+    async function fetchKeys(){
+      try{
+        var[gemSnap,claudeSnap]=await Promise.all([
+          _db.ref("config/ai").once("value"),
+          _db.ref("config/claude").once("value")
+        ]);
+        var gemCfg=gemSnap.val();
+        var claudeCfg=claudeSnap.val();
+        var freshGem=gemCfg?.key||"";
+        var freshClaude=claudeCfg?.key||"";
+        // Actualizar aiConfig global con las keys frescas
+        setAiConfig({
+          provider:gemCfg?.provider||aiConfig.provider||"gemini",
+          key:freshGem,
+          claudeKey:freshClaude
+        });
+        // Cargar la key correcta según el proveedor activo
+        if(provider==="anthropic"){
+          if(freshClaude)setApiKey(freshClaude);
+        } else {
+          if(freshGem)setApiKey(freshGem);
+        }
+      }catch(fe){
+        console.log("Firebase key load failed:",fe);
+        // Fallback a lo que ya teníamos
+        if(provider==="anthropic"){
+          setApiKey(aiConfig.claudeKey||"");
+        } else {
+          setApiKey(aiConfig.key||"");
+        }
+      }
+      setKeyLoaded(true);
+    }
+    fetchKeys();
+  },[]);
+
+  // Si cambia el proveedor, actualizar la key mostrada
+  useEffect(function(){
+    if(!keyLoaded)return;
+    if(provider==="anthropic")setApiKey(aiConfig.claudeKey||"");
+    else setApiKey(aiConfig.key||"");
+  },[provider]);
 
   var PROMPT="Mira esta foto de cartas del juego Flip 7.\n\nTu UNICA tarea: lee los numeros que aparecen en las cartas de fondo BLANCO o CREMA.\nLas cartas base tienen escrito el numero en grande y debajo el nombre en ingles (SEVEN, TEN, TWELVE, etc.)\n\nIGNORA completamente:\n- Cualquier carta de fondo AMARILLO o DORADO\n- Cualquier carta de accion (Flip, Freeze, Second Chance)\n- Cualquier simbolo como x2, +2, +4, +6, +8, +10\n\nNOTA sobre colores de numeros:\n- Carta 7: color CAFE/MARRON claro, texto SEVEN\n- Carta 12: color GRIS oscuro, texto TWELVE\n- Carta 11: color AZUL/LILA, texto ELEVEN\n- Carta 10: color ROJO brillante, texto TEN\n\nSOLO reporta los numeros de cartas blancas/crema que veas claramente.\n\nResponde UNICAMENTE con este JSON sin markdown:\n{\"cards\":[<lista de numeros enteros>],\"total\":<suma>,\"note\":\"<que cartas viste>\"}";
 
@@ -1062,22 +1108,21 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   }
 
   async function analyze(){
-    // ── Fetch key fresca de Firebase justo antes de enviar ──
+    // Key ya está cargada desde Firebase al abrir el modal
+    // Si aún está vacía, hacer un último intento de fetch
     var key=apiKey.trim();
-    var freshClaudeKey="";
-    try{
-      var[gemSnap,claudeSnap]=await Promise.all([
-        _db.ref("config/ai").once("value"),
-        _db.ref("config/claude").once("value")
-      ]);
-      var gemCfg=gemSnap.val();var claudeCfg=claudeSnap.val();
-      if(provider==="gemini"&&gemCfg?.key)key=gemCfg.key;
-      if(claudeCfg?.key)freshClaudeKey=claudeCfg.key;
-      // Actualizar aiConfig con keys frescas
-      setAiConfig({provider:provider,key:gemCfg?.key||key,claudeKey:claudeCfg?.key||""});
-    }catch(fe){console.log("Firebase key fetch failed, using cached");}
-
-    if(!key){setErrMsg("Ingresa tu API Key o configúrala en Firebase.");setPhase("error");return;}
+    if(!key){
+      // último intento
+      try{
+        var snap=(provider==="anthropic")
+          ? await _db.ref("config/claude").once("value")
+          : await _db.ref("config/ai").once("value");
+        var val=snap.val();
+        key=(val?.key||"").trim();
+        if(key)setApiKey(key);
+      }catch(fe){}
+    }
+    if(!key){setErrMsg("No hay API Key configurada.\nConfigúrala en Firebase:\n• config/ai/key (Gemini)\n• config/claude/key (Claude)");setPhase("error");return;}
     setPhase("analyzing");
 
     try{
@@ -1109,7 +1154,8 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
         }
         if(!parsed)throw lastErr||new Error("Todos los modelos fallaron.");
       }else{
-        var ckey=freshClaudeKey||aiConfig.claudeKey||apiKey;
+        // apiKey ya contiene la claudeKey cargada de Firebase al montar
+        var ckey=apiKey.trim()||aiConfig.claudeKey||"";
         var resp2=await fetch("https://api.anthropic.com/v1/messages",{
           method:"POST",
           headers:{"Content-Type":"application/json","x-api-key":ckey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
@@ -1147,8 +1193,16 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
         phase==="pick"&&React.createElement(React.Fragment,null,
           React.createElement("div",{style:{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.22)",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}},
             React.createElement("div",{style:{flex:1}},
-              React.createElement("div",{style:{fontWeight:900,fontSize:".82rem",color:"var(--t)"}},apiKey?"✅ Gemini 2.5 Flash — Activo":"⏳ Cargando key de Firebase..."),
-              React.createElement("div",{style:{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}},apiKey?"Key cargada desde Firebase — lista para usar":"La key se obtiene de Firebase en cada scan")
+              React.createElement("div",{style:{fontWeight:900,fontSize:".82rem",color:keyLoaded?(apiKey?"var(--gr)":"var(--r)"):"var(--t)"}},
+                !keyLoaded?"⏳ Cargando key de Firebase...":
+                apiKey?"✅ Key cargada — Lista para usar":
+                "⚠️ Sin API Key — usa Config para ingresar una"
+              ),
+              React.createElement("div",{style:{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}},
+                !keyLoaded?"Conectando con Firebase...":
+                apiKey?"Toca la cámara o galería para escanear":
+                "Ve a Config para ingresar tu key de Gemini o Claude"
+              )
             ),
             React.createElement("button",{onClick:function(){snd("tap");setShowKeyEdit(function(v){return !v;});},style:{background:"none",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.4)",borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:".68rem",fontWeight:700}},showKeyEdit?"Cerrar":"Config")
           ),
@@ -1160,7 +1214,12 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
               React.createElement("button",{className:"ai-tab "+(provider==="anthropic"?"on":""),onClick:function(){snd("tap");setProvider("anthropic");setApiKey(aiConfig.claudeKey||"");}},
                 "Claude",React.createElement("br"),React.createElement("span",{style:{fontSize:".6rem",opacity:.7}},"$0.001/img"))
             ),
-            React.createElement("input",{className:"inp",style:{margin:0,fontSize:".82rem"},placeholder:provider==="gemini"?"AIzaSy... (o se carga de Firebase)":"sk-ant-api03-...",value:apiKey,onChange:function(e){setApiKey(e.target.value);},onFocus:function(){snd("tap");}})
+            React.createElement("input",{className:"inp",style:{margin:0,fontSize:".82rem"},
+              placeholder:apiKey?"(key cargada de Firebase)":(provider==="gemini"?"AIzaSy...":"sk-ant-api03-..."),
+              value:apiKey,
+              onChange:function(e){setApiKey(e.target.value);},
+              onFocus:function(){snd("tap");}
+            })
           ),
           React.createElement("input",{ref:fileRef,type:"file",accept:"image/*",capture:"environment",style:{display:"none"},onChange:handleFile}),
           React.createElement("div",{className:"ce",style:{aspectRatio:"unset",height:130},onClick:function(){snd("tap");if(fileRef.current)fileRef.current.click();}},
