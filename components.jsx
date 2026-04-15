@@ -40,54 +40,56 @@ const ALL_CARD_NUMS=[0,1,2,3,4,5,6,7,8,9,10,11,12];
 
 // ── ESTADÍSTICAS — guardar por jugador en Firebase ────────────
 async function saveGameStats(session, roomData){
+  // Evitar guardar si ya se guardó esta partida exacta
   const gameId = session.code + "_" + session.date;
+  const existCheck = await _db.ref("stats/games/"+gameId+"/saved").once("value");
+  if(existCheck.val()===true){ console.log("Stats: partida ya guardada, skip"); return; }
+
   const sorted = [...roomData.players].sort((a,b)=>b.total-a.total);
-  const gameRecord = {
-    gameId, date: session.date,
-    code: session.code,
-    rounds: roomData.round,
-    playerCount: roomData.players.length,
-    winner: roomData.winner?.name || "",
-    winnerId: roomData.winner?.id || "",
-    title: "Partida " + new Date(session.date).toLocaleDateString("es-MX",{month:"short",day:"numeric"})
-  };
-  // Guardar registro global del juego
-  await _db.ref("stats/games/" + gameId).set({
-    ...gameRecord,
-    players: roomData.players.map((p,i)=>({
+  // El ganador es SOLO el primero en el ranking (un único winner)
+  const realWinnerId = roomData.winner?.tied ? null : (roomData.winner?.id || sorted[0]?.id);
+  const title = "Partida " + new Date(session.date).toLocaleDateString("es-MX",{month:"short",day:"numeric"});
+
+  // Guardar registro global del juego (marcado como saved para evitar duplicados)
+  await _db.ref("stats/games/"+gameId).set({
+    gameId, date: session.date, code: session.code,
+    rounds: roomData.round, playerCount: roomData.players.length,
+    winner: roomData.winner?.name||"", winnerId: realWinnerId||"",
+    title, saved: true,
+    players: sorted.map((p,i)=>({
       id:p.id, name:p.name, emoji:p.emoji, color:p.color,
-      total:p.total, position:sorted.findIndex(s=>s.id===p.id)+1,
-      rounds:p.rounds||[]
+      total:p.total, position:i+1, rounds:p.rounds||[]
     }))
   });
-  // Guardar por jugador (índice por nombre para búsqueda fácil)
+
+  // Guardar por jugador
   for(const p of roomData.players){
     const pKey = p.name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_").slice(0,30);
     const position = sorted.findIndex(s=>s.id===p.id)+1;
-    const playerGameRef = _db.ref("stats/players/"+pKey+"/games/"+gameId);
-    await playerGameRef.set({
-      date: session.date,
-      gameId, code: session.code,
-      title: gameRecord.title,
+    // Victoria = solo el jugador con el id del winner real
+    const won = !!(realWinnerId && p.id===realWinnerId);
+
+    await _db.ref("stats/players/"+pKey+"/games/"+gameId).set({
+      date: session.date, gameId, code: session.code, title,
       name: p.name, emoji: p.emoji, color: p.color,
-      total: p.total, position,
-      rounds: p.rounds||[],
-      playerCount: roomData.players.length,
-      won: p.id === roomData.winner?.id
+      total: p.total, position, rounds: p.rounds||[],
+      playerCount: roomData.players.length, won
     });
-    // Actualizar resumen del jugador
+
+    // Resumen del jugador — leer y actualizar atómicamente
     const summaryRef = _db.ref("stats/players/"+pKey+"/summary");
     const snap = await summaryRef.once("value");
-    const prev = snap.val() || {games:0,wins:0,totalScore:0,bestScore:0,name:p.name,emoji:p.emoji,color:p.color};
+    const prev = snap.val()||{games:0,wins:0,totalScore:0,bestScore:0};
     await summaryRef.set({
       name: p.name, emoji: p.emoji, color: p.color, pKey,
       games: (prev.games||0)+1,
-      wins: (prev.wins||0)+(p.id===roomData.winner?.id?1:0),
+      wins: (prev.wins||0)+(won?1:0),          // máximo 1 victoria por partida
       totalScore: (prev.totalScore||0)+p.total,
       bestScore: Math.max(prev.bestScore||0, p.total),
       lastPlayed: session.date
     });
   }
+  console.log("Stats: guardadas correctamente para gameId",gameId);
 }
 
 // ── FIREBASE CONFIG SETUP — escribe config/ai y config/claude si no existen ──
@@ -398,8 +400,8 @@ function App(){
       });
       prevSortedRef.current=newSorted.map(p=>({...p}));
       setRoom(data);
-      // Detectar rematchPending — mostrar animación en no-host
-      if(data.rematchPending&&myPlayerId){
+      // Detectar rematchPending — mostrar animación en TODOS los no-host (incluyendo host que también ve)
+      if(data.rematchPending){
         setRematchPending(true);
       }
       if(data.finished&&data.winner&&!winnerShown.current){
@@ -438,10 +440,11 @@ function App(){
   async function startRematch(prevPlayers){
     snd('round');
     winnerShown.current=false;prevSortedRef.current=[];
-    // 1. Marcar rematchPending para que los no-host vean la animación
+    setWinner(null);
+    // 1. Marcar rematchPending → todos (host incluido) ven el overlay via Firebase listener
     await dbRef.current.set("rooms/"+roomCode+"/rematchPending",true);
-    // 2. Esperar 3.5s para que la animación se vea
-    await new Promise(r=>setTimeout(r,3500));
+    // 2. Esperar 4s para que la animación se vea en todos los dispositivos
+    await new Promise(r=>setTimeout(r,4000));
     // 3. Resetear la sala con los mismos jugadores
     const freshPlayers=prevPlayers.map(p=>({...p,total:0,rounds:[]}));
     await dbRef.current.set("rooms/"+roomCode,{
@@ -449,7 +452,7 @@ function App(){
       winner:null,createdAt:Date.now(),players:freshPlayers,
       rematchPending:false
     });
-    setWinner(null);setRematchPending(false);setTab("round");
+    setRematchPending(false);setTab("round");
     subscribe(roomCode,dbRef.current);
   }
 
@@ -499,6 +502,18 @@ function App(){
     setDemoMode(demo);setRoomCode(roomCode2);setIsSpectator(spectator||false);
     setMyPlayerId(playerId||null);
     subscribe(roomCode2,db);
+    // Presencia: marcar jugador online y limpiar al desconectar
+    if(!demo && playerId){
+      const presRef=_db.ref("rooms/"+roomCode2+"/presence/"+playerId);
+      presRef.set(true);
+      presRef.onDisconnect().remove();
+    }
+    if(!demo && !playerId && !spectator){
+      // host online
+      const hostRef=_db.ref("rooms/"+roomCode2+"/hostOnline");
+      hostRef.set(true);
+      hostRef.onDisconnect().set(false);
+    }
     setScreen("game");setTab(spectator?"scores":"round");
     winnerShown.current=false;prevSortedRef.current=[];
   }
@@ -510,8 +525,8 @@ function App(){
   if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
 
-  // Animación revancha para no-host
-  if(rematchPending&&!isHost){
+  // Animación revancha para TODOS (host la ve también para sincronía visual)
+  if(rematchPending){
     return<RematchOverlay onDone={onRematchAnimDone}/>;
   }
 
@@ -567,6 +582,22 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
   const[err,setErr]=useState(null);
   const[roomPlayers,setRoomPlayers]=useState(null);
   const[pickingPlayer,setPickingPlayer]=useState(false);
+  const[roomPlayersOnline,setRoomPlayersOnline]=useState([]);
+  const presUnsubRef=React.useRef(null);
+
+  // Suscribirse a presencia cuando se muestra lista de jugadores
+  React.useEffect(()=>{
+    if(pickingPlayer&&jcode.length>=4){
+      const pref=_db.ref("rooms/"+jcode.toUpperCase()+"/presence");
+      const handler=snap=>{
+        const data=snap.val()||{};
+        setRoomPlayersOnline(Object.keys(data).filter(k=>data[k]===true));
+      };
+      pref.on("value",handler);
+      presUnsubRef.current=()=>pref.off("value",handler);
+    }
+    return()=>{if(presUnsubRef.current){presUnsubRef.current();presUnsubRef.current=null;}};
+  },[pickingPlayer,jcode]);
 
   React.useEffect(()=>{
     setPlayerEmojis(p=>{const a=[...p];while(a.length<names.length){const next=EMOJIS.find(e=>!a.includes(e))||EMOJIS[a.length%EMOJIS.length];a.push(next);}return a.slice(0,names.length);});
@@ -677,19 +708,30 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
       </>)}
       {pickingPlayer&&roomPlayers&&(<>
         <div className="alert al-y" style={{marginBottom:14}}>
-          ℹ <span>Nombre no encontrado. ¿Eres alguno de estos jugadores?</span>
+          ℹ <span>Elige tu personaje. Los marcados como "En sala" ya están conectados.</span>
         </div>
         <p className="sec">ELIGE TU JUGADOR</p>
-        {roomPlayers.map(p=>(
-          <div key={p.id} className="player-pick" onClick={()=>pickPlayer(p)}>
-            <div className="ava" style={{background:p.color+"22",color:p.color,width:42,height:42,fontSize:"1.4rem"}}>{p.emoji}</div>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:900,fontSize:"1rem"}}>{p.name}</div>
-              <div style={{fontSize:".72rem",color:"rgba(255,255,255,.4)",fontWeight:700}}>{p.total} pts · {(p.rounds||[]).length} rondas</div>
+        {roomPlayers.map(p=>{
+          // Verificar si el jugador ya tiene presencia activa en Firebase
+          const onlineIds = roomPlayersOnline||[];
+          const isOnline = onlineIds.includes(p.id);
+          return(
+            <div key={p.id}
+              className={"player-pick"+(isOnline?" selected":"")}
+              onClick={()=>{if(!isOnline)pickPlayer(p);}}
+              style={{opacity:isOnline?.55:1,cursor:isOnline?"not-allowed":"pointer",
+                border:"2px solid "+(isOnline?"rgba(230,57,70,.4)":"rgba(255,255,255,.1)")}}>
+              <div className="ava" style={{background:p.color+"22",color:p.color,width:42,height:42,fontSize:"1.4rem"}}>{p.emoji}</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:900,fontSize:"1rem"}}>{p.name}</div>
+                <div style={{fontSize:".72rem",color:isOnline?"var(--r)":"rgba(255,255,255,.4)",fontWeight:700}}>
+                  {isOnline?"🔴 En sala — ya conectado":p.total+" pts · "+(p.rounds||[]).length+" rondas"}
+                </div>
+              </div>
+              <div style={{color:"rgba(255,255,255,.3)",fontSize:"1.2rem"}}>{isOnline?"🔒":"›"}</div>
             </div>
-            <div style={{color:"rgba(255,255,255,.3)",fontSize:"1.2rem"}}>›</div>
-          </div>
-        ))}
+          );
+        })}
         <div className="div"/>
         <p className="sec">O UNIRME COMO JUGADOR NUEVO</p>
         <input className="inp" placeholder="Nombre del nuevo jugador" value={jname}
@@ -780,6 +822,19 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
             }
             <button className="btn btn-g" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={onEndGame}>{T.endGame}</button>
           </div>
+        </div>
+      )}
+      {/* Aviso host desconectado */}
+      {!isHost&&room.hostOnline===false&&(
+        <div className="alert al-r" style={{marginBottom:10}}>
+          <div style={{fontWeight:900}}>⚠️ El host se desconectó</div>
+          <div style={{fontSize:".78rem",opacity:.8,marginTop:3}}>La sala sigue activa — el host puede reconectarse con el código {roomCode}</div>
+        </div>
+      )}
+      {/* Jugadores desconectados */}
+      {room.players.some(p=>room.presence&&room.presence[p.id]===undefined&&p.id!==myPlayerId)&&isHost&&(
+        <div className="alert al-y" style={{marginBottom:8,fontSize:".76rem"}}>
+          ℹ️ Algún jugador está desconectado. Puede reconectarse con el código de sala.
         </div>
       )}
       {!room.finished&&allDone&&<div className="alert al-g">{isHost?T.allReady:T.waitingHost}</div>}
@@ -1107,65 +1162,33 @@ function SesCards({sessions,onClear,T}){
   );
 }
 
-// ── SCANMODAL — centrado en viewport; key cargada de Firebase al montar ──
-function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
+// ── SCANMODAL — Claude Haiku exclusivo, key silenciosa de Firebase ──
+function ScanModal({playerName,onResult,onClose,aiConfig}){
   var useState=React.useState,useRef=React.useRef,useEffect=React.useEffect;
   var ph=useState("pick"),img_=useState(null),b64_=useState(null),mime_=useState("image/jpeg");
-  var res_=useState(null),err_=useState(""),prov_=useState(aiConfig.provider||"gemini");
-  // Iniciamos con la key que ya tiene aiConfig (puede estar vacía aún)
-  var key_=useState(aiConfig.key||aiConfig.claudeKey||""),edit_=useState(false);
-  var keyLoaded_=useState(false); // indica si Firebase ya respondió
+  var res_=useState(null),err_=useState(""),keyLoaded_=useState(false),claudeKey_=useState("");
   var phase=ph[0],setPhase=ph[1],img=img_[0],setImg=img_[1],b64=b64_[0],setB64=b64_[1];
   var mime=mime_[0],setMime=mime_[1],res=res_[0],setRes=res_[1];
-  var errMsg=err_[0],setErrMsg=err_[1],provider=prov_[0],setProvider=prov_[1];
-  var apiKey=key_[0],setApiKey=key_[1],showKeyEdit=edit_[0],setShowKeyEdit=edit_[1];
+  var errMsg=err_[0],setErrMsg=err_[1];
   var keyLoaded=keyLoaded_[0],setKeyLoaded=keyLoaded_[1];
+  var claudeKey=claudeKey_[0],setClaudeKey=claudeKey_[1];
   var fileRef=useRef();
 
-  // ── Cargar key de Firebase al abrir el modal (no esperar a analyze) ──
+  // Cargar Claude key de Firebase al abrir — silencioso, sin UI de config
   useEffect(function(){
-    async function fetchKeys(){
+    async function fetchKey(){
       try{
-        var[gemSnap,claudeSnap]=await Promise.all([
-          _db.ref("config/ai").once("value"),
-          _db.ref("config/claude").once("value")
-        ]);
-        var gemCfg=gemSnap.val();
-        var claudeCfg=claudeSnap.val();
-        var freshGem=gemCfg?.key||"";
-        var freshClaude=claudeCfg?.key||"";
-        // Actualizar aiConfig global con las keys frescas
-        setAiConfig({
-          provider:gemCfg?.provider||aiConfig.provider||"gemini",
-          key:freshGem,
-          claudeKey:freshClaude
-        });
-        // Cargar la key correcta según el proveedor activo
-        if(provider==="anthropic"){
-          if(freshClaude)setApiKey(freshClaude);
-        } else {
-          if(freshGem)setApiKey(freshGem);
-        }
-      }catch(fe){
-        console.log("Firebase key load failed:",fe);
-        // Fallback a lo que ya teníamos
-        if(provider==="anthropic"){
-          setApiKey(aiConfig.claudeKey||"");
-        } else {
-          setApiKey(aiConfig.key||"");
-        }
+        var snap=await _db.ref("config/claude").once("value");
+        var val=snap.val();
+        if(val&&val.key)setClaudeKey(val.key);
+        else if(aiConfig&&aiConfig.claudeKey)setClaudeKey(aiConfig.claudeKey);
+      }catch(e){
+        if(aiConfig&&aiConfig.claudeKey)setClaudeKey(aiConfig.claudeKey);
       }
       setKeyLoaded(true);
     }
-    fetchKeys();
+    fetchKey();
   },[]);
-
-  // Si cambia el proveedor, actualizar la key mostrada
-  useEffect(function(){
-    if(!keyLoaded)return;
-    if(provider==="anthropic")setApiKey(aiConfig.claudeKey||"");
-    else setApiKey(aiConfig.key||"");
-  },[provider]);
 
   var PROMPT="Mira esta foto de cartas del juego Flip 7.\n\nTu UNICA tarea: lee los numeros que aparecen en las cartas de fondo BLANCO o CREMA.\nLas cartas base tienen escrito el numero en grande y debajo el nombre en ingles (SEVEN, TEN, TWELVE, etc.)\n\nIGNORA completamente:\n- Cualquier carta de fondo AMARILLO o DORADO\n- Cualquier carta de accion (Flip, Freeze, Second Chance)\n- Cualquier simbolo como x2, +2, +4, +6, +8, +10\n\nNOTA sobre colores de numeros:\n- Carta 7: color CAFE/MARRON claro, texto SEVEN\n- Carta 12: color GRIS oscuro, texto TWELVE\n- Carta 11: color AZUL/LILA, texto ELEVEN\n- Carta 10: color ROJO brillante, texto TEN\n\nSOLO reporta los numeros de cartas blancas/crema que veas claramente.\n\nResponde UNICAMENTE con este JSON sin markdown:\n{\"cards\":[<lista de numeros enteros>],\"total\":<suma>,\"note\":\"<que cartas viste>\"}";
 
@@ -1191,76 +1214,45 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   }
 
   async function analyze(){
-    // Key ya está cargada desde Firebase al abrir el modal
-    // Si aún está vacía, hacer un último intento de fetch
-    var key=apiKey.trim();
+    // Intentar cargar key de Firebase de nuevo si no está
+    var key=claudeKey;
     if(!key){
-      // último intento
       try{
-        var snap=(provider==="anthropic")
-          ? await _db.ref("config/claude").once("value")
-          : await _db.ref("config/ai").once("value");
+        var snap=await _db.ref("config/claude").once("value");
         var val=snap.val();
-        key=(val?.key||"").trim();
-        if(key)setApiKey(key);
-      }catch(fe){}
+        key=val?.key||"";
+        if(key)setClaudeKey(key);
+      }catch(e){}
     }
-    if(!key){setErrMsg("No hay API Key configurada.\nConfigúrala en Firebase:\n• config/ai/key (Gemini)\n• config/claude/key (Claude)");setPhase("error");return;}
+    if(!key){setErrMsg("Sin API Key de Claude configurada en Firebase.\nVe a Stats → ⚙️ Config para ingresarla.");setPhase("error");return;}
     setPhase("analyzing");
-
     try{
-      var parsed=null;
-      if(provider==="gemini"){
-        var MODELS=["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-2.5-pro"];
-        var lastErr=null;
-        for(var mi=0;mi<MODELS.length;mi++){
-          var model=MODELS[mi];
-          try{
-            var body={contents:[{parts:[{inline_data:{mime_type:mime,data:b64}},{text:PROMPT}]}]};
-            var resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+key,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-            var rawBody=await resp.text();
-            if(resp.status===429){lastErr=new Error("Cuota excedida (429). Espera 1 min.");continue;}
-            if(resp.status===404){lastErr=new Error("Modelo "+model+" no encontrado.");continue;}
-            if(resp.status===400){lastErr=new Error("Error 400: "+rawBody.slice(0,200));continue;}
-            if(resp.status===403){lastErr=new Error("API Key sin permisos (403).");continue;}
-            if(!resp.ok){lastErr=new Error("HTTP "+resp.status);continue;}
-            var data=JSON.parse(rawBody);
-            if(data.promptFeedback&&data.promptFeedback.blockReason){lastErr=new Error("Bloqueado: "+data.promptFeedback.blockReason);continue;}
-            var rawTxt=(((data.candidates||[])[0]||{}).content||{}).parts;
-            rawTxt=rawTxt?rawTxt[0].text:"";
-            if(!rawTxt){lastErr=new Error("Respuesta vacía.");continue;}
-            var cleanTxt=rawTxt.replace(/```json/g,"").replace(/```/g,"").trim();
-            var js=cleanTxt.indexOf("{"),je=cleanTxt.lastIndexOf("}")+1;
-            if(js>=0)cleanTxt=cleanTxt.slice(js,je);
-            parsed=JSON.parse(cleanTxt);break;
-          }catch(ex){lastErr=ex;}
-        }
-        if(!parsed)throw lastErr||new Error("Todos los modelos fallaron.");
-      }else{
-        // apiKey ya contiene la claudeKey cargada de Firebase al montar
-        var ckey=apiKey.trim()||aiConfig.claudeKey||"";
-        var resp2=await fetch("https://api.anthropic.com/v1/messages",{
-          method:"POST",
-          headers:{"Content-Type":"application/json","x-api-key":ckey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-          body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:300,messages:[{role:"user",content:[
-            {type:"image",source:{type:"base64",media_type:mime,data:b64}},
-            {type:"text",text:PROMPT}
-          ]}]})
-        });
-        if(!resp2.ok){var t2=await resp2.text();throw new Error("Anthropic "+resp2.status+": "+t2.slice(0,120));}
-        var d2=await resp2.json();
-        var txt2=(d2.content||[]).map(function(c){return c.text||"";}).join("");
-        parsed=JSON.parse(txt2.replace(/```json/g,"").replace(/```/g,"").trim());
+      // Siempre Claude Haiku — más rápido y preciso para cartas
+      var resp=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:400,messages:[{role:"user",content:[
+          {type:"image",source:{type:"base64",media_type:mime,data:b64}},
+          {type:"text",text:PROMPT}
+        ]}]})
+      });
+      if(!resp.ok){
+        var errBody=await resp.text();
+        if(resp.status===401)throw new Error("API Key de Claude inválida. Actualízala en Stats → Config.");
+        if(resp.status===429)throw new Error("Rate limit de Claude. Espera unos segundos e intenta de nuevo.");
+        throw new Error("Claude "+resp.status+": "+errBody.slice(0,120));
       }
+      var d=await resp.json();
+      var txt=(d.content||[]).map(function(x){return x.text||"";}).join("");
+      var clean=txt.replace(/```json/g,"").replace(/```/g,"").trim();
+      var js=clean.indexOf("{"),je=clean.lastIndexOf("}")+1;
+      if(js>=0)clean=clean.slice(js,je);
+      var parsed=JSON.parse(clean);
       snd("score");setRes(parsed);setPhase("result");
     }catch(e){
       var m=e.message||"";
-      var friendly=m;
-      if(m.includes("429")||m.includes("Cuota"))friendly="Cuota de Gemini excedida. Espera ~1 minuto e intenta de nuevo.";
-      else if(m.includes("404")||m.includes("not found"))friendly="Modelo no encontrado. Prueba de nuevo en unos minutos.";
-      else if(m.includes("403")||m.includes("permisos"))friendly="API Key inválida o sin permisos.";
-      else if(m.includes("fetch")||m.includes("network"))friendly="Error de red. Verifica tu conexión.";
-      setErrMsg(friendly);setPhase("error");
+      setErrMsg(m.length>200?m.slice(0,200)+"...":m);
+      setPhase("error");
     }
   }
 
@@ -1274,38 +1266,14 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
         React.createElement("div",{className:"msub"},"Turno de: ",React.createElement("b",{style:{color:"#fff"}},playerName)),
 
         phase==="pick"&&React.createElement(React.Fragment,null,
-          React.createElement("div",{style:{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.22)",borderRadius:12,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}},
-            React.createElement("div",{style:{flex:1}},
-              React.createElement("div",{style:{fontWeight:900,fontSize:".82rem",color:keyLoaded?(apiKey?"var(--gr)":"var(--r)"):"var(--t)"}},
-                !keyLoaded?"⏳ Cargando key de Firebase...":
-                apiKey?"✅ Key cargada — Lista para usar":
-                "⚠️ Sin API Key — usa Config para ingresar una"
-              ),
-              React.createElement("div",{style:{fontSize:".68rem",color:"rgba(255,255,255,.4)",fontWeight:700}},
-                !keyLoaded?"Conectando con Firebase...":
-                apiKey?"Toca la cámara o galería para escanear":
-                "Ve a Config para ingresar tu key de Gemini o Claude"
-              )
-            ),
-            React.createElement("button",{onClick:function(){snd("tap");setShowKeyEdit(function(v){return !v;});},style:{background:"none",border:"1px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.4)",borderRadius:8,padding:"4px 8px",cursor:"pointer",fontSize:".68rem",fontWeight:700}},showKeyEdit?"Cerrar":"Config")
-          ),
-          showKeyEdit&&React.createElement("div",{className:"api-box",style:{marginBottom:12}},
-            React.createElement("p",null,"Cambiar IA o key manual (opcional):"),
-            React.createElement("div",{className:"ai-tabs"},
-              React.createElement("button",{className:"ai-tab "+(provider==="gemini"?"on":""),onClick:function(){snd("tap");setProvider("gemini");setApiKey(aiConfig.key||"");}},
-                "Gemini",React.createElement("br"),React.createElement("span",{style:{fontSize:".6rem",opacity:.7}},"GRATIS")),
-              React.createElement("button",{className:"ai-tab "+(provider==="anthropic"?"on":""),onClick:function(){snd("tap");setProvider("anthropic");setApiKey(aiConfig.claudeKey||"");}},
-                "Claude",React.createElement("br"),React.createElement("span",{style:{fontSize:".6rem",opacity:.7}},"$0.001/img"))
-            ),
-            React.createElement("input",{className:"inp",style:{margin:0,fontSize:".82rem"},
-              placeholder:apiKey?"(key cargada de Firebase)":(provider==="gemini"?"AIzaSy...":"sk-ant-api03-..."),
-              value:apiKey,
-              onChange:function(e){setApiKey(e.target.value);},
-              onFocus:function(){snd("tap");}
-            })
+          // Indicador de estado minimal — sin mostrar la key ni config visible
+          !keyLoaded&&React.createElement("div",{style:{textAlign:"center",padding:"8px 0",marginBottom:8}},
+            React.createElement("div",{style:{display:"inline-flex",alignItems:"center",gap:6,fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--t)"}},
+              React.createElement("div",{className:"spin",style:{width:16,height:16,borderWidth:2}}),"Cargando..."
+            )
           ),
           React.createElement("input",{ref:fileRef,type:"file",accept:"image/*",capture:"environment",style:{display:"none"},onChange:handleFile}),
-          React.createElement("div",{className:"ce",style:{aspectRatio:"unset",height:130},onClick:function(){snd("tap");if(fileRef.current)fileRef.current.click();}},
+          React.createElement("div",{className:"ce",onClick:function(){snd("tap");if(fileRef.current)fileRef.current.click();}},
             React.createElement("div",{style:{fontSize:"2.8rem"}},"📷"),
             React.createElement("div",null,"Toca para abrir la cámara"),
             React.createElement("div",{style:{fontSize:".7rem",opacity:.5}},"Apunta a tus cartas y toma foto")
@@ -1319,7 +1287,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
           React.createElement("div",{className:"cv"},React.createElement("img",{src:img,alt:"preview"})),
           React.createElement("p",{style:{textAlign:"center",color:"rgba(255,255,255,.45)",fontWeight:700,fontSize:".82rem",marginBottom:8}},"¿Se ven bien todas las cartas?"),
           React.createElement("div",{style:{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"8px 12px",marginBottom:8,textAlign:"center"}},
-            React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}},"⚡ Solo números base · Ajusta chips después del scan")
+            React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}},"⚡ Modo Claude Haiku · Solo números base")
           ),
           React.createElement("div",{className:"mr2"},
             React.createElement("button",{className:"mc",onClick:function(){snd("tap");retake();}},"📷 Otra foto"),
@@ -1331,7 +1299,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
           React.createElement("img",{src:img,alt:"",style:{opacity:.4,width:"100%",height:"100%",objectFit:"cover",display:"block"}}),
           React.createElement("div",{className:"sov"},
             React.createElement("div",{className:"spin"}),
-            React.createElement("div",{style:{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}},"Analizando con "+(provider==="gemini"?"Gemini":"Claude")+"...")
+            React.createElement("div",{style:{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}},"Analizando con Claude...")
           )
         ),
 
@@ -1340,8 +1308,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
         phase==="error"&&React.createElement(React.Fragment,null,
           React.createElement("div",{style:{textAlign:"center",padding:"16px 0"}},
             React.createElement("div",{style:{fontSize:"2.5rem",marginBottom:10}},"❌"),
-            React.createElement("p",{style:{fontWeight:800,marginBottom:10,fontSize:".82rem",lineHeight:1.5,textAlign:"left",whiteSpace:"pre-wrap",background:"rgba(0,0,0,.3)",padding:"10px",borderRadius:10,maxHeight:160,overflowY:"auto",wordBreak:"break-all"}},errMsg),
-            errMsg.includes("Cuota")&&React.createElement("div",{style:{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",borderRadius:10,padding:"10px 14px",fontSize:".8rem",fontWeight:800,color:"var(--y)"}},"Tip: la cuota gratuita es 15 req/min. Usa Manual mientras esperas.")
+            React.createElement("p",{style:{fontWeight:800,marginBottom:10,fontSize:".82rem",lineHeight:1.5,background:"rgba(0,0,0,.3)",padding:"10px",borderRadius:10,textAlign:"left",wordBreak:"break-all"}},errMsg)
           ),
           React.createElement("div",{className:"mr2"},
             React.createElement("button",{className:"mc",onClick:function(){snd("tap");onClose();}},"Cerrar"),
