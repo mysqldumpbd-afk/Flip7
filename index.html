@@ -396,6 +396,7 @@ function safeEval(expr){
 
 
 const{useState,useEffect,useRef,useCallback}=React;
+const _db = (window.firebase && firebase.database) ? firebase.database() : null;
 
 const WIN=200;
 const EMOJIS=["","","","","","","","","","","","","","","","","","","","","","","",""];
@@ -407,6 +408,9 @@ const fmtDate=ts=>new Date(ts).toLocaleDateString("es-MX",{weekday:"short",month
 
 function makeDB(demo){
   if(demo)return{set:(p,d)=>demoSet(p,d),get:(p)=>demoGet(p),listen:(p,cb)=>demoListen(p,cb)};
+  if(!_db){
+    throw new Error('Firebase no está disponible');
+  }
   return{
     set:(p,d)=>_db.ref(p).set(d),
     get:(p)=>_db.ref(p).once("value").then(s=>s.val()),
@@ -501,10 +505,12 @@ function App(){
 
   async function createLobby(){
     snd("join");
+    const db = makeDB(false);
+    dbRef.current = db;
     var code=uid4();
-    await _db.ref("rooms/"+code).set({code:code,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),players:[],lobbyMode:true});
+    await db.set("rooms/"+code,{code:code,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),players:[],lobbyMode:true});
     setRoomCode(code);setIsSpectator(false);setMyPlayerId(null);
-    subscribe(code);
+    subscribe(code, db);
     setScreen("game");setTab("round");
     winnerShown.current=false;prevSortedRef.current=[];
   }
@@ -548,29 +554,10 @@ function App(){
 async function finalizeRound() {
   snd('round');
 
-  const newPlayers = room.players.map((p) => {
-    const entry = roundScores?.[p.id];
-    const pts = entry?.score ?? 0;
-    const method = entry?.method ?? "zero";
-
-    return {
-      ...p,
-      total: (p.total ?? 0) + pts,
-      rounds: [
-        ...(p.rounds ?? []),
-        { score: pts, method }
-      ]
-    };
-  });
-
-  room.players = newPlayers;
-}
-    
-async function finalizeRound() {
-  snd('round');
+  const currentRoundScores = room?.roundScores || {};
 
   const newPlayers = room.players.map((p) => {
-    const entry = roundScores?.[p.id];
+    const entry = currentRoundScores[p.id];
     const pts = entry?.score ?? 0;
     const method = entry?.method ?? "zero";
 
@@ -593,18 +580,17 @@ async function finalizeRound() {
 
   const isFinished = champs.length > 0;
 
-  const winner =
-    !isFinished
-      ? null
-      : champs.length === 1
-        ? champs[0]
-        : {
-            tied: true,
-            players: champs,
-            total: maxScore,
-            name: champs.map((p) => p.name).join(" & "),
-            emoji: ""
-          };
+  const winner = !isFinished
+    ? null
+    : champs.length === 1
+      ? champs[0]
+      : {
+          tied: true,
+          players: champs,
+          total: maxScore,
+          name: champs.map((p) => p.name).join(" & "),
+          emoji: ""
+        };
 
   const finUpdate = {
     ...room,
@@ -640,9 +626,10 @@ async function finalizeRound() {
     winnerShown.current=false;prevSortedRef.current=[];
   }
 
-const allDone = room && room.players.every(
-  (p) => roundScores?.[p.id] !== undefined
-);
+const allDone =
+  !!room &&
+  Array.isArray(room.players) &&
+  room.players.every((p) => room.roundScores?.[p.id] !== undefined);
 
 const sorted = room
   ? [...room.players].sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
@@ -764,7 +751,6 @@ const LANGS = {
 function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemove,onName,onEmoji,onColor,onRemove}){
   const[emojiOpen,setEmojiOpen]=React.useState(false);
 
-  
   React.useEffect(()=>{
     if(usedColors.includes(color)){
       const next=allColors.find(c=>!usedColors.includes(c));
@@ -775,7 +761,6 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
   return(
     <div style={{marginBottom:9,background:"rgba(255,255,255,.04)",borderRadius:14,padding:"10px 12px",border:"2px solid "+color+"33",transition:"border-color .3s"}}>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        {}
         <div style={{position:"relative",flexShrink:0}}>
           <button onClick={()=>{snd('tap');setEmojiOpen(v=>!v);}}
             style={{width:46,height:46,borderRadius:12,background:color+"22",border:"2px solid "+color+"66",fontSize:"1.5rem",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
@@ -785,21 +770,18 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
             <div style={{position:"absolute",top:52,left:0,zIndex:100,background:"#1a1c2e",border:"1px solid rgba(255,255,255,.15)",borderRadius:14,padding:"10px",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,boxShadow:"0 10px 40px rgba(0,0,0,.6)",minWidth:160}}>
               {allEmojis.map((e,ei)=>(
                 <button key={ei} onClick={()=>{snd('tap');onEmoji(e);setEmojiOpen(false);}}
-                  style={{fontSize:"1.4rem",padding:"6px",borderRadius:9,border:"2px solid "+emoji===e?"var(--y)":"transparent",background:emoji===e?"rgba(245,200,0,.15)":"rgba(255,255,255,.05)",cursor:"pointer",transition:"all .15s"}}>
+                  style={{fontSize:"1.4rem",padding:"6px",borderRadius:9,border:(emoji===e?"2px solid var(--y)":"2px solid transparent"),background:(emoji===e?"rgba(245,200,0,.15)":"rgba(255,255,255,.05)"),cursor:"pointer",transition:"all .15s"}}>
                   {e}
                 </button>
               ))}
             </div>
           )}
         </div>
-        {}
         <input className="inp" style={{margin:0,flex:1,borderColor:color+"44"}}
-          placeholder={(typeof T!=='undefined'?T.players:'Jugador')+" "+idx+1} value={name}
+          placeholder={"Jugador " + (idx + 1)} value={name}
           onChange={e=>{snd('num');onName(e.target.value);}} onFocus={()=>snd('tap')}/>
-        {}
         {canRemove&&<button onClick={onRemove} style={{background:"none",border:"none",color:"var(--r)",fontSize:"1.2rem",cursor:"pointer",flexShrink:0,padding:"0 4px"}}>X</button>}
       </div>
-      {}
       <div style={{display:"flex",gap:6,marginTop:8,paddingTop:8,borderTop:"1px solid rgba(255,255,255,.06)"}}>
         {allColors.map((c,ci)=>{
           const taken=usedColors.includes(c);
@@ -807,35 +789,17 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
           return(
             <button key={ci} onClick={()=>{if(!taken){snd('tap');onColor(c);}}}
               style={{width:sel?26:22,height:sel?26:22,borderRadius:"50%",background:c,
-                border:"3px solid "+sel?"white":taken?"transparent":"rgba(255,255,255,.2)",
+                border:(sel?"3px solid white":taken?"3px solid transparent":"2px solid rgba(255,255,255,.2)"),
                 cursor:taken?"not-allowed":"pointer",opacity:taken?0.2:1,
-                flexShrink:0,transition:"all .2s",boxShadow:sel?"0 0 0 2px "+c:"none"}}>
+                flexShrink:0,transition:"all .2s",boxShadow:sel?("0 0 0 2px "+c):"none"}}>
             </button>
           );
         })}
-        <span style={{marginLeft:"auto",fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:color,letterSpacing:1,alignSelf:"center"}}>
-          COLOR
-        </span>
+        <span style={{marginLeft:"auto",fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:color,letterSpacing:1,alignSelf:"center"}}>COLOR</span>
       </div>
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 </script>
@@ -1093,34 +1057,29 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,demoMode,a
   const[manModal,setMan]=useState(null);
   const canControl=pid=>!myPlayerId||myPlayerId===pid;
   const isHost=!myPlayerId;
+  const hasAnyScore = room?.players?.some((p) => room.roundScores?.[p.id] !== undefined);
+
   return(
     <>
       {room.finished&&room.winner&&(
         <div style={{background:"linear-gradient(135deg,rgba(245,200,0,.15),rgba(255,107,53,.1))",border:"2px solid rgba(245,200,0,.4)",borderRadius:16,padding:"16px",marginBottom:14,textAlign:"center"}}>
-          <div style={{fontSize:"2.5rem",marginBottom:4}}></div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"var(--y)",letterSpacing:2,marginBottom:2}}>{room.winner.name} gano!</div>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:2,marginBottom:14}}>{room.winner.total} PUNTOS  FIN DEL JUEGO</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:2,marginBottom:14}}>{room.winner.total} PUNTOS - FIN DEL JUEGO</div>
           <div style={{display:"flex",gap:8}}>
-            <button className="btn btn-y" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={()=>onRematch(room.players)}>
-              {T.rematch}
-            </button>
-            <button className="btn btn-g" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={onEndGame}>
-              {T.endGame}
-            </button>
+            <button className="btn btn-y" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={()=>onRematch(room.players)}>{T.rematch}</button>
+            <button className="btn btn-g" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={onEndGame}>{T.endGame}</button>
           </div>
         </div>
       )}
-const hasAnyScore = room?.players?.some((p) => roundScores?.[p.id] !== undefined);
 
-{!room?.finished && allDone && (
-  <div className="alert al-g">
-    {isHost ? T.allReady : T.waitingHost}
-  </div>
-)}
+      {!room.finished && allDone && (
+        <div className="alert al-g">{isHost ? T.allReady : T.waitingHost}</div>
+      )}
 
-{!room?.finished && !allDone && hasAnyScore && (
-  <div className="alert al-y">{T.waitingCaps}</div>
-)}
+      {!room.finished && !allDone && hasAnyScore && (
+        <div className="alert al-y">{T.waitingCaps}</div>
+      )}
+
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>{T.players2}</p>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -1128,30 +1087,29 @@ const hasAnyScore = room?.players?.some((p) => roundScores?.[p.id] !== undefined
           <div className="rbd">RONDA {room.round}</div>
         </div>
       </div>
-      {room.players.map(p=>{
-        const entry=room.(roundScores&&roundScores[p.id]);const done=entry!==undefined;const mine=canControl(p.id);
+
+      {room.players.map((p)=>{
+        const entry = room.roundScores?.[p.id];
+        const done = entry !== undefined;
+        const mine = canControl(p.id);
         return(
-          <div key={p.id} className={"pr "+(done?"done":"")} style={{"--clr":p.color}}>
+          <div key={p.id} className={"pr "+(done?"done":"")+(mine?" me":"")} style={{"--clr":p.color}}>
             <div className="ava" style={{background:p.color+"22",color:p.color,border:"2px solid "+p.color+"55",boxShadow:"0 0 10px "+p.color+"33"}}>{p.emoji}</div>
             <div style={{flex:1}}>
               <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:8}}>
-                <div className="pr-name">
-                  {p.name}
-                  {myPlayerId===p.id&&<span style={{fontSize:".62rem",color:"rgba(255,255,255,.35)",marginLeft:5,fontWeight:700}}> tu</span>}
-                </div>
+                <div className="pr-name">{p.name}{myPlayerId===p.id&&<span style={{fontSize:".62rem",color:"rgba(255,255,255,.35)",marginLeft:5,fontWeight:700}}> tu</span>}</div>
                 <div style={{display:"flex",alignItems:"baseline",gap:4,flexShrink:0}}>
-                  <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:p.color,lineHeight:1,textShadow:"2px 2px 0 rgba(0,0,0,.4)"}}>{p.total}</span>
+                  <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:p.color,lineHeight:1,textShadow:"2px 2px 0 rgba(0,0,0,.4)"}}>{p.total ?? 0}</span>
                   <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>pts</span>
                 </div>
               </div>
-              {}
               <div style={{height:3,background:"rgba(255,255,255,.07)",borderRadius:2,marginTop:4,marginBottom:4,overflow:"hidden"}}>
-                <div style={{height:"100%",width:Math.min(100,(p.total/200)*100)+"%",background:"linear-gradient(90deg,"+p.color+","+p.color+"aa)",borderRadius:2,transition:"width .8s"}}/>
+                <div style={{height:"100%",width:Math.min(100,((p.total ?? 0)/WIN)*100)+"%",background:"linear-gradient(90deg,"+p.color+","+p.color+"aa)",borderRadius:2,transition:"width .8s"}}/>
               </div>
               {done?(
                 <div style={{display:"flex",alignItems:"center",gap:7,marginTop:2}}>
                   <span className="pr-pts">+{entry.score}</span>
-                  <span className={"mtag mt-"+entry.method}>{entry.method==="scan"?"":entry.method==="zero"?"0":""} {entry.method}</span>
+                  <span className={"mtag mt-"+entry.method}>{entry.method}</span>
                 </div>
               ):mine?(
                 <div className="ar">
@@ -1163,10 +1121,11 @@ const hasAnyScore = room?.players?.some((p) => roundScores?.[p.id] !== undefined
                 <div style={{fontSize:".72rem",color:"rgba(255,255,255,.28)",marginTop:3,fontWeight:700}}> esperando</div>
               )}
             </div>
-            {done&&mine&&<button className="undo" onClick={()=>onUndo(p.id)}></button>}
+            {done&&mine&&<button className="undo" onClick={()=>onUndo(p.id)}>deshacer</button>}
           </div>
         );
       })}
+
       {room.players.length===0&&(
         <div style={{textAlign:"center",padding:"20px 0",borderRadius:16,border:"2px dashed rgba(245,200,0,.3)",marginBottom:14}}>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:8}}>SALA EN MODO LOBBY</div>
@@ -1174,6 +1133,7 @@ const hasAnyScore = room?.players?.some((p) => roundScores?.[p.id] !== undefined
           <div style={{fontSize:".78rem",color:"rgba(255,255,255,.4)",fontWeight:700,marginTop:6}}>Comparte este codigo para que los jugadores se unan</div>
         </div>
       )}
+
       {!room.finished&&isHost&&(
         <div style={{marginTop:14}}>
           <button className="btn btn-y" disabled={!allDone||room.players.length<2} onClick={onFinalize}>{T.closeRound} {room.round}</button>
@@ -1184,6 +1144,7 @@ const hasAnyScore = room?.players?.some((p) => roundScores?.[p.id] !== undefined
     </>
   );
 }
+
 function ScoreTab({sorted,room,T}){
   const mr=room.round-1;
   return(<>
@@ -1238,7 +1199,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
     <div className="spec-wrap" style={{maxWidth:480,margin:"0 auto",minHeight:"100dvh"}}>
       {}
       {showJoinAnim&&<div style={{position:"fixed",inset:0,background:"linear-gradient(135deg,#0a0a18,#1a1a2e)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:500,animation:"fadeOut 2.5s forwards"}}>
-        <style>{"@keyframes fadeOut{0%{opacity:1}70%{opacity:1}100%{opacity:0;pointer-events:none}} @keyframes zoomIn{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.15) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}} @keyframes slidePill{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}"}        <div style={{animation:"zoomIn .6s cubic-bezier(.34,1.56,.64,1) forwards",textAlign:"center"}}>
+        <style>{"@keyframes fadeOut{0%{opacity:1}70%{opacity:1}100%{opacity:0;pointer-events:none}} @keyframes zoomIn{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.15) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}} @keyframes slidePill{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}"}</style><div style={{animation:"zoomIn .6s cubic-bezier(.34,1.56,.64,1) forwards",textAlign:"center"}}>
           <div style={{fontSize:"5rem",marginBottom:10}}></div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--t),#1A9A94)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:6}}>MARCADOR</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--y),var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:20}}>EN VIVO</div>
