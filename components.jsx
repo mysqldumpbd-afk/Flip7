@@ -37,6 +37,76 @@ const MOD_TEXT_COLOR="#F25A7A";
 const MOD_BG_COLOR="#F6A623";
 const ALL_CARD_NUMS=[0,1,2,3,4,5,6,7,8,9,10,11,12];
 
+
+// ── ESTADÍSTICAS — guardar por jugador en Firebase ────────────
+async function saveGameStats(session, roomData){
+  const gameId = session.code + "_" + session.date;
+  const sorted = [...roomData.players].sort((a,b)=>b.total-a.total);
+  const gameRecord = {
+    gameId, date: session.date,
+    code: session.code,
+    rounds: roomData.round,
+    playerCount: roomData.players.length,
+    winner: roomData.winner?.name || "",
+    winnerId: roomData.winner?.id || "",
+    title: "Partida " + new Date(session.date).toLocaleDateString("es-MX",{month:"short",day:"numeric"})
+  };
+  // Guardar registro global del juego
+  await _db.ref("stats/games/" + gameId).set({
+    ...gameRecord,
+    players: roomData.players.map((p,i)=>({
+      id:p.id, name:p.name, emoji:p.emoji, color:p.color,
+      total:p.total, position:sorted.findIndex(s=>s.id===p.id)+1,
+      rounds:p.rounds||[]
+    }))
+  });
+  // Guardar por jugador (índice por nombre para búsqueda fácil)
+  for(const p of roomData.players){
+    const pKey = p.name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_").slice(0,30);
+    const position = sorted.findIndex(s=>s.id===p.id)+1;
+    const playerGameRef = _db.ref("stats/players/"+pKey+"/games/"+gameId);
+    await playerGameRef.set({
+      date: session.date,
+      gameId, code: session.code,
+      title: gameRecord.title,
+      name: p.name, emoji: p.emoji, color: p.color,
+      total: p.total, position,
+      rounds: p.rounds||[],
+      playerCount: roomData.players.length,
+      won: p.id === roomData.winner?.id
+    });
+    // Actualizar resumen del jugador
+    const summaryRef = _db.ref("stats/players/"+pKey+"/summary");
+    const snap = await summaryRef.once("value");
+    const prev = snap.val() || {games:0,wins:0,totalScore:0,bestScore:0,name:p.name,emoji:p.emoji,color:p.color};
+    await summaryRef.set({
+      name: p.name, emoji: p.emoji, color: p.color, pKey,
+      games: (prev.games||0)+1,
+      wins: (prev.wins||0)+(p.id===roomData.winner?.id?1:0),
+      totalScore: (prev.totalScore||0)+p.total,
+      bestScore: Math.max(prev.bestScore||0, p.total),
+      lastPlayed: session.date
+    });
+  }
+}
+
+// ── FIREBASE CONFIG SETUP — escribe config/ai y config/claude si no existen ──
+async function setupFirebaseConfig(geminiKey, claudeKey){
+  const updates = {};
+  if(geminiKey){
+    updates["config/ai/provider"] = "gemini";
+    updates["config/ai/key"] = geminiKey;
+  }
+  if(claudeKey){
+    updates["config/claude/key"] = claudeKey;
+  }
+  if(Object.keys(updates).length > 0){
+    await _db.ref().update(updates);
+    return true;
+  }
+  return false;
+}
+
 function makeDB(demo){
   if(demo)return{set:(p,d)=>demoSet(p,d),get:(p)=>demoGet(p),listen:(p,cb)=>demoListen(p,cb)};
   return{
@@ -334,11 +404,16 @@ function App(){
       }
       if(data.finished&&data.winner&&!winnerShown.current){
         winnerShown.current=true;setWinner(data.winner);snd('winner');setTimeout(()=>snd('victory'),400);
+        const sessionObj={id:uid(),date:data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,demo:demoMode};
         setSessions(prev=>{
           if(prev.find(s=>s.code===data.code&&s.date===data.createdAt))return prev;
-          const s=[{id:uid(),date:data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,demo:demoMode},...prev].slice(0,20);
+          const s=[sessionObj,...prev].slice(0,20);
           try{localStorage.setItem("f7sess",JSON.stringify(s))}catch{} return s;
         });
+        // Guardar estadísticas por jugador en Firebase
+        if(!demoMode){
+          saveGameStats(sessionObj,data).catch(e=>console.log("Stats save error:",e));
+        }
       }
     });
   }
@@ -627,15 +702,24 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
     </div></div>
   );
 
+  if(view==="stats")return<StatsScreen onBack={()=>go("main")} T={T}/>;
+
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
       <div className="hero">
-        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}}
             style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
               color:"rgba(255,255,255,.6)",borderRadius:9,padding:"5px 10px",cursor:"pointer",
               fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:1}}>
             {lang==="es"?"🌐 English":"🌐 Español"}
+          </button>
+          <button onClick={()=>{snd('tap');setView("stats");}}
+            style={{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.3)",
+              color:"var(--y)",borderRadius:9,padding:"5px 10px",cursor:"pointer",
+              fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:1,
+              display:"flex",alignItems:"center",gap:5}}>
+            📊 Stats
           </button>
         </div>
         <div style={{fontSize:"3.5rem",marginBottom:8}}>🎴</div>
@@ -644,7 +728,6 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
         <p style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".8rem",maxWidth:240,margin:"0 auto"}}>{T.appTag}</p>
       </div>
       <button className="btn btn-y" onClick={()=>go("create")}>{T.createGame}</button>
-      <div className="g8"/>
       <button className="btn btn-t" onClick={()=>go("join")}>🎮 {T.joinGame}</button>
       {sessions.length>0&&(<><div className="div"/><p className="sec">{T.recentSessions}</p><SesCards sessions={sessions} T={T} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}}/></>)}
       <div style={{textAlign:"center",marginTop:20,paddingBottom:8}}>
@@ -1184,8 +1267,8 @@ function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   function retake(){setImg(null);setB64(null);setRes(null);setPhase("pick");if(fileRef.current)fileRef.current.value="";}
 
   return(
-    React.createElement("div",{className:"mbg-top"},
-      React.createElement("div",{className:"ms-top"},
+    React.createElement("div",{className:"mbg"},
+      React.createElement("div",{className:"ms"},
         React.createElement("div",{className:"mh"}),
         React.createElement("div",{className:"mt2"},"📷 Scan con IA"),
         React.createElement("div",{className:"msub"},"Turno de: ",React.createElement("b",{style:{color:"#fff"}},playerName)),
@@ -1410,6 +1493,216 @@ function ManualModal({playerName,initialScore,onSubmit,onClose}){
       React.createElement("div",{style:{height:10}}),
       React.createElement("button",{className:"mc",style:{width:"100%"},onClick:()=>{snd("tap");onClose();}},"Cancelar")
     ))
+  );
+}
+
+// ── STATSSCREEN — dashboard de jugadores ────────────────────
+function StatsScreen({onBack,T}){
+  const[players,setPlayers]=React.useState([]);
+  const[selectedPlayer,setSelectedPlayer]=React.useState(null);
+  const[games,setGames]=React.useState([]);
+  const[loading,setLoading]=React.useState(true);
+  const[tab,setTab]=React.useState("leaderboard");
+  const[setupOpen,setSetupOpen]=React.useState(false);
+  const[gemKey,setGemKey]=React.useState("");
+  const[claudeKeyInput,setClaudeKeyInput]=React.useState("");
+  const[saving,setSaving]=React.useState(false);
+  const[saveMsg,setSaveMsg]=React.useState("");
+
+  React.useEffect(()=>{
+    async function load(){
+      setLoading(true);
+      try{
+        // Cargar resúmenes de jugadores
+        const snap = await _db.ref("stats/players").once("value");
+        const data = snap.val()||{};
+        const list = Object.values(data)
+          .filter(p=>p.summary)
+          .map(p=>p.summary)
+          .sort((a,b)=>(b.wins||0)-(a.wins||0));
+        setPlayers(list);
+        // Cargar últimos juegos globales
+        const gSnap = await _db.ref("stats/games").orderByChild("date").limitToLast(20).once("value");
+        const gData = gSnap.val()||{};
+        const gList = Object.values(gData).sort((a,b)=>b.date-a.date);
+        setGames(gList);
+      }catch(e){console.log("Stats load error:",e);}
+      setLoading(false);
+    }
+    load();
+  },[]);
+
+  async function loadPlayerDetail(pKey){
+    try{
+      const snap = await _db.ref("stats/players/"+pKey+"/games").orderByChild("date").limitToLast(30).once("value");
+      const data = snap.val()||{};
+      const list = Object.values(data).sort((a,b)=>b.date-a.date);
+      setSelectedPlayer({...players.find(p=>p.pKey===pKey), gamesList:list});
+    }catch(e){console.log("Player detail error:",e);}
+  }
+
+  async function handleSaveConfig(){
+    setSaving(true);setSaveMsg("");
+    try{
+      await setupFirebaseConfig(gemKey.trim(),claudeKeyInput.trim());
+      setSaveMsg("✅ Keys guardadas en Firebase correctamente");
+      setGemKey("");setClaudeKeyInput("");
+    }catch(e){setSaveMsg("❌ Error: "+e.message);}
+    setSaving(false);
+  }
+
+  const fmtD = ts => new Date(ts).toLocaleDateString("es-MX",{day:"numeric",month:"short",year:"numeric"});
+  const fmtT = ts => new Date(ts).toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+
+  // Vista detalle de un jugador
+  if(selectedPlayer){
+    const p=selectedPlayer;
+    const winRate=p.games>0?Math.round((p.wins/p.games)*100):0;
+    const avgScore=p.games>0?Math.round((p.totalScore||0)/p.games):0;
+    return(
+      <div className="wrap"><div className="page" style={{paddingTop:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+          <button onClick={()=>setSelectedPlayer(null)} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
+          <div style={{flex:1,textAlign:"center"}}>
+            <div style={{fontSize:"2.4rem"}}>{p.emoji}</div>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:p.color,letterSpacing:2}}>{p.name}</div>
+          </div>
+        </div>
+        {/* Stats summary */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+          {[["🏆","Victorias",p.wins||0],["🎮","Partidas",p.games||0],["⭐","Mejor score",p.bestScore||0],["📊","Prom. score",avgScore]].map(([ico,lbl,val])=>(
+            <div key={lbl} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",borderRadius:13,padding:"12px 14px",textAlign:"center"}}>
+              <div style={{fontSize:"1.4rem",marginBottom:4}}>{ico}</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"var(--y)",lineHeight:1}}>{val}</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>{lbl}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",borderRadius:12,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.4rem",color:"var(--y)"}}>{winRate}%</div>
+          <div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--y)",letterSpacing:2}}>WIN RATE</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:1}}>{p.wins||0} victorias de {p.games||0} partidas</div>
+          </div>
+        </div>
+        <p className="sec">HISTORIAL DE PARTIDAS</p>
+        {(p.gamesList||[]).map((g,i)=>(
+          <div key={g.gameId||i} style={{background:g.won?"rgba(59,178,115,.08)":"rgba(255,255,255,.03)",border:"2px solid "+(g.won?"rgba(59,178,115,.35)":"rgba(255,255,255,.07)"),borderRadius:13,padding:"11px 13px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{fontSize:"1.6rem"}}>{g.won?"🏆":g.position===2?"🥈":g.position===3?"🥉":"💀"}</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:900,fontSize:".88rem",color:g.won?"var(--gr)":"rgba(255,255,255,.8)"}}>{g.title||"Partida"}</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>{fmtD(g.date)} · {fmtT(g.date)} · {g.playerCount} jugadores</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:g.won?"var(--y)":"rgba(255,255,255,.5)"}}>{g.total}</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>pos #{g.position}</div>
+            </div>
+          </div>
+        ))}
+        {(!p.gamesList||p.gamesList.length===0)&&<div className="es"><p>Sin historial aún</p></div>}
+        <div className="g8"/>
+        <button className="btn btn-g" onClick={()=>setSelectedPlayer(null)}>← Volver al ranking</button>
+      </div></div>
+    );
+  }
+
+  return(
+    <div className="wrap"><div className="page" style={{paddingTop:16}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",letterSpacing:3,color:"var(--y)"}}>📊 ESTADÍSTICAS</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2}}>FLIP 7 · RACE TO 200</div>
+        </div>
+        {/* Botón setup Firebase */}
+        <button onClick={()=>{snd('tap');setSetupOpen(v=>!v);}}
+          style={{background:"rgba(123,45,139,.2)",border:"1px solid rgba(123,45,139,.4)",color:"#cc88ff",borderRadius:9,padding:"6px 10px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1}}>
+          ⚙️ Config
+        </button>
+      </div>
+
+      {/* Setup Firebase config */}
+      {setupOpen&&(
+        <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:14,padding:"14px",marginBottom:14}}>
+          <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:".9rem",color:"var(--y)",marginBottom:4}}>⚙️ Configurar API Keys en Firebase</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:1,marginBottom:10}}>Las keys se guardan en Firebase · Solo el admin las configura una vez</div>
+          <input className="inp" style={{fontSize:".82rem"}} placeholder="Gemini API Key (AIzaSy...)" value={gemKey} onChange={e=>setGemKey(e.target.value)}/>
+          <input className="inp" style={{fontSize:".82rem"}} placeholder="Claude API Key (sk-ant-...)" value={claudeKeyInput} onChange={e=>setClaudeKeyInput(e.target.value)}/>
+          {saveMsg&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:saveMsg.includes("✅")?"var(--gr)":"var(--r)",marginBottom:8,fontWeight:700}}>{saveMsg}</div>}
+          <button className="btn btn-y" style={{marginBottom:0}} onClick={handleSaveConfig} disabled={saving||(!gemKey.trim()&&!claudeKeyInput.trim())}>
+            {saving?"⏳ Guardando...":"💾 Guardar keys en Firebase"}
+          </button>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        {[["leaderboard","🏆 Ranking"],["games","🎮 Partidas"]].map(([id,lbl])=>(
+          <button key={id} className={"nb "+(tab===id?"on":"")} onClick={()=>{snd('tap');setTab(id);}} style={{flex:1,padding:"9px 4px"}}>{lbl}</button>
+        ))}
+      </div>
+
+      {loading&&<div style={{textAlign:"center",paddingTop:40}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Cargando estadísticas...</p></div>}
+
+      {/* LEADERBOARD */}
+      {!loading&&tab==="leaderboard"&&(<>
+        {players.length===0&&<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>📊</div><p style={{fontWeight:700}}>Sin estadísticas aún</p><p style={{fontSize:".8rem",marginTop:6,color:"rgba(255,255,255,.3)"}}>Completa una partida para ver el ranking</p></div>}
+        {players.map((p,i)=>{
+          const winRate=p.games>0?Math.round((p.wins/p.games)*100):0;
+          return(
+            <div key={p.pKey||i} onClick={()=>{snd('tap');if(p.pKey)loadPlayerDetail(p.pKey);}}
+              style={{background:i===0?"linear-gradient(135deg,rgba(245,200,0,.12),rgba(255,107,53,.07))":"rgba(255,255,255,.03)",
+                border:"2px solid "+(i===0?"rgba(245,200,0,.45)":i===1?"rgba(192,192,192,.3)":i===2?"rgba(205,127,50,.3)":"rgba(255,255,255,.07)"),
+                borderRadius:16,padding:"12px 14px",marginBottom:9,display:"flex",alignItems:"center",gap:10,cursor:"pointer",transition:"all .2s"}}>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:i===0?"var(--y)":i===1?"#C0C0C0":i===2?"#CD7F32":"rgba(255,255,255,.2)",width:36,textAlign:"center"}}>
+                {i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1)}
+              </div>
+              <div style={{fontSize:"1.6rem"}}>{p.emoji}</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:900,fontSize:".96rem",color:p.color}}>{p.name}</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
+                  {p.games||0} partidas · {winRate}% victorias · mejor: {p.bestScore||0}pts
+                </div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:i===0?"var(--y)":"rgba(255,255,255,.55)"}}>{p.wins||0}</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>🏆 wins</div>
+              </div>
+              <div style={{color:"rgba(255,255,255,.2)",fontSize:".9rem"}}>›</div>
+            </div>
+          );
+        })}
+      </>)}
+
+      {/* PARTIDAS */}
+      {!loading&&tab==="games"&&(<>
+        {games.length===0&&<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>🎮</div><p style={{fontWeight:700}}>Sin partidas aún</p></div>}
+        {games.map((g,i)=>(
+          <div key={g.gameId||i} style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.07)",borderRadius:13,padding:"12px 14px",marginBottom:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <div>
+                <div style={{fontWeight:900,fontSize:".88rem"}}>{g.title||"Partida"}</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>{fmtD(g.date)} · {fmtT(g.date)} · Sala {g.code}</div>
+              </div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",background:"rgba(255,255,255,.06)",padding:"2px 8px",borderRadius:20}}>{g.playerCount||0} jug. · {g.rounds||0} rondas</div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(245,200,0,.08)",borderRadius:9,padding:"7px 10px",marginBottom:8}}>
+              <span style={{fontSize:"1.1rem"}}>🏆</span>
+              <span style={{fontFamily:"'Lilita One',sans-serif",fontSize:".88rem",color:"var(--y)"}}>{g.winner}</span>
+            </div>
+            {(g.players||[]).sort((a,b)=>a.position-b.position).map(p=>(
+              <div key={p.id||p.name} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",width:24,color:"rgba(255,255,255,.3)"}}>{p.position===1?"🥇":p.position===2?"🥈":p.position===3?"🥉":"#"+p.position}</div>
+                <div style={{fontSize:"1rem"}}>{p.emoji}</div>
+                <div style={{fontWeight:800,flex:1,fontSize:".84rem",color:p.color}}>{p.name}</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"rgba(255,255,255,.55)"}}>{p.total}pts</div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </>)}
+    </div></div>
   );
 }
 
