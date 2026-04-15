@@ -20,7 +20,6 @@
 //   ReactDOM.createRoot(...)   (montaje de la app)
 // ═══════════════════════════════════════════════════════════════
 
-<script type="text/babel">
 
 
 
@@ -399,8 +398,6 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
 
 
 
-</script>
-<script type="text/babel">
 
 
 
@@ -607,8 +604,6 @@ function ErrBox({err}){
 
 
 
-</script>
-<script type="text/babel">
 
 
 
@@ -990,8 +985,6 @@ function SesCards({sessions, onClear, T}){
 
 
 
-</script>
-<script type="text/babel">
 function ScanModal({playerName,onResult,onClose,aiConfig,setAiConfig}){
   var useState=React.useState, useRef=React.useRef, useEffect=React.useEffect;
   var ph=useState("pick"), img_=useState(null), b64_=useState(null), mime_=useState("image/jpeg");
@@ -1366,4 +1359,3 @@ function WinnerScreen({winner,onClose,onNew,onRematch,T}){
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 
-</script>
