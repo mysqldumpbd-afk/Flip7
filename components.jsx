@@ -15,15 +15,30 @@ const{useState,useEffect,useRef,useCallback}=React;
 const WIN=200;
 
 const EMOJIS=[
+  // Zodiaco chino (12)
   "🐀","🐂","🐅","🐇","🐉","🐍",
   "🐎","🐏","🐒","🐓","🐕","🐖",
-  "🦁","🐻","🐼","🦊","🦋","🦅"
+  // Animales extra fila 3 (6)
+  "🦁","🐻","🐼","🦊","🦋","🦅",
+  // Animales extra fila 4 (6)
+  "🐬","🦈","🦜","🦩","🐙","🦖",
+  // Animales extra fila 5 (6)
+  "🦝","🦦","🦥","🐿️","🦔","🐲"
 ];
 
 const COLORS=[
+  // Fila 1: rojo, turquesa, amarillo
   "#E63946","#2EC4B6","#F5C800",
+  // Fila 2: verde, morado, naranja
   "#3BB273","#7B2D8B","#FF6B35",
-  "#00B4D8","#ff69b4","#ffffff"
+  // Fila 3: azul cielo, rosa, blanco
+  "#00B4D8","#ff69b4","#ffffff",
+  // Fila 4: verde lima, azul marino, coral
+  "#A8E63B","#1A4FCC","#FF6B6B",
+  // Fila 5: verde esmeralda, violeta, azul aguamarina
+  "#06D6A0","#9B5DE5","#00CFE8",
+  // Fila 6: dorado, verde oliva, salmon
+  "#FFD700","#6A8C2F","#FF9A8B"
 ];
 
 const CONF=["#F5C800","#E63946","#2EC4B6","#FF6B35","#fff","#3BB273","#7B2D8B"];
@@ -1265,10 +1280,16 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
       }
       var d=await resp.json();
       var txt=(d.content||[]).map(function(x){return x.text||"";}).join("");
-      var clean=txt.replace(/```json/g,"").replace(/```/g,"").trim();
+      // Limpieza robusta: quitar markdown, whitespace, caracteres no-JSON
+      var clean=txt.replace(/```json/gi,"").replace(/```/g,"").trim();
+      // Extraer solo el objeto JSON (entre { y })
       var js=clean.indexOf("{"),je=clean.lastIndexOf("}")+1;
-      if(js>=0)clean=clean.slice(js,je);
-      var parsed=JSON.parse(clean);
+      if(js<0||je<=js)throw new Error("El Árbitro no devolvió un formato válido. Intenta de nuevo.");
+      clean=clean.slice(js,je);
+      // Validar que es JSON válido antes de parsear
+      var parsed;
+      try{ parsed=JSON.parse(clean); }
+      catch(pe){ throw new Error("El Árbitro tuvo un momento confuso. Intenta de nuevo."); }
       snd("score");setRes(parsed);setPhase("result");
     }catch(e){
       var m=e.message||"";
@@ -1277,7 +1298,13 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
     }
   }
 
-  function retake(){setImg(null);setB64(null);setRes(null);setPhase("pick");if(fileRef.current)fileRef.current.value="";}
+  function retake(){
+    // Reset completo de todos los estados para evitar errores con datos previos
+    setImg(null);setB64(null);setRes(null);setErrMsg("");
+    setMime("image/jpeg");
+    setPhase("pick");
+    if(fileRef.current)fileRef.current.value="";
+  }
 
   return(
     React.createElement("div",{className:"mbg"},
@@ -1308,7 +1335,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
           React.createElement("div",{className:"cv"},React.createElement("img",{src:img,alt:"preview"})),
           React.createElement("p",{style:{textAlign:"center",color:"rgba(255,255,255,.45)",fontWeight:700,fontSize:".82rem",marginBottom:8}},"¿Se ven bien todas las cartas?"),
           React.createElement("div",{style:{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"8px 12px",marginBottom:8,textAlign:"center"}},
-            React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}},"🃏 El Árbitro de Cartas™ · Escáner Oficial FLIP 7")
+            React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}},"🃏 El Árbitro de Cartas™ · Juez Supremo del Mazo")
           ),
           React.createElement("div",{className:"mr2"},
             React.createElement("button",{className:"mc",onClick:function(){snd("tap");retake();}},"📷 Otra foto"),
@@ -1341,10 +1368,19 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
   );
 }
 
-// ── RESULTEDITOR — cartas grandes + paleta rápida de cartas disponibles ──
+// ── RESULTEDITOR — cartas grandes + paleta rápida + regla 1 carta/número ──
 function ResultEditor({res,onResult,onRetake}){
-  const initCards=(res.cards||res.base_cards||[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=12);
-  const[cards,setCards]=React.useState(initCards);
+  // Regla: máximo 1 de cada número. Si IA detectó duplicados, filtrar y avisar.
+  const rawCards=(res.cards||res.base_cards||[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=12);
+  const seen=new Set();
+  const dedupCards=[];
+  const duplicatesFound=[];
+  rawCards.forEach(n=>{
+    if(!seen.has(n)){seen.add(n);dedupCards.push(n);}
+    else if(!duplicatesFound.includes(n)){duplicatesFound.push(n);}
+  });
+
+  const[cards,setCards]=React.useState(dedupCards);
   const[multiplier,setMultiplier]=React.useState(res.multiplier||null);
   const[plusCards,setPlusCards]=React.useState((res.plus_cards||[]).map(Number).filter(n=>n>0));
   const baseTotal=cards.reduce((a,b)=>Number(a)+Number(b),0);
@@ -1352,20 +1388,24 @@ function ResultEditor({res,onResult,onRetake}){
   const total=afterMult+plusCards.reduce((a,b)=>Number(a)+Number(b),0);
 
   function removeCard(idx){snd("del");setCards(c=>c.filter((_,i)=>i!==idx));}
-  function addCard(n){snd("score");setCards(c=>[...c,n]);}
+  // Solo agregar si el número no existe ya en la lista
+  function addCard(n){
+    if(cards.includes(n)){snd("zero");return;}
+    snd("score");setCards(c=>[...c,n]);
+  }
 
-  // Cartas que NO están en la suma actual (para el selector rápido)
-  const usedNums=cards.reduce((acc,n)=>{acc[n]=(acc[n]||0)+1;return acc;},{});
-  const availableCards=ALL_CARD_NUMS.filter(n=>{
-    // Se puede agregar si todavía no está en el número máximo razonable (permitir duplicados pero al menos las que no están)
-    return (usedNums[n]||0)<3; // hasta 3 del mismo número
-  });
+  // Disponibles = los que NO están ya en cards (máx 1 por número, regla del juego)
+  const availableCards=ALL_CARD_NUMS.filter(n=>!cards.includes(n));
 
   return(
     React.createElement(React.Fragment,null,
       // Cartas detectadas — más grandes
       React.createElement("div",{style:{marginBottom:12}},
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:10,textAlign:"center"}},"CARTAS DETECTADAS — toca para quitar"),
+        // Aviso si el Árbitro detectó números duplicados (regla: 1 por número)
+        duplicatesFound.length>0&&React.createElement("div",{style:{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.3)",borderRadius:10,padding:"7px 12px",marginBottom:10,fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--y)",letterSpacing:1,textAlign:"center"}},
+          "⚠️ "+duplicatesFound.join(", ")+" aparecen dos veces en la foto — solo puntúan cartas diferentes"
+        ),
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:10,justifyContent:"center",minHeight:56,alignItems:"center",padding:"4px 0"}},
           cards.length===0&&React.createElement("div",{style:{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}},"Sin cartas — agrega de la paleta"),
           cards.map((n,i)=>React.createElement("div",{key:i,className:"card-chip",onClick:()=>removeCard(i)},
