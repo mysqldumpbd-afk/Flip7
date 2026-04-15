@@ -148,7 +148,7 @@ const LANGS={
     noSessions:"Sin sesiones aún",noSessionsDesc:"Completa una partida para verla aquí",
     clearHistory:"🗑 Borrar historial",confirmClear:"Borrar todo el historial?",
     finalRanking:"CLASIFICACIÓN FINAL",
-    scanTitle:"📷 Scan con IA",turnOf:"Turno de:",
+    scanTitle:"🃏 Árbitro de Cartas",turnOf:"Turno de:",
     geminiReady:"✅ Gemini 2.5 Flash Activo",geminiDesc:"IA incluida — Lista para usar",
     geminiLoading:"⏳ Cargando configuración",geminiLoadDesc:"La key se carga automáticamente",
     changeKey:"Cambiar IA o key (opcional):",
@@ -484,13 +484,16 @@ function App(){
     await dbRef.current.set("rooms/"+roomCode,{...room,players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
   }
 
-  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors}){
+  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost}){
     const db=makeDB(demo);dbRef.current=db;
     let roomCode2=code;
     if(!code){
       roomCode2=demo?"DEMO":uid4();
+      const firstPlayerName=names&&names[0]?names[0].trim():"";
       await db.set("rooms/"+roomCode2,{
         code:roomCode2,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
+        // Guardar nombre del host para permitir reconexión
+        hostName: hostName||firstPlayerName,
         players:names.map((name,i)=>({
           id:uid(),name:name.trim(),
           emoji:(customEmojis&&customEmojis[i])||EMOJIS[i%EMOJIS.length],
@@ -502,14 +505,14 @@ function App(){
     setDemoMode(demo);setRoomCode(roomCode2);setIsSpectator(spectator||false);
     setMyPlayerId(playerId||null);
     subscribe(roomCode2,db);
-    // Presencia: marcar jugador online y limpiar al desconectar
+    // Presencia: marcar jugador/host online
     if(!demo && playerId){
       const presRef=_db.ref("rooms/"+roomCode2+"/presence/"+playerId);
       presRef.set(true);
       presRef.onDisconnect().remove();
     }
-    if(!demo && !playerId && !spectator){
-      // host online
+    if(!demo && (!playerId||asHost) && !spectator){
+      // host online (nuevo o reconectando)
       const hostRef=_db.ref("rooms/"+roomCode2+"/hostOnline");
       hostRef.set(true);
       hostRef.onDisconnect().set(false);
@@ -578,6 +581,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
   const[playerColors,setPlayerColors]=useState(COLORS.slice(0,3));
   const[jcode,setJcode]=useState("");
   const[jname,setJname]=useState("");
+  const[hostName,setHostName]=useState("");
   const[busy,setBusy]=useState(false);
   const[err,setErr]=useState(null);
   const[roomPlayers,setRoomPlayers]=useState(null);
@@ -610,7 +614,8 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
     const ns=names.filter(n=>n.trim());
     if(ns.length<2){setErr({msg:"Necesitas al menos 2 jugadores.",steps:[]});return;}
     setBusy(true);setErr(null);
-    try{await onEnter({names:ns,demo:false,customEmojis:playerEmojis,customColors:playerColors});}
+    // jname guarda el nombre del host para reconexión futura
+    try{await onEnter({names:ns,demo:false,customEmojis:playerEmojis,customColors:playerColors,hostName:jname.trim()||ns[0]});}
     catch(e){setErr(classifyError(e));}
     setBusy(false);
   }
@@ -624,9 +629,25 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
       if(!r){setErr({msg:"Sala \""+jcode.toUpperCase()+"\" no encontrada.",steps:["Pide el código al host"]});setBusy(false);return;}
       if(asSpectator){snd('join');await onEnter({demo:false,spectator:true,code:jcode.toUpperCase()});setBusy(false);return;}
       const inputName=jname.trim().toLowerCase();
+      // Buscar si hay un jugador con ese nombre
       const existing=r.players.find(p=>p.name.toLowerCase()===inputName);
-      if(existing){snd('join');await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:existing.id});}
-      else{setRoomPlayers(r.players);setPickingPlayer(true);}
+      if(existing){
+        // Jugador existente → reconectar con su playerId
+        snd('join');
+        await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:existing.id});
+      } else {
+        // Verificar si el nombre coincide con el del host original
+        // El host entra sin playerId (controla la sala completa)
+        const isHostName = r.hostName && r.hostName.toLowerCase()===inputName;
+        if(isHostName || r.lobbyMode){
+          // Es el host reconectándose — entra sin playerId (modo host)
+          snd('join');
+          await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:null,asHost:true});
+        } else {
+          // Nombre no encontrado → mostrar lista de jugadores para elegir
+          setRoomPlayers(r.players);setPickingPlayer(true);
+        }
+      }
     }catch(e){setErr(classifyError(e));}
     setBusy(false);
   }
@@ -1162,7 +1183,7 @@ function SesCards({sessions,onClear,T}){
   );
 }
 
-// ── SCANMODAL — Claude Haiku exclusivo, key silenciosa de Firebase ──
+// ── SCANMODAL — Árbitro de Cartas™ (motor interno, key de Firebase) ──
 function ScanModal({playerName,onResult,onClose,aiConfig}){
   var useState=React.useState,useRef=React.useRef,useEffect=React.useEffect;
   var ph=useState("pick"),img_=useState(null),b64_=useState(null),mime_=useState("image/jpeg");
@@ -1224,10 +1245,10 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
         if(key)setClaudeKey(key);
       }catch(e){}
     }
-    if(!key){setErrMsg("Sin API Key de Claude configurada en Firebase.\nVe a Stats → ⚙️ Config para ingresarla.");setPhase("error");return;}
+    if(!key){setErrMsg("El Árbitro no tiene credenciales.\nContacta al administrador del juego.");setPhase("error");return;}
     setPhase("analyzing");
     try{
-      // Siempre Claude Haiku — más rápido y preciso para cartas
+      // Motor de análisis interno (Claude Haiku)
       var resp=await fetch("https://api.anthropic.com/v1/messages",{
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
@@ -1238,7 +1259,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
       });
       if(!resp.ok){
         var errBody=await resp.text();
-        if(resp.status===401)throw new Error("API Key de Claude inválida. Actualízala en Stats → Config.");
+        if(resp.status===401)throw new Error("Credenciales del Árbitro inválidas. Contacta al admin.");
         if(resp.status===429)throw new Error("Rate limit de Claude. Espera unos segundos e intenta de nuevo.");
         throw new Error("Claude "+resp.status+": "+errBody.slice(0,120));
       }
@@ -1262,7 +1283,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
     React.createElement("div",{className:"mbg"},
       React.createElement("div",{className:"ms"},
         React.createElement("div",{className:"mh"}),
-        React.createElement("div",{className:"mt2"},"📷 Scan con IA"),
+        React.createElement("div",{className:"mt2"},"🃏 Árbitro de Cartas"),
         React.createElement("div",{className:"msub"},"Turno de: ",React.createElement("b",{style:{color:"#fff"}},playerName)),
 
         phase==="pick"&&React.createElement(React.Fragment,null,
@@ -1287,7 +1308,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
           React.createElement("div",{className:"cv"},React.createElement("img",{src:img,alt:"preview"})),
           React.createElement("p",{style:{textAlign:"center",color:"rgba(255,255,255,.45)",fontWeight:700,fontSize:".82rem",marginBottom:8}},"¿Se ven bien todas las cartas?"),
           React.createElement("div",{style:{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"8px 12px",marginBottom:8,textAlign:"center"}},
-            React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}},"⚡ Modo Claude Haiku · Solo números base")
+            React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}},"🃏 El Árbitro de Cartas™ · Escáner Oficial FLIP 7")
           ),
           React.createElement("div",{className:"mr2"},
             React.createElement("button",{className:"mc",onClick:function(){snd("tap");retake();}},"📷 Otra foto"),
@@ -1299,7 +1320,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
           React.createElement("img",{src:img,alt:"",style:{opacity:.4,width:"100%",height:"100%",objectFit:"cover",display:"block"}}),
           React.createElement("div",{className:"sov"},
             React.createElement("div",{className:"spin"}),
-            React.createElement("div",{style:{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}},"Analizando con Claude...")
+            React.createElement("div",{style:{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}},"El Árbitro está revisando las cartas...")
           )
         ),
 
@@ -1470,11 +1491,7 @@ function StatsScreen({onBack,T}){
   const[games,setGames]=React.useState([]);
   const[loading,setLoading]=React.useState(true);
   const[tab,setTab]=React.useState("leaderboard");
-  const[setupOpen,setSetupOpen]=React.useState(false);
-  const[gemKey,setGemKey]=React.useState("");
-  const[claudeKeyInput,setClaudeKeyInput]=React.useState("");
-  const[saving,setSaving]=React.useState(false);
-  const[saveMsg,setSaveMsg]=React.useState("");
+
 
   React.useEffect(()=>{
     async function load(){
@@ -1508,15 +1525,7 @@ function StatsScreen({onBack,T}){
     }catch(e){console.log("Player detail error:",e);}
   }
 
-  async function handleSaveConfig(){
-    setSaving(true);setSaveMsg("");
-    try{
-      await setupFirebaseConfig(gemKey.trim(),claudeKeyInput.trim());
-      setSaveMsg("✅ Keys guardadas en Firebase correctamente");
-      setGemKey("");setClaudeKeyInput("");
-    }catch(e){setSaveMsg("❌ Error: "+e.message);}
-    setSaving(false);
-  }
+
 
   const fmtD = ts => new Date(ts).toLocaleDateString("es-MX",{day:"numeric",month:"short",year:"numeric"});
   const fmtT = ts => new Date(ts).toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
@@ -1582,26 +1591,7 @@ function StatsScreen({onBack,T}){
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",letterSpacing:3,color:"var(--y)"}}>📊 ESTADÍSTICAS</div>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2}}>FLIP 7 · RACE TO 200</div>
         </div>
-        {/* Botón setup Firebase */}
-        <button onClick={()=>{snd('tap');setSetupOpen(v=>!v);}}
-          style={{background:"rgba(123,45,139,.2)",border:"1px solid rgba(123,45,139,.4)",color:"#cc88ff",borderRadius:9,padding:"6px 10px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1}}>
-          ⚙️ Config
-        </button>
       </div>
-
-      {/* Setup Firebase config */}
-      {setupOpen&&(
-        <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:14,padding:"14px",marginBottom:14}}>
-          <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:".9rem",color:"var(--y)",marginBottom:4}}>⚙️ Configurar API Keys en Firebase</div>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:1,marginBottom:10}}>Las keys se guardan en Firebase · Solo el admin las configura una vez</div>
-          <input className="inp" style={{fontSize:".82rem"}} placeholder="Gemini API Key (AIzaSy...)" value={gemKey} onChange={e=>setGemKey(e.target.value)}/>
-          <input className="inp" style={{fontSize:".82rem"}} placeholder="Claude API Key (sk-ant-...)" value={claudeKeyInput} onChange={e=>setClaudeKeyInput(e.target.value)}/>
-          {saveMsg&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:saveMsg.includes("✅")?"var(--gr)":"var(--r)",marginBottom:8,fontWeight:700}}>{saveMsg}</div>}
-          <button className="btn btn-y" style={{marginBottom:0}} onClick={handleSaveConfig} disabled={saving||(!gemKey.trim()&&!claudeKeyInput.trim())}>
-            {saving?"⏳ Guardando...":"💾 Guardar keys en Firebase"}
-          </button>
-        </div>
-      )}
 
       {/* Tabs */}
       <div style={{display:"flex",gap:6,marginBottom:14}}>
