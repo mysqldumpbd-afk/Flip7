@@ -384,12 +384,19 @@ function App(){
           _db.ref("config/claude").once("value")
         ]);
         const gemCfg=gemSnap.val();const claudeCfg=claudeSnap.val();
-        setAiConfig({provider:gemCfg?.provider||"gemini",key:gemCfg?.key||"",claudeKey:claudeCfg?.key||""});
+        // Solo guardar provider en estado global — la key la carga ScanModal en el momento
+        setAiConfig({
+          provider:gemCfg?.provider||"gemini",
+          key:"",        // no exponer en estado global
+          claudeKey:"",  // no exponer — ScanModal la carga directo de Firebase al usarla
+          proxyUrl:gemCfg?.proxyUrl||""  // URL del Cloudflare Worker (opcional)
+        });
         setAiLoaded(true);return;
       }catch(e){console.log("Firebase config fallback");}
       try{
+        // Fallback: solo idioma y proveedor, nunca keys
         const s=JSON.parse(localStorage.getItem("f7ai")||"{}");
-        setAiConfig({provider:s.provider||"gemini",key:s.key||"",claudeKey:s.claudeKey||""});
+        setAiConfig({provider:s.provider||"gemini",key:"",claudeKey:"",proxyUrl:s.proxyUrl||""});
       }catch{}
       setAiLoaded(true);
     }
@@ -401,7 +408,10 @@ function App(){
   const dbRef=useRef(makeDB(false));
   const prevSortedRef=useRef([]);
 
-  useEffect(()=>{try{localStorage.setItem("f7ai",JSON.stringify(aiConfig))}catch{};},[aiConfig]);
+  // Solo guardar preferencias no sensibles (NO keys)
+  useEffect(()=>{
+    try{localStorage.setItem("f7ai",JSON.stringify({provider:aiConfig.provider,proxyUrl:aiConfig.proxyUrl||""}))}catch{};
+  },[aiConfig.provider,aiConfig.proxyUrl]);
 
   function subscribe(code,db){
     if(unsubRef.current)unsubRef.current();
@@ -1250,33 +1260,54 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
   }
 
   async function analyze(){
-    // Intentar cargar key de Firebase de nuevo si no está
-    var key=claudeKey;
-    if(!key){
-      try{
-        var snap=await _db.ref("config/claude").once("value");
-        var val=snap.val();
-        key=val?.key||"";
-        if(key)setClaudeKey(key);
-      }catch(e){}
-    }
-    if(!key){setErrMsg("El Árbitro no tiene credenciales.\nContacta al administrador del juego.");setPhase("error");return;}
     setPhase("analyzing");
     try{
-      // Motor de análisis interno (Claude Haiku)
-      var resp=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:400,messages:[{role:"user",content:[
-          {type:"image",source:{type:"base64",media_type:mime,data:b64}},
-          {type:"text",text:PROMPT}
-        ]}]})
-      });
+      var messages=[{role:"user",content:[
+        {type:"image",source:{type:"base64",media_type:mime,data:b64}},
+        {type:"text",text:PROMPT}
+      ]}];
+
+      var resp;
+
+      // ── MODO SEGURO: usar proxy de Cloudflare Worker si está configurado ──
+      // El proxy guarda la key en el servidor — el browser nunca la ve
+      var proxyUrl="";
+      try{
+        var proxSnap=await _db.ref("config/proxy/url").once("value");
+        proxyUrl=(proxSnap.val()||"").trim();
+      }catch(pe){}
+
+      if(proxyUrl){
+        // Llamada al proxy — sin key en el request, el worker la añade
+        resp=await fetch(proxyUrl,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({messages:messages})
+        });
+      } else {
+        // MODO FALLBACK: llamada directa (insegura — usar solo en desarrollo)
+        // En producción, configura el Cloudflare Worker
+        var key=claudeKey;
+        if(!key){
+          try{
+            var snap=await _db.ref("config/claude").once("value");
+            key=(snap.val()?.key||"").trim();
+            if(key)setClaudeKey(key);
+          }catch(e){}
+        }
+        if(!key){setErrMsg("El Árbitro no tiene credenciales.\nConfigura el proxy en Cloudflare Workers\no contacta al administrador.");setPhase("error");return;}
+        resp=await fetch("https://api.anthropic.com/v1/messages",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+          body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:400,messages:messages})
+        });
+      }
+
       if(!resp.ok){
         var errBody=await resp.text();
-        if(resp.status===401)throw new Error("Credenciales del Árbitro inválidas. Contacta al admin.");
-        if(resp.status===429)throw new Error("Rate limit de Claude. Espera unos segundos e intenta de nuevo.");
-        throw new Error("Claude "+resp.status+": "+errBody.slice(0,120));
+        if(resp.status===401||resp.status===403)throw new Error("Credenciales del Árbitro inválidas. Contacta al admin.");
+        if(resp.status===429)throw new Error("El Árbitro está ocupado. Espera unos segundos e intenta de nuevo.");
+        throw new Error("Error "+resp.status+": "+errBody.slice(0,120));
       }
       var d=await resp.json();
       var txt=(d.content||[]).map(function(x){return x.text||"";}).join("");
