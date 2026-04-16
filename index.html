@@ -6,34 +6,33 @@
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="theme-color" content="#0F0F1A"/>
-  <title>FLIP 7 — Race to 200</title>
+  <meta name="theme-color" content="#080810"/>
+  <title>BOARDGAMEZ OS</title>
 
-  <!-- ── FUENTES ── -->
-  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Lilita+One&family=Righteous&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet"/>
+  <!-- FUENTES -->
+  <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Exo+2:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet"/>
 
-  <!-- ── FIREBASE ── -->
+  <!-- FIREBASE — Compat SDK (app + database + auth) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-  <!-- ── REACT ── -->
+  <!-- REACT -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- ── ESTILOS ── -->
+  <!-- ESTILOS -->
   <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-
-  <!-- Punto de montaje de React -->
   <div id="root"></div>
 
-  <!-- ── JS GLOBALES (Firebase init, Demo store, Sounds, Utilities) ── -->
+  <!-- Orden de carga: globals → builder → juegos → shell -->
   <script src="app.js"></script>
-
-  <!-- ── COMPONENTES REACT (JSX transpilado por Babel en runtime) ── -->
+  <script type="text/babel" src="builder.jsx"></script>
+  <script type="text/babel" src="strike.jsx"></script>
+  <script type="text/babel" src="generic.jsx"></script>
   <script type="text/babel" src="components.jsx"></script>
-
 </body>
 </html>
