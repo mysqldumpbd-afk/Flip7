@@ -957,11 +957,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>{T.players2}</p>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
-          <div style={{fontFamily:"'Anton',sans-serif",fontSize:".85rem",letterSpacing:2,
-            color:"var(--y)",background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",
-            padding:"2px 10px",borderRadius:20,cursor:"pointer"},
-            title:"Toca para copiar",
-            onClick:()=>{try{navigator.clipboard.writeText(roomCode);snd("score");}catch(e){}}}>{roomCode}</div>
+          <div
+            style={{fontFamily:"'Anton',sans-serif",fontSize:".85rem",letterSpacing:2,color:"var(--y)",background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",padding:"2px 10px",borderRadius:20,cursor:"pointer"}}
+            title="Toca para copiar"
+            onClick={()=>{try{navigator.clipboard.writeText(roomCode);snd("score");}catch(e){}}}
+          >{roomCode}</div>
           <div className="rbd">R{room.round}</div>
         </div>
       </div>
