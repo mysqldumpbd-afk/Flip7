@@ -181,6 +181,7 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .ab-z:hover{box-shadow:0 5px 18px rgba(230,57,70,.65);transform:scale(1.05)}
 .ab-z:active{transform:scale(.91);box-shadow:0 1px 6px rgba(230,57,70,.4)}
 .ab-m{background:rgba(245,200,0,.14);color:var(--y);border:1px solid rgba(245,200,0,.28)}
+.ab-c{background:rgba(123,45,139,.18);color:#c084e8;border:1px solid rgba(123,45,139,.4)}
 .mtag{font-family:'Righteous',sans-serif;font-size:.6rem;letter-spacing:1px;
   padding:2px 7px;border-radius:20px;text-transform:uppercase}
 .mt-s{background:rgba(46,196,182,.18);color:var(--t)}

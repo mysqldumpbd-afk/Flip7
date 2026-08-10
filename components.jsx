@@ -375,6 +375,9 @@ function App(){
   const[aiLoaded,setAiLoaded]=useState(false);
   // Revancha en camino para no-host
   const[rematchPending,setRematchPending]=useState(false);
+  // Reconexión automática: guardar último código activo en localStorage
+  const[lastKnownCode,setLastKnownCode]=useState(()=>localStorage.getItem("f7lastCode")||"");
+  const[reconnectReady,setReconnectReady]=useState(false);
 
   useEffect(()=>{
     async function loadAiConfig(){
@@ -403,6 +406,20 @@ function App(){
     loadAiConfig();
   },[]);
 
+  // ── Reconexión automática: si hay código guardado, chequear sala ──
+  useEffect(()=>{
+    var saved=localStorage.getItem("f7lastCode");
+    if(!saved)return;
+    setLastKnownCode(saved);
+    // Verificar que la sala siga activa
+    _db.ref("rooms/"+saved+"/finished").once("value").then(function(snap){
+      var finished=snap.val();
+      // Solo ofrecer reconexión si la sala existe y no terminó
+      if(finished===false){setReconnectReady(true);}
+      else{try{localStorage.removeItem("f7lastCode");}catch(e){}}
+    }).catch(function(){try{localStorage.removeItem("f7lastCode");}catch(e){}});
+  },[]);
+
   const winnerShown=useRef(false);
   const unsubRef=useRef(null);
   const dbRef=useRef(makeDB(false));
@@ -425,6 +442,8 @@ function App(){
       });
       prevSortedRef.current=newSorted.map(p=>({...p}));
       setRoom(data);
+      // Persistir último código activo para reconexión
+      try{localStorage.setItem("f7lastCode",code);}catch(e){}
       // Detectar rematchPending — mostrar animación en TODOS los no-host (incluyendo host que también ve)
       if(data.rematchPending){
         setRematchPending(true);
@@ -456,9 +475,36 @@ function App(){
 
   function leaveGame(){
     if(unsubRef.current){unsubRef.current();unsubRef.current=null;}
+    try{localStorage.removeItem("f7lastCode");}catch(e){}
     winnerShown.current=false;prevSortedRef.current=[];
     setRoom(null);setRoomCode("");setWinner(null);setScreen("home");
     setDemoMode(false);setIsSpectator(false);setMyPlayerId(null);setRematchPending(false);
+  }
+
+  // ── RECONEXIÓN RÁPIDA a la última sala ─────────────────────
+  async function reconnectToLastRoom(asHost){
+    if(!lastKnownCode)return;
+    var code=lastKnownCode;
+    setReconnectReady(false);
+    var db=makeDB(false);dbRef.current=db;
+    try{
+      var r=await db.get("rooms/"+code);
+      if(!r){try{localStorage.removeItem("f7lastCode");}catch(e){}return;}
+      setDemoMode(false);setRoomCode(code);
+      // Si entra como host (sin playerId) reconecta con control total
+      setIsSpectator(false);
+      setMyPlayerId(asHost?null:(r.hostName?null:null));
+      subscribe(code,db);
+      if(asHost){
+        var hostRef=_db.ref("rooms/"+code+"/hostOnline");
+        hostRef.set(true);hostRef.onDisconnect().set(false);
+      }
+      setScreen("game");setTab("round");
+      winnerShown.current=false;prevSortedRef.current=[];
+    }catch(e){
+      try{localStorage.removeItem("f7lastCode");}catch(ex){}
+      setReconnectReady(false);
+    }
   }
 
   // ── REVANCHA (solo host) — escribe rematchPending en Firebase ──
@@ -550,7 +596,7 @@ function App(){
   const sorted=room?[...room.players].sort((a,b)=>b.total-a.total):[];
   const isHost=!myPlayerId&&!isSpectator;
 
-  if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T}/>;
+  if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
 
   // Animación revancha para TODOS (host la ve también para sincronía visual)
@@ -599,7 +645,7 @@ function App(){
 }
 
 // ── HOMESCREEN ────────────────────────────────────────────────
-function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
+function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
   const[view,setView]=useState("main");
   const[names,setNames]=useState(["","",""]);
   const[playerEmojis,setPlayerEmojis]=useState(EMOJIS.slice(0,3));
@@ -729,6 +775,17 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
 
   if(view==="join")return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
+      {/* Banner de reconexión rápida */}
+      {reconnectReady&&lastKnownCode&&(
+        <div style={{background:"linear-gradient(135deg,rgba(46,196,182,.18),rgba(46,196,182,.08))",border:"2px solid rgba(46,196,182,.5)",borderRadius:16,padding:"14px 16px",marginBottom:14,position:"relative"}}>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:2,marginBottom:4}}>SALA ACTIVA ENCONTRADA</div>
+          <div style={{fontWeight:900,fontSize:".96rem",marginBottom:10}}>Código: <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:3}}>{lastKnownCode}</span></div>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>⚡ Reconectarme como Host</button>
+            <button className="btn btn-g" style={{flex:1,padding:"10px",fontSize:".78rem"}} onClick={()=>{snd("tap");onDismissReconnect();}}>Ignorar</button>
+          </div>
+        </div>
+      )}
       <div className="hero">
         <div style={{fontSize:"2.8rem",marginBottom:6}}>🎮</div>
         <div className="hero-logo" style={{fontSize:"2.4rem"}}>UNIRSE</div>
@@ -794,6 +851,17 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T}){
 
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
+      {/* Banner de reconexión rápida */}
+      {reconnectReady&&lastKnownCode&&(
+        <div style={{background:"linear-gradient(135deg,rgba(46,196,182,.18),rgba(46,196,182,.08))",border:"2px solid rgba(46,196,182,.5)",borderRadius:16,padding:"14px 16px",marginBottom:14,position:"relative"}}>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:2,marginBottom:4}}>SALA ACTIVA ENCONTRADA</div>
+          <div style={{fontWeight:900,fontSize:".96rem",marginBottom:10}}>Código: <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:3}}>{lastKnownCode}</span></div>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>⚡ Reconectarme como Host</button>
+            <button className="btn btn-g" style={{flex:1,padding:"10px",fontSize:".78rem"}} onClick={()=>{snd("tap");onDismissReconnect();}}>Ignorar</button>
+          </div>
+        </div>
+      )}
       <div className="hero">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}}
@@ -844,6 +912,7 @@ function ErrBox({err}){
 function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,demoMode,aiConfig,setAiConfig,onRematch,onEndGame,roomCode,T}){
   const[scanModal,setScan]=useState(null);
   const[manModal,setMan]=useState(null);  // {pid, name, initialScore}
+  const[cardModal,setCard]=useState(null); // {pid, name}
   const[shakePid,setShakePid]=useState(null);
   const canControl=pid=>!myPlayerId||myPlayerId===pid;
 
@@ -890,7 +959,9 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:".85rem",letterSpacing:2,
             color:"var(--y)",background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",
-            padding:"2px 10px",borderRadius:20}}>{roomCode}</div>
+            padding:"2px 10px",borderRadius:20,cursor:"pointer"},
+            title:"Toca para copiar",
+            onClick:()=>{try{navigator.clipboard.writeText(roomCode);snd("score");}catch(e){}}}>{roomCode}</div>
           <div className="rbd">R{room.round}</div>
         </div>
       </div>
@@ -921,7 +992,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
               {done?(
                 <div style={{display:"flex",alignItems:"center",gap:7,marginTop:2,flexWrap:"wrap"}}>
                   <span className="pr-pts">{entry.score===0?"💀":"+"+entry.score}</span>
-                  <span className={"mtag mt-"+entry.method}>{entry.method==="scan"?"📷":entry.method==="zero"?"💀":""} {entry.method}</span>
+                  <span className={"mtag mt-"+entry.method}>{entry.method==="scan"?"📷":entry.method==="cards"?"🃏":entry.method==="zero"?"💀":""} {entry.method==="cards"?"cartas":entry.method}</span>
                   {/* Botón Corregir — siempre visible cuando done, abre manual con valor actual */}
                   {mine&&!room.finished&&(
                     <button onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:entry.score});}}
@@ -936,6 +1007,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
               ):mine?(
                 <div className="ar">
                   {!demoMode&&<button className="ab ab-s" onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
+                  <button className="ab ab-c" onClick={()=>{snd('tap');setCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
                   <button className="ab ab-z" onClick={()=>handleZero(p.id)}>💀 Cero</button>
                   <button className="ab ab-m" onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:null});}}>🧮 Manual</button>
                 </div>
@@ -965,6 +1037,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         </div>
       )}
       {scanModal&&<ScanModal playerName={scanModal.name} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{onSubmit(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
+      {cardModal&&<CardPickerModal playerName={cardModal.name} onSubmit={s=>{onSubmit(cardModal.pid,s,"cards");setCard(null);}} onClose={()=>setCard(null)}/>}
       {/* ManualModal recibe initialScore para permitir corrección */}
       {manModal&&<ManualModal playerName={manModal.name} initialScore={manModal.initialScore} onSubmit={s=>{onSubmit(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
     </>
@@ -1359,7 +1432,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
           ),
           React.createElement("p",{style:{textAlign:"center",color:"rgba(255,255,255,.3)",fontSize:".75rem",fontWeight:700,cursor:"pointer",marginBottom:12},
             onClick:function(){snd("tap");if(fileRef.current){fileRef.current.removeAttribute("capture");fileRef.current.click();setTimeout(function(){if(fileRef.current)fileRef.current.setAttribute("capture","environment");},600);}}},"o elegir de galería"),
-          React.createElement("div",{className:"mr2"},React.createElement("button",{className:"mc",onClick:function(){snd("tap");onClose();}},"Cancelar"))
+          React.createElement("div",{className:"mr2"},React.createElement("button",{className:"mc",onClick:function(){snd("tap");retake();onClose();}},"Cancelar"))
         ),
 
         phase==="preview"&&React.createElement(React.Fragment,null,
@@ -1498,6 +1571,271 @@ function ResultEditor({res,onResult,onRetake}){
         React.createElement("button",{className:"mc",onClick:()=>{snd("tap");onRetake();}},"📷 Repetir foto"),
         React.createElement("button",{className:"mo",onClick:()=>{snd("score");onResult(total);},disabled:cards.length===0},"✓ Confirmar "+total+" pts")
       )
+    )
+  );
+}
+
+
+// ── CARDPICKERMODAL — selector directo de cartas + modificadores ──
+// El jugador toca las cartas que tiene en su mano (1 clic = agregar/quitar)
+// Misma lógica que ResultEditor pero como modal de captura primaria
+function CardPickerModal({playerName,onSubmit,onClose}){
+  var useState=React.useState,useEffect=React.useEffect;
+  // Cartas seleccionadas — Set de números (0-12), máx 1 por número (regla del juego)
+  var selState=useState([]);
+  var selected=selState[0],setSelected=selState[1];
+  var multState=useState(null);
+  var multiplier=multState[0],setMultiplier=multState[1];
+  var plusState=useState([]);
+  var plusCards=plusState[0],setPlusCards=plusState[1];
+
+  // Cálculo igual que ResultEditor
+  var baseTotal=selected.reduce(function(a,b){return a+b;},0);
+  var afterMult=multiplier?baseTotal*multiplier:baseTotal;
+  var total=afterMult+plusCards.reduce(function(a,b){return a+b;},0);
+
+  function toggleCard(n){
+    if(selected.includes(n)){
+      snd("del");
+      setSelected(function(p){return p.filter(function(x){return x!==n;});});
+    } else {
+      snd("score");
+      setSelected(function(p){return p.concat([n]);});
+    }
+  }
+
+  function togglePlus(n){
+    snd("op");
+    setPlusCards(function(p){
+      return p.includes(n)?p.filter(function(x){return x!==n;}):p.concat([n]);
+    });
+  }
+
+  function handleConfirm(){
+    snd("score");
+    onSubmit(total);
+  }
+
+  function handleZero(){
+    snd("zero");
+    onSubmit(0);
+  }
+
+  return React.createElement("div",{className:"mbg"},
+    React.createElement("div",{className:"ms",style:{paddingBottom:40}},
+      React.createElement("div",{className:"mh"}),
+      React.createElement("div",{className:"mt2"},"🃏 Mis cartas"),
+      React.createElement("div",{className:"msub"},"Turno de: ",React.createElement("b",{style:{color:"#fff"}},playerName)),
+
+      // ── DISPLAY TOTAL ────────────────────────────────────────
+      React.createElement("div",{style:{
+        textAlign:"center",padding:"10px 0 12px",
+        borderBottom:"1px solid rgba(255,255,255,.08)",marginBottom:14
+      }},
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+          color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2
+        }},"TOTAL DE ESTA RONDA"),
+        React.createElement("div",{style:{
+          fontFamily:"'Anton',sans-serif",fontSize:"5rem",
+          color:selected.length===0?"rgba(255,255,255,.15)":"var(--y)",
+          lineHeight:1,textShadow:selected.length>0?"4px 4px 0 var(--or)":"none",
+          transition:"all .2s"
+        }},total),
+        // Fórmula desglosada
+        selected.length>0&&React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+          color:"rgba(255,255,255,.35)",marginTop:4,lineHeight:1.7
+        }},
+          multiplier||plusCards.length>0
+            ? React.createElement(React.Fragment,null,
+                React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},
+                  "Base: "+selected.slice().sort(function(a,b){return a-b;}).join("+")+" = "+baseTotal
+                ),
+                multiplier&&React.createElement(React.Fragment,null,
+                  React.createElement("br"),
+                  React.createElement("span",{style:{color:"rgba(255,120,120,.9)"}},
+                    "x2 = "+baseTotal*2
+                  )
+                ),
+                plusCards.length>0&&React.createElement(React.Fragment,null,
+                  React.createElement("br"),
+                  React.createElement("span",{style:{color:"rgba(100,220,150,.9)"}},
+                    "+"+plusCards.join("+")+" = "+total
+                  )
+                )
+              )
+            : React.createElement("span",null,
+                selected.slice().sort(function(a,b){return a-b;}).join(" + ")+(selected.length>1?" = "+baseTotal:"")
+              )
+        )
+      ),
+
+      // ── PALETA DE CARTAS 0-12 ─────────────────────────────────
+      React.createElement("div",{style:{marginBottom:14}},
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+          color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:10,textAlign:"center"
+        }},"TOCA LAS CARTAS QUE TIENES EN MANO"),
+        React.createElement("div",{style:{
+          display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6
+        }},
+          // Fila 0-6
+          [0,1,2,3,4,5,6].map(function(n){
+            var isSel=selected.includes(n);
+            return React.createElement("button",{
+              key:n,
+              onClick:function(){toggleCard(n);},
+              style:{
+                background:isSel?"#F6EFD9":"rgba(255,255,255,.04)",
+                border:"2px solid "+(isSel?CARD_TEXT_MAP[n]+"99":"rgba(255,255,255,.1)"),
+                borderRadius:10,
+                padding:"10px 4px 8px",
+                cursor:"pointer",
+                display:"flex",flexDirection:"column",alignItems:"center",gap:2,
+                transition:"all .15s",
+                transform:isSel?"scale(1.08)":"scale(1)",
+                boxShadow:isSel?"0 4px 16px "+(CARD_TEXT_MAP[n]||"#fff")+"55":"none",
+                position:"relative"
+              }
+            },
+              React.createElement("span",{style:{
+                fontFamily:"'Anton',sans-serif",
+                fontSize:"1.4rem",
+                color:isSel?CARD_TEXT_MAP[n]||"#333":"rgba(255,255,255,.35)",
+                lineHeight:1,
+                transition:"color .15s"
+              }},n),
+              // Checkmark cuando seleccionada
+              isSel&&React.createElement("div",{style:{
+                position:"absolute",top:-5,right:-5,
+                width:16,height:16,borderRadius:"50%",
+                background:"var(--gr)",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:"9px",color:"#fff",fontWeight:900,lineHeight:1
+              }},"✓")
+            );
+          })
+        ),
+        React.createElement("div",{style:{
+          display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginTop:6
+        }},
+          // Fila 7-12 + hueco
+          [7,8,9,10,11,12,null].map(function(n,i){
+            if(n===null){
+              // Celda vacía para centrar el 12
+              return React.createElement("div",{key:"empty"});
+            }
+            var isSel=selected.includes(n);
+            return React.createElement("button",{
+              key:n,
+              onClick:function(){toggleCard(n);},
+              style:{
+                background:isSel?"#F6EFD9":"rgba(255,255,255,.04)",
+                border:"2px solid "+(isSel?CARD_TEXT_MAP[n]+"99":"rgba(255,255,255,.1)"),
+                borderRadius:10,
+                padding:"10px 4px 8px",
+                cursor:"pointer",
+                display:"flex",flexDirection:"column",alignItems:"center",gap:2,
+                transition:"all .15s",
+                transform:isSel?"scale(1.08)":"scale(1)",
+                boxShadow:isSel?"0 4px 16px "+(CARD_TEXT_MAP[n]||"#fff")+"55":"none",
+                position:"relative"
+              }
+            },
+              React.createElement("span",{style:{
+                fontFamily:"'Anton',sans-serif",
+                fontSize:n>=10?"1.1rem":"1.4rem",
+                color:isSel?CARD_TEXT_MAP[n]||"#333":"rgba(255,255,255,.35)",
+                lineHeight:1,
+                transition:"color .15s"
+              }},n),
+              isSel&&React.createElement("div",{style:{
+                position:"absolute",top:-5,right:-5,
+                width:16,height:16,borderRadius:"50%",
+                background:"var(--gr)",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:"9px",color:"#fff",fontWeight:900,lineHeight:1
+              }},"✓")
+            );
+          })
+        )
+      ),
+
+      // ── MODIFICADORES ─────────────────────────────────────────
+      React.createElement("div",{style:{
+        background:"rgba(246,166,35,.06)",border:"1px solid rgba(246,166,35,.2)",
+        borderRadius:12,padding:"10px 12px",marginBottom:14
+      }},
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+          color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"
+        }},"MODIFICADORES — toca si los tienes"),
+        React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}},
+          // x2
+          React.createElement("button",{
+            onClick:function(){snd("op");setMultiplier(function(m){return m?null:2;});},
+            style:{
+              border:"2px solid "+(multiplier===2?MOD_TEXT_COLOR:"rgba(242,90,122,.25)"),
+              background:multiplier===2?MOD_BG_COLOR:"rgba(246,166,35,.07)",
+              borderRadius:10,padding:"8px 12px",cursor:"pointer",
+              fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",
+              color:multiplier===2?"#fff":MOD_TEXT_COLOR,
+              transition:"all .2s",minWidth:52,textAlign:"center",
+              transform:multiplier===2?"scale(1.08)":"scale(1)"
+            }
+          },"x2",multiplier===2&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"#fff",letterSpacing:1,marginTop:1}},"ON")),
+          // +2 +4 +6 +8 +10
+          [2,4,6,8,10].map(function(n){
+            var active=plusCards.includes(n);
+            return React.createElement("button",{key:n,
+              onClick:function(){togglePlus(n);},
+              style:{
+                border:"2px solid "+(active?MOD_TEXT_COLOR:"rgba(242,90,122,.2)"),
+                background:active?MOD_BG_COLOR:"rgba(246,166,35,.05)",
+                borderRadius:10,padding:"8px 10px",cursor:"pointer",
+                fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",
+                color:active?"#fff":MOD_TEXT_COLOR,
+                transition:"all .2s",minWidth:44,textAlign:"center",
+                transform:active?"scale(1.08)":"scale(1)"
+              }
+            },"+"+n,active&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"#fff",letterSpacing:1,marginTop:1}},"ON"));
+          })
+        )
+      ),
+
+      // ── BOTONES FINALES ───────────────────────────────────────
+      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:8}},
+        React.createElement("button",{className:"mc",
+          style:{flex:1},
+          onClick:function(){snd("tap");onClose();}
+        },"Cancelar"),
+        React.createElement("button",{
+          style:{
+            flex:2,padding:"13px",
+            background:selected.length===0?"rgba(255,255,255,.07)":"linear-gradient(135deg,var(--y),var(--or))",
+            border:"none",borderRadius:11,
+            fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".92rem",
+            color:selected.length===0?"rgba(255,255,255,.3)":"var(--dark)",
+            cursor:selected.length===0?"not-allowed":"pointer",
+            boxShadow:selected.length>0?"0 4px 15px rgba(245,200,0,.3)":"none",
+            transition:"all .2s"
+          },
+          disabled:selected.length===0,
+          onClick:handleConfirm
+        },selected.length===0?"Selecciona cartas":"✓ Confirmar "+total+" pts")
+      ),
+      // Botón Cero separado
+      React.createElement("button",{
+        onClick:handleZero,
+        style:{
+          width:"100%",background:"rgba(255,255,255,.04)",
+          border:"1px solid rgba(255,255,255,.1)",borderRadius:11,
+          padding:"10px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".74rem",
+          color:"rgba(255,255,255,.35)",letterSpacing:1
+        }
+      },"💀 Cero esta ronda")
     )
   );
 }
