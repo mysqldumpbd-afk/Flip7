@@ -51,6 +51,8 @@ const CARD_TEXT_MAP={0:"#FF2FA3",1:"#B7A9C9",2:"#D8E81B",3:"#FF4B78",4:"#19C7D8"
 const MOD_TEXT_COLOR="#F25A7A";
 const MOD_BG_COLOR="#F6A623";
 const ALL_CARD_NUMS=[0,1,2,3,4,5,6,7,8,9,10,11,12];
+const FLIP7_BONUS=15;   // bonus oficial por completar 7 cartas únicas
+const MAX_CARDS=7;      // máximo de cartas numéricas permitidas por ronda
 
 
 // ── ESTADÍSTICAS — guardar por jugador en Firebase ────────────
@@ -1487,15 +1489,32 @@ function ResultEditor({res,onResult,onRetake}){
   const[cards,setCards]=React.useState(dedupCards);
   const[multiplier,setMultiplier]=React.useState(res.multiplier||null);
   const[plusCards,setPlusCards]=React.useState((res.plus_cards||[]).map(Number).filter(n=>n>0));
+  // Flip 7 bonus: auto-marcado si IA detectó 7 cartas, editable manualmente
+  const[flip7,setFlip7]=React.useState(dedupCards.length===MAX_CARDS);
   const baseTotal=cards.reduce((a,b)=>Number(a)+Number(b),0);
   const afterMult=multiplier?baseTotal*multiplier:baseTotal;
-  const total=afterMult+plusCards.reduce((a,b)=>Number(a)+Number(b),0);
+  const total=afterMult+plusCards.reduce((a,b)=>Number(a)+Number(b),0)+(flip7?FLIP7_BONUS:0);
 
-  function removeCard(idx){snd("del");setCards(c=>c.filter((_,i)=>i!==idx));}
-  // Solo agregar si el número no existe ya en la lista
+  function removeCard(idx){
+    snd("del");
+    setCards(c=>{
+      const next=c.filter((_,i)=>i!==idx);
+      // Si baja de 7, desmarcar flip7 automáticamente
+      if(next.length<MAX_CARDS)setFlip7(false);
+      return next;
+    });
+  }
+  // Solo agregar si el número no existe y no supera el máximo de 7
   function addCard(n){
     if(cards.includes(n)){snd("zero");return;}
-    snd("score");setCards(c=>[...c,n]);
+    if(cards.length>=MAX_CARDS){snd("zero");return;} // regla: máx 7 cartas
+    snd("score");
+    setCards(c=>{
+      const next=[...c,n];
+      // Si llega a 7, marcar flip7 automáticamente
+      if(next.length===MAX_CARDS)setFlip7(true);
+      return next;
+    });
   }
 
   // Disponibles = los que NO están ya en cards (máx 1 por número, regla del juego)
@@ -1553,15 +1572,51 @@ function ResultEditor({res,onResult,onRetake}){
         )
       ),
 
+      // ── FLIP 7 BONUS ─────────────────────────────────────────
+      React.createElement("div",{style:{
+        background:flip7?"linear-gradient(135deg,rgba(245,200,0,.18),rgba(255,107,53,.1))":"rgba(255,255,255,.03)",
+        border:"2px solid "+(flip7?"rgba(245,200,0,.6)":"rgba(255,255,255,.1)"),
+        borderRadius:12,padding:"10px 14px",marginBottom:10,
+        display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"all .2s"
+      },onClick:()=>{snd("op");setFlip7(f=>!f);}},
+        React.createElement("div",{style:{fontSize:"1.5rem"}},"🃏"),
+        React.createElement("div",{style:{flex:1}},
+          React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+            color:flip7?"var(--y)":"rgba(255,255,255,.4)",letterSpacing:2,fontWeight:700}},
+            "FLIP 7 — 7 CARTAS ÚNICAS"
+          ),
+          React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+            color:"rgba(255,255,255,.35)",marginTop:2}},
+            cards.length+"/7 cartas · "+
+            (cards.length===MAX_CARDS
+              ? "¡Completo! Bonus activado"
+              : "Faltan "+(MAX_CARDS-cards.length)+" para el bonus")
+          )
+        ),
+        React.createElement("div",{style:{
+          fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",
+          color:flip7?"var(--y)":"rgba(255,255,255,.2)",
+          textShadow:flip7?"0 0 15px rgba(245,200,0,.5)":"none",
+          transition:"all .2s"
+        }},flip7?"+15":"±0")
+      ),
       // Paleta rápida — cartas disponibles (1 clic para agregar)
       React.createElement("div",{style:{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"10px 12px",marginBottom:12}},
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8,textAlign:"center"}},"➕ AGREGAR CARTA — toca para sumar"),
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center"}},
-          availableCards.map(n=>
-            React.createElement("button",{key:n,className:"avail-card",onClick:()=>addCard(n),
-              style:{color:CARD_TEXT_MAP[n]||"white",borderColor:CARD_TEXT_MAP[n]+"44"}},
-              n
-            )
+          // Paleta desactivada si ya hay 7 cartas
+          cards.length>=MAX_CARDS
+            ? React.createElement("div",{style:{width:"100%",textAlign:"center",
+                fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+                color:"var(--y)",letterSpacing:2,padding:"6px 0"}},
+                "🃏 ¡FLIP 7 COMPLETADO! Máximo de cartas alcanzado"
+              )
+            : availableCards.map(n=>
+                React.createElement("button",{key:n,className:"avail-card",onClick:()=>addCard(n),
+                  style:{color:CARD_TEXT_MAP[n]||"white",borderColor:CARD_TEXT_MAP[n]+"44"}},
+                  n
+                )
+              )
           )
         )
       ),
@@ -1569,7 +1624,7 @@ function ResultEditor({res,onResult,onRetake}){
       // Botones confirm/retake
       React.createElement("div",{className:"mr2"},
         React.createElement("button",{className:"mc",onClick:()=>{snd("tap");onRetake();}},"📷 Repetir foto"),
-        React.createElement("button",{className:"mo",onClick:()=>{snd("score");onResult(total);},disabled:cards.length===0},"✓ Confirmar "+total+" pts")
+        React.createElement("button",{className:"mo",onClick:()=>{snd("score");onResult(total);},disabled:cards.length===0},"✓ Confirmar "+total+(flip7?" (incl. +15 Flip 7)":"")+" pts")
       )
     )
   );
@@ -1588,19 +1643,31 @@ function CardPickerModal({playerName,onSubmit,onClose}){
   var multiplier=multState[0],setMultiplier=multState[1];
   var plusState=useState([]);
   var plusCards=plusState[0],setPlusCards=plusState[1];
+  // Flip 7 bonus: se activa automáticamente al seleccionar 7 cartas
+  var f7State=useState(false);
+  var flip7=f7State[0],setFlip7=f7State[1];
 
-  // Cálculo igual que ResultEditor
+  // Cálculo con bonus
   var baseTotal=selected.reduce(function(a,b){return a+b;},0);
   var afterMult=multiplier?baseTotal*multiplier:baseTotal;
-  var total=afterMult+plusCards.reduce(function(a,b){return a+b;},0);
+  var total=afterMult+plusCards.reduce(function(a,b){return a+b;},0)+(flip7?FLIP7_BONUS:0);
 
   function toggleCard(n){
     if(selected.includes(n)){
       snd("del");
-      setSelected(function(p){return p.filter(function(x){return x!==n;});});
+      setSelected(function(p){
+        var next=p.filter(function(x){return x!==n;});
+        if(next.length<MAX_CARDS)setFlip7(false);
+        return next;
+      });
     } else {
+      if(selected.length>=MAX_CARDS){snd("zero");return;} // límite 7 cartas
       snd("score");
-      setSelected(function(p){return p.concat([n]);});
+      setSelected(function(p){
+        var next=p.concat([n]);
+        if(next.length===MAX_CARDS)setFlip7(true); // auto-bonus
+        return next;
+      });
     }
   }
 
@@ -1691,11 +1758,12 @@ function CardPickerModal({playerName,onSubmit,onClose}){
                 border:"2px solid "+(isSel?CARD_TEXT_MAP[n]+"99":"rgba(255,255,255,.1)"),
                 borderRadius:10,
                 padding:"10px 4px 8px",
-                cursor:"pointer",
+                cursor:(!isSel&&selected.length>=MAX_CARDS)?"not-allowed":"pointer",
                 display:"flex",flexDirection:"column",alignItems:"center",gap:2,
                 transition:"all .15s",
                 transform:isSel?"scale(1.08)":"scale(1)",
                 boxShadow:isSel?"0 4px 16px "+(CARD_TEXT_MAP[n]||"#fff")+"55":"none",
+                opacity:(!isSel&&selected.length>=MAX_CARDS)?0.3:1,
                 position:"relative"
               }
             },
@@ -1735,11 +1803,12 @@ function CardPickerModal({playerName,onSubmit,onClose}){
                 border:"2px solid "+(isSel?CARD_TEXT_MAP[n]+"99":"rgba(255,255,255,.1)"),
                 borderRadius:10,
                 padding:"10px 4px 8px",
-                cursor:"pointer",
+                cursor:(!isSel&&selected.length>=MAX_CARDS)?"not-allowed":"pointer",
                 display:"flex",flexDirection:"column",alignItems:"center",gap:2,
                 transition:"all .15s",
                 transform:isSel?"scale(1.08)":"scale(1)",
                 boxShadow:isSel?"0 4px 16px "+(CARD_TEXT_MAP[n]||"#fff")+"55":"none",
+                opacity:(!isSel&&selected.length>=MAX_CARDS)?0.3:1,
                 position:"relative"
               }
             },
@@ -1762,6 +1831,36 @@ function CardPickerModal({playerName,onSubmit,onClose}){
         )
       ),
 
+      // ── FLIP 7 BONUS INDICATOR ───────────────────────────────
+      React.createElement("div",{
+        style:{
+          background:flip7?"linear-gradient(135deg,rgba(245,200,0,.18),rgba(255,107,53,.1))":"rgba(255,255,255,.03)",
+          border:"2px solid "+(flip7?"rgba(245,200,0,.6)":"rgba(255,255,255,.1)"),
+          borderRadius:12,padding:"10px 14px",marginBottom:10,
+          display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"all .25s"
+        },
+        onClick:function(){snd("op");setFlip7(function(f){return !f;});}
+      },
+        React.createElement("div",{style:{fontSize:"1.5rem"}},"🃏"),
+        React.createElement("div",{style:{flex:1}},
+          React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+            color:flip7?"var(--y)":"rgba(255,255,255,.4)",letterSpacing:2}},
+            "FLIP 7 — 7 CARTAS ÚNICAS"
+          ),
+          React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+            color:"rgba(255,255,255,.35)",marginTop:2}},
+            selected.length+"/7 cartas"+
+            (selected.length===MAX_CARDS?" · ¡Completo! Bonus automático":
+             " · Faltan "+(MAX_CARDS-selected.length)+" para el bonus")
+          )
+        ),
+        React.createElement("div",{style:{
+          fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",
+          color:flip7?"var(--y)":"rgba(255,255,255,.2)",
+          textShadow:flip7?"0 0 15px rgba(245,200,0,.5)":"none",
+          transition:"all .25s"
+        }},flip7?"+15":"±0")
+      ),
       // ── MODIFICADORES ─────────────────────────────────────────
       React.createElement("div",{style:{
         background:"rgba(246,166,35,.06)",border:"1px solid rgba(246,166,35,.2)",
@@ -1823,7 +1922,9 @@ function CardPickerModal({playerName,onSubmit,onClose}){
           },
           disabled:selected.length===0,
           onClick:handleConfirm
-        },selected.length===0?"Selecciona cartas":"✓ Confirmar "+total+" pts")
+        },selected.length===0
+          ?"Selecciona cartas"
+          :"✓ Confirmar "+total+(flip7?" (+15 Flip 7)":"")+" pts")
       ),
       // Botón Cero separado
       React.createElement("button",{
@@ -1869,6 +1970,28 @@ function ManualModal({playerName,initialScore,onSubmit,onClose}){
       React.createElement("div",{className:"calc-display"},
         React.createElement("div",{className:"calc-expr"},display),
         React.createElement("div",{className:"calc-result"+(error?" error":"")},error?"ERROR":finalVal)
+      ),
+      // Tip: botón rápido +15 para Flip 7 bonus
+      React.createElement("div",{style:{marginBottom:10}},
+        React.createElement("button",{
+          onClick:()=>{snd("op");setExpr(v=>{
+            if(!v||v==="")return "15";
+            const last=v.slice(-1);
+            if(["+","-","*","/"].includes(last))return v+"15";
+            return v+"+15";
+          });},
+          style:{
+            width:"100%",background:"rgba(245,200,0,.1)",
+            border:"1px solid rgba(245,200,0,.35)",borderRadius:10,
+            padding:"8px 14px",cursor:"pointer",
+            fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+            color:"var(--y)",letterSpacing:1,
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8
+          }
+        },
+          React.createElement("span",{style:{fontSize:"1.1rem"}},"🃏"),
+          "+ 15 FLIP 7 BONUS  (7 cartas únicas)"
+        )
       ),
       React.createElement("div",{className:"np-grid"},
         ["7","8","9","4","5","6","1","2","3"].map(d=>React.createElement("button",{key:d,className:"npb",onClick:()=>pressNum(d)},d))
