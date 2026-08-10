@@ -1617,7 +1617,6 @@ function ResultEditor({res,onResult,onRetake}){
                   n
                 )
               )
-          )
         )
       ),
 
