@@ -105,7 +105,7 @@ const GAME_MODES={
       "Orden: Suma -> /2 -> -N -> min 0 -> +15",
       "Acciones: Swap, Steal, Discard, Flip Four",
     ],
-    badge:"VENGANZA",
+    badge:"WITH A VENGEANCE",
     badgeColor:"rgba(230,57,70,.15)",
     badgeBorder:"rgba(230,57,70,.5)",
     comingSoon:false,
@@ -1213,10 +1213,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                 <div className="ar">
                   {!demoMode&&<button className="ab ab-s" onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
                   {isVenganza
-                    ? <button className="ab ab-v" onClick={()=>{snd('tap');setVengCard({pid:p.id,name:p.name});}}>💀 Cartas</button>
+                    ? <button className="ab ab-c" onClick={()=>{snd('tap');setVengCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
                     : <button className="ab ab-c" onClick={()=>{snd('tap');setCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
                   }
-                  <button className="ab ab-z" onClick={()=>handleZero(p.id)}>💀 {isVenganza?"Bust":"Cero"}</button>
+                  {/* 💀 Cero: registra 0 pts. En Venganza: si te obligan (Just One More y salió duplicado), o si activaste The Zero card, o si hiciste bust. Solo hay un tipo de Cero. */}
+                  <button className="ab ab-z" onClick={()=>handleZero(p.id)}>💀 Cero</button>
                   <button className="ab ab-m" onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:null});}}>🧮 Manual</button>
                 </div>
               ):(
@@ -1975,7 +1976,7 @@ function CardPickerModal({playerName,onSubmit,onClose}){
             },
               React.createElement("span",{style:{
                 fontFamily:"'Anton',sans-serif",
-                fontSize:"1.4rem",
+                fontSize:"1.3rem",
                 color:isSel?CARD_TEXT_MAP[n]||"#333":"rgba(255,255,255,.35)",
                 lineHeight:1,
                 transition:"color .15s"
@@ -2020,7 +2021,7 @@ function CardPickerModal({playerName,onSubmit,onClose}){
             },
               React.createElement("span",{style:{
                 fontFamily:"'Anton',sans-serif",
-                fontSize:n>=10?"1.1rem":"1.4rem",
+                fontSize:"1.3rem",
                 color:isSel?CARD_TEXT_MAP[n]||"#333":"rgba(255,255,255,.35)",
                 lineHeight:1,
                 transition:"color .15s"
@@ -2136,11 +2137,12 @@ function CardPickerModal({playerName,onSubmit,onClose}){
       React.createElement("button",{
         onClick:handleZero,
         style:{
-          width:"100%",background:"rgba(255,255,255,.04)",
-          border:"1px solid rgba(255,255,255,.1)",borderRadius:11,
-          padding:"10px",cursor:"pointer",
-          fontFamily:"'Righteous',sans-serif",fontSize:".74rem",
-          color:"rgba(255,255,255,.35)",letterSpacing:1
+          width:"100%",background:"rgba(255,255,255,.07)",
+          border:"1px solid rgba(255,255,255,.2)",borderRadius:11,
+          padding:"11px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
+          color:"rgba(255,255,255,.6)",letterSpacing:1,
+          transition:"all .2s"
         }
       },"💀 Cero esta ronda")
     )
@@ -2171,6 +2173,8 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
   var actionCards=acState[0],setActionCards=acState[1];
   var lk13State=useState(false);
   var lucky13=lk13State[0],setLucky13=lk13State[1]; // permite 2x el 13
+  var ul7State=useState(false);
+  var unlucky7=ul7State[0],setUnlucky7=ul7State[1]; // borra cartas, deja solo el 7
 
   var NUMS=[1,2,3,4,5,6,7,8,9,10,11,12,13];
   var NEG_MODS=[-2,-4,-6,-8,-10];
@@ -2221,6 +2225,22 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
     setActionCards(function(p){
       return p.includes(a)?p.filter(function(x){return x!==a;}):p.concat([a]);
     });
+  }
+
+  function activateUnlucky7(){
+    snd("del");
+    // Unlucky 7: mantiene solo el 7, descarta todo lo demás
+    setSelected([7]);
+    setHasDivTwo(false);
+    setNegMods([]);
+    setFlip7(false);
+    setUnlucky7(true);
+    setLucky13(false);
+  }
+  function deactivateUnlucky7(){
+    snd("tap");
+    setSelected([]);
+    setUnlucky7(false);
   }
 
   return React.createElement("div",{className:"mbg"},
@@ -2312,10 +2332,10 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
               }},n),
               isSel&&React.createElement("div",{style:{
                 position:"absolute",top:-4,right:-4,width:14,height:14,
-                borderRadius:"50%",background:"var(--r)",
+                borderRadius:"50%",background:n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"var(--pu)":"var(--r)",
                 display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:"8px",color:"#fff",fontWeight:900,lineHeight:1
-              }},"✓")
+                fontSize:"7px",color:"#fff",fontWeight:900,lineHeight:1
+              }},n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"2":"✓")
             );
           })
         ),
@@ -2349,10 +2369,10 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
               }},n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"13×2":n),
               isSel&&React.createElement("div",{style:{
                 position:"absolute",top:-4,right:-4,width:14,height:14,
-                borderRadius:"50%",background:"var(--r)",
+                borderRadius:"50%",background:n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"var(--pu)":"var(--r)",
                 display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:"8px",color:"#fff",fontWeight:900,lineHeight:1
-              }},"✓")
+                fontSize:"7px",color:"#fff",fontWeight:900,lineHeight:1
+              }},n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"2":"✓")
             );
           })
         )
@@ -2393,6 +2413,41 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
               }},"ACTIVO — 2x13")
             : React.createElement("span",null,"OFF")
         )
+      ),
+      // ── UNLUCKY 7 ────────────────────────────────────────────────
+      React.createElement("div",{
+        onClick:function(){unlucky7?deactivateUnlucky7():activateUnlucky7();},
+        style:{
+          display:"flex",alignItems:"center",gap:12,
+          background:unlucky7?"rgba(230,57,70,.18)":"rgba(255,255,255,.03)",
+          border:"2px solid "+(unlucky7?"rgba(230,57,70,.7)":"rgba(255,255,255,.1)"),
+          borderRadius:12,padding:"9px 13px",marginBottom:8,
+          cursor:"pointer",transition:"all .2s",
+          boxShadow:unlucky7?"0 0 16px rgba(230,57,70,.3)":"none"
+        }
+      },
+        React.createElement("div",{style:{fontSize:"1.3rem"}},"💀"),
+        React.createElement("div",{style:{flex:1}},
+          React.createElement("div",{style:{
+            fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
+            color:unlucky7?"var(--r)":"rgba(255,255,255,.4)",letterSpacing:2
+          }},"UNLUCKY 7"),
+          React.createElement("div",{style:{
+            fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+            color:"rgba(255,255,255,.3)",marginTop:2,lineHeight:1.4
+          }},unlucky7
+            ?"Activo — solo queda el 7 en tu linea"
+            :"Descarta tus cartas, mantiene solo el 7")
+        ),
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,
+          color:unlucky7?"var(--r)":"rgba(255,255,255,.2)"
+        }},unlucky7
+          ? React.createElement("span",{style:{
+              background:"rgba(230,57,70,.3)",padding:"2px 8px",
+              borderRadius:20,color:"var(--r)",fontSize:".62rem"
+            }},"ACTIVO")
+          : "OFF")
       ),
       // ── FLIP 7 BONUS ─────────────────────────────────────────────
       React.createElement("div",{
@@ -2498,14 +2553,19 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
             return React.createElement("button",{key:a,
               onClick:function(){toggleAction(a);},
               style:{
-                border:"1px solid "+(active?"rgba(123,45,139,.6)":"rgba(255,255,255,.1)"),
-                background:active?"rgba(123,45,139,.3)":"rgba(255,255,255,.03)",
-                borderRadius:20,padding:"4px 10px",cursor:"pointer",
-                fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-                color:active?"#cc88ff":"rgba(255,255,255,.35)",
-                letterSpacing:.5,transition:"all .15s"
+                border:"2px solid "+(active?"rgba(123,45,139,.8)":"rgba(255,255,255,.12)"),
+                background:active?"linear-gradient(135deg,rgba(123,45,139,.5),rgba(123,45,139,.3))":"rgba(255,255,255,.04)",
+                borderRadius:20,padding:"6px 12px",cursor:"pointer",
+                fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+                color:active?"#e0aaff":"rgba(255,255,255,.45)",
+                letterSpacing:.5,transition:"all .15s",
+                boxShadow:active?"0 0 10px rgba(123,45,139,.4)":"none",
+                transform:active?"scale(1.05)":"scale(1)"
               }
-            },(active?"✓ ":"")+a);
+            },React.createElement(React.Fragment,null,
+              active&&React.createElement("span",{style:{marginRight:4,fontSize:".7rem"}},"✓"),
+              a
+            ));
           })
         )
       ),
@@ -2535,13 +2595,14 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
       React.createElement("button",{
         onClick:function(){snd("zero");onSubmit(0);},
         style:{
-          width:"100%",background:"rgba(255,255,255,.04)",
-          border:"1px solid rgba(255,255,255,.1)",borderRadius:11,
-          padding:"10px",cursor:"pointer",
-          fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
-          color:"rgba(255,255,255,.35)",letterSpacing:1
+          width:"100%",background:"rgba(255,255,255,.07)",
+          border:"1px solid rgba(255,255,255,.2)",borderRadius:11,
+          padding:"11px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
+          color:"rgba(255,255,255,.6)",letterSpacing:1,
+          transition:"all .2s"
         }
-      },"💀 Bust — Cero esta ronda")
+      },"💀 Cero esta ronda")
     )
   );
 }
