@@ -615,7 +615,7 @@ function App(){
     await dbRef.current.set("rooms/"+roomCode,{...room,players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
   }
 
-  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost}){
+  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode}){
     const db=makeDB(demo);dbRef.current=db;
     let roomCode2=code;
     if(!code){
@@ -623,7 +623,7 @@ function App(){
       const firstPlayerName=names&&names[0]?names[0].trim():"";
       await db.set("rooms/"+roomCode2,{
         code:roomCode2,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
-        gameMode:opts&&opts.gameMode?opts.gameMode:"classic",
+        gameMode:gameMode||"classic",
         // Guardar nombre del host para permitir reconexión
         hostName: hostName||firstPlayerName,
         players:names.map((name,i)=>({
