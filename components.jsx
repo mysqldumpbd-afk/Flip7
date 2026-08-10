@@ -54,6 +54,64 @@ const ALL_CARD_NUMS=[0,1,2,3,4,5,6,7,8,9,10,11,12];
 const FLIP7_BONUS=15;   // bonus oficial por completar 7 cartas únicas
 const MAX_CARDS=7;      // máximo de cartas numéricas permitidas por ronda
 
+// ── MODOS DE JUEGO ────────────────────────────────────────────────
+const GAME_MODES={
+  classic:{
+    id:"classic",
+    name:"FLIP 7",
+    subtitle:"Race to 200",
+    emoji:"🃏",
+    color:"#F5C800",
+    glow:"rgba(245,200,0,.4)",
+    goal:200,
+    flip7Bonus:15,
+    maxCards:7,
+    desc:"Primero en llegar a 200 puntos. 7 cartas únicas = +15 bonus.",
+    rules:[
+      "Meta: 200 puntos",
+      "Carta duplicada = bust (0 pts en la ronda)",
+      "7 cartas únicas = +15 pts bonus + fin de ronda",
+      "Modificadores: x2, +2 al +10",
+    ],
+    badge:"ORIGINAL",
+    badgeColor:"rgba(245,200,0,.2)",
+    badgeBorder:"rgba(245,200,0,.5)",
+  },
+  venganza:{
+    id:"venganza",
+    name:"FLIP 7",
+    subtitle:"With a Vengeance",
+    emoji:"💀",
+    color:"#E63946",
+    glow:"rgba(230,57,70,.5)",
+    goal:200,
+    flip7Bonus:15,
+    maxCards:7,
+    // Cartas 1-13 (no 0-12 como classic)
+    cardNums:[1,2,3,4,5,6,7,8,9,10,11,12,13],
+    // Modificadores negativos (invertidos respecto a classic)
+    // Orden de calculo: Suma -> /2 primero -> luego -N -> min 0 -> +15 flip7
+    negMods:[-2,-4,-6,-8,-10],
+    divMod:true,  // tiene carta /2
+    // Cartas de accion inter-jugadores (se registran manualmente)
+    actionCards:["Just One More","Swap","Steal","Discard","Flip Four"],
+    desc:"Misma mecanica, cartas 1-13, modificadores negativos y cartas de accion inter-jugadores.",
+    rules:[
+      "Meta: 200 puntos",
+      "Cartas numericas: 1 al 13",
+      "Bust por duplicado = 0 pts",
+      "Flip 7 bonus = +15 pts",
+      "Modificadores NEGATIVOS: -2,-4,-6,-8,-10,/2",
+      "Orden: Suma -> /2 -> -N -> min 0 -> +15",
+      "Acciones: Swap, Steal, Discard, Flip Four",
+    ],
+    badge:"VENGANZA",
+    badgeColor:"rgba(230,57,70,.15)",
+    badgeBorder:"rgba(230,57,70,.5)",
+    comingSoon:false,
+  },
+};
+
 
 // ── ESTADÍSTICAS — guardar por jugador en Firebase ────────────
 async function saveGameStats(session, roomData){
@@ -565,6 +623,7 @@ function App(){
       const firstPlayerName=names&&names[0]?names[0].trim():"";
       await db.set("rooms/"+roomCode2,{
         code:roomCode2,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
+        gameMode:opts&&opts.gameMode?opts.gameMode:"classic",
         // Guardar nombre del host para permitir reconexión
         hostName: hostName||firstPlayerName,
         players:names.map((name,i)=>({
@@ -616,6 +675,15 @@ function App(){
           <span className="logo-sub">Race to 200!</span>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          {room&&room.gameMode&&room.gameMode!=="classic"&&GAME_MODES[room.gameMode]&&(
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:1,
+              background:GAME_MODES[room.gameMode].badgeColor,
+              border:"1px solid "+GAME_MODES[room.gameMode].badgeBorder,
+              color:GAME_MODES[room.gameMode].color,
+              padding:"3px 8px",borderRadius:20,display:"flex",alignItems:"center",gap:4}}>
+              {GAME_MODES[room.gameMode].emoji} {room.gameMode.toUpperCase()}
+            </div>
+          )}
           <div className={"badge "+(demoMode?"demo":"")}>
             <span className={"dot "+(demoMode?"demo":"")}/>
             {demoMode?"DEMO":roomCode}
@@ -649,6 +717,7 @@ function App(){
 // ── HOMESCREEN ────────────────────────────────────────────────
 function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
   const[view,setView]=useState("main");
+  const[gameMode,setGameMode]=useState("classic");
   const[names,setNames]=useState(["","",""]);
   const[playerEmojis,setPlayerEmojis]=useState(EMOJIS.slice(0,3));
   const[playerColors,setPlayerColors]=useState(COLORS.slice(0,3));
@@ -688,7 +757,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,reconn
     if(ns.length<2){setErr({msg:"Necesitas al menos 2 jugadores.",steps:[]});return;}
     setBusy(true);setErr(null);
     // jname guarda el nombre del host para reconexión futura
-    try{await onEnter({names:ns,demo:false,customEmojis:playerEmojis,customColors:playerColors,hostName:jname.trim()||ns[0]});}
+    try{await onEnter({names:ns,demo:false,customEmojis:playerEmojis,customColors:playerColors,hostName:jname.trim()||ns[0],gameMode:gameMode});}
     catch(e){setErr(classifyError(e));}
     setBusy(false);
   }
@@ -751,6 +820,89 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,reconn
         <div className="create-sub">{T.newGame}</div>
       </div>
       <div className="create-body">
+        {/* ── SELECTOR DE MODO ── */}
+        <p className="sec" style={{marginBottom:8}}>MODO DE JUEGO</p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+          {Object.values(GAME_MODES).map(mode=>{
+            const isSel=gameMode===mode.id;
+            return(
+              <button key={mode.id}
+                onClick={()=>{snd('tap');if(!mode.comingSoon)setGameMode(mode.id);}}
+                style={{
+                  position:"relative",textAlign:"left",
+                  background:isSel?mode.color+"1a":"rgba(255,255,255,.03)",
+                  border:"2px solid "+(isSel?mode.color:"rgba(255,255,255,.1)"),
+                  borderRadius:16,padding:"14px 12px",
+                  cursor:mode.comingSoon?"default":"pointer",
+                  transition:"all .2s",
+                  boxShadow:isSel?"0 0 20px "+mode.glow:"none",
+                  opacity:mode.comingSoon?.8:1,
+                }}>
+                <div style={{position:"absolute",top:7,right:7,
+                  background:mode.badgeColor,border:"1px solid "+mode.badgeBorder,
+                  borderRadius:20,padding:"2px 6px",
+                  fontFamily:"'Righteous',sans-serif",fontSize:".52rem",
+                  color:mode.color,letterSpacing:1}}>
+                  {mode.badge}
+                </div>
+                <div style={{fontSize:"1.8rem",marginBottom:4,lineHeight:1}}>{mode.emoji}</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",
+                  letterSpacing:2,lineHeight:1,marginBottom:1,
+                  color:isSel?mode.color:"rgba(255,255,255,.7)"}}>
+                  {mode.name}
+                </div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                  letterSpacing:1,marginBottom:6,
+                  color:isSel?mode.color:"rgba(255,255,255,.3)"}}>
+                  {mode.subtitle}
+                </div>
+                <div style={{fontFamily:"'Nunito',sans-serif",fontSize:".65rem",
+                  color:"rgba(255,255,255,.45)",fontWeight:700,lineHeight:1.4}}>
+                  {mode.comingSoon
+                    ? <span style={{color:mode.color,fontFamily:"'Righteous',sans-serif",fontSize:".6rem"}}>📋 Requiere manual oficial</span>
+                    : mode.desc}
+                </div>
+                {isSel&&!mode.comingSoon&&(
+                  <div style={{marginTop:8,borderTop:"1px solid "+mode.color+"33",paddingTop:8}}>
+                    {mode.rules.map((r,ri)=>(
+                      <div key={ri} style={{fontFamily:"'Righteous',sans-serif",fontSize:".56rem",
+                        color:mode.color,letterSpacing:.5,display:"flex",gap:4,marginBottom:2}}>
+                        <span style={{opacity:.6}}>▸</span><span>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {isSel&&(
+                  <div style={{position:"absolute",bottom:7,right:7,
+                    width:16,height:16,borderRadius:"50%",background:mode.color,
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    fontSize:"9px",color:"#000",fontWeight:900}}>✓</div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {/* Meta info bar */}
+        <div style={{display:"flex",alignItems:"center",gap:10,
+          background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",
+          borderRadius:11,padding:"9px 13px",marginBottom:14}}>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+              color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:1}}>META</div>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",
+              color:GAME_MODES[gameMode].color,letterSpacing:2}}>
+              {GAME_MODES[gameMode].goal} pts
+            </div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+              color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:1}}>FLIP 7 BONUS</div>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",
+              color:GAME_MODES[gameMode].color}}>
+              +{GAME_MODES[gameMode].flip7Bonus} pts
+            </div>
+          </div>
+        </div>
         <p className="sec" style={{marginTop:4}}>{T.players} (min. 2)</p>
         {names.map((n,i)=>(
           <PlayerRow key={i} idx={i} T={T}
@@ -915,8 +1067,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
   const[scanModal,setScan]=useState(null);
   const[manModal,setMan]=useState(null);  // {pid, name, initialScore}
   const[cardModal,setCard]=useState(null); // {pid, name}
+  const[vengCardModal,setVengCard]=useState(null); // {pid, name} — Venganza mode
   const[shakePid,setShakePid]=useState(null);
   const canControl=pid=>!myPlayerId||myPlayerId===pid;
+  const gameMode=(room&&room.gameMode)||'classic';
+  const isVenganza=gameMode==='venganza';
 
   function handleZero(pid){
     snd('zero');setShakePid(pid);setTimeout(()=>setShakePid(null),500);
@@ -1032,7 +1187,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                     {entry.score===0?"💀":"+"+entry.score}
                   </span>
                   <span className={"mtag mt-"+entry.method}>
-                    {entry.method==="scan"?"📷":entry.method==="cards"?"🃏":entry.method==="zero"?"💀":""} {entry.method==="cards"?"cartas":entry.method}
+                    {entry.method==="scan"?"📷":entry.method==="cards"?(isVenganza?"💀":"🃏"):entry.method==="zero"?"💀":""} {entry.method==="cards"?(isVenganza?"cartas":"cartas"):entry.method}
                   </span>
                   {/* Badge LISTO solo para el jugador actual */}
                   {p.id===myPlayerId&&(
@@ -1057,8 +1212,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
               ):mine?(
                 <div className="ar">
                   {!demoMode&&<button className="ab ab-s" onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
-                  <button className="ab ab-c" onClick={()=>{snd('tap');setCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
-                  <button className="ab ab-z" onClick={()=>handleZero(p.id)}>💀 Cero</button>
+                  {isVenganza
+                    ? <button className="ab ab-v" onClick={()=>{snd('tap');setVengCard({pid:p.id,name:p.name});}}>💀 Cartas</button>
+                    : <button className="ab ab-c" onClick={()=>{snd('tap');setCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
+                  }
+                  <button className="ab ab-z" onClick={()=>handleZero(p.id)}>💀 {isVenganza?"Bust":"Cero"}</button>
                   <button className="ab ab-m" onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:null});}}>🧮 Manual</button>
                 </div>
               ):(
@@ -1089,7 +1247,8 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
       {scanModal&&<ScanModal playerName={scanModal.name} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{onSubmit(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
       {cardModal&&<CardPickerModal playerName={cardModal.name} onSubmit={s=>{onSubmit(cardModal.pid,s,"cards");setCard(null);}} onClose={()=>setCard(null)}/>}
       {/* ManualModal recibe initialScore para permitir corrección */}
-      {manModal&&<ManualModal playerName={manModal.name} initialScore={manModal.initialScore} onSubmit={s=>{onSubmit(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
+      {manModal&&<ManualModal playerName={manModal.name} initialScore={manModal.initialScore} gameMode={gameMode} onSubmit={s=>{onSubmit(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
+      {vengCardModal&&<VenganzaCardPickerModal playerName={vengCardModal.name} onSubmit={s=>{onSubmit(vengCardModal.pid,s,"cards");setVengCard(null);}} onClose={()=>setVengCard(null)}/>}
     </>
   );
 }
@@ -1988,8 +2147,407 @@ function CardPickerModal({playerName,onSubmit,onClose}){
   );
 }
 
+
+// ── VENGANZA CARD COLORS (1-13) ────────────────────────────────
+const VENG_CARD_TEXT={
+  1:"#E63946",2:"#FF6B35",3:"#F5C800",4:"#3BB273",5:"#2EC4B6",
+  6:"#7B2D8B",7:"#118AB2",8:"#E63946",9:"#FF6B35",10:"#F5C800",
+  11:"#3BB273",12:"#2EC4B6",13:"#7B2D8B"
+};
+const VENG_CARD_BG="#FFF8F0"; // crema ligeramente distinto al classic
+
+// ── VENGANZA CARD PICKER MODAL ─────────────────────────────────
+function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
+  var useState=React.useState,useEffect=React.useEffect;
+  var selState=useState([]);
+  var selected=selState[0],setSelected=selState[1];
+  var divState=useState(false);
+  var hasDivTwo=divState[0],setHasDivTwo=divState[1];
+  var negState=useState([]);
+  var negMods=negState[0],setNegMods=negState[1];
+  var f7State=useState(false);
+  var flip7=f7State[0],setFlip7=f7State[1];
+  var acState=useState([]);
+  var actionCards=acState[0],setActionCards=acState[1];
+  var lk13State=useState(false);
+  var lucky13=lk13State[0],setLucky13=lk13State[1]; // permite 2x el 13
+
+  var NUMS=[1,2,3,4,5,6,7,8,9,10,11,12,13];
+  var NEG_MODS=[-2,-4,-6,-8,-10];
+  var ACTION_CARDS=["Just One More","Swap","Steal","Discard","Flip Four"];
+
+  // Calculo oficial Venganza: Suma -> /2 -> -N -> min 0 -> +15 flip7
+  var baseTotal=selected.reduce(function(a,b){return a+b;},0);
+  var afterDiv=hasDivTwo?Math.floor(baseTotal/2):baseTotal;
+  var afterNeg=Math.max(0,afterDiv+negMods.reduce(function(a,b){return a+b;},0));
+  var total=afterNeg+(flip7?15:0);
+
+  function toggleCard(n){
+    var countN=selected.filter(function(x){return x===n;}).length;
+    // Lucky 13: permite maximo 2 copias del 13. Resto: max 1.
+    var maxAllowed=(n===13&&lucky13)?2:1;
+    if(countN>0&&countN>=maxAllowed){
+      // Quitar UNA copia del numero
+      snd("del");
+      setSelected(function(p){
+        var removed=false;
+        var next=p.filter(function(x){
+          if(!removed&&x===n){removed=true;return false;}
+          return true;
+        });
+        if(next.length<7)setFlip7(false);
+        return next;
+      });
+    }else{
+      if(selected.length>=7){snd("zero");return;}
+      snd("score");
+      setSelected(function(p){
+        var next=p.concat([n]);
+        if(next.length===7)setFlip7(true);
+        return next;
+      });
+    }
+  }
+
+  function toggleNeg(n){
+    snd("op");
+    setNegMods(function(p){
+      return p.includes(n)?p.filter(function(x){return x!==n;}):p.concat([n]);
+    });
+  }
+
+  function toggleAction(a){
+    snd("tap");
+    setActionCards(function(p){
+      return p.includes(a)?p.filter(function(x){return x!==a;}):p.concat([a]);
+    });
+  }
+
+  return React.createElement("div",{className:"mbg"},
+    React.createElement("div",{className:"ms",style:{paddingBottom:40}},
+      React.createElement("div",{className:"mh"}),
+      // Header con color rojo Venganza
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:3}},
+        React.createElement("div",{style:{fontFamily:"'Lilita One',sans-serif",fontSize:"1.4rem",
+          color:"var(--r)",letterSpacing:1.5}},"💀 Mis cartas"),
+        React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+          background:"rgba(230,57,70,.15)",border:"1px solid rgba(230,57,70,.4)",
+          color:"var(--r)",padding:"2px 8px",borderRadius:20,letterSpacing:1}},
+          "VENGANZA")
+      ),
+      React.createElement("div",{className:"msub"},"Turno de: ",
+        React.createElement("b",{style:{color:"#fff"}},playerName)),
+
+      // ── TOTAL DISPLAY ───────────────────────────────────────────
+      React.createElement("div",{style:{
+        textAlign:"center",padding:"10px 0 12px",
+        borderBottom:"1px solid rgba(255,255,255,.08)",marginBottom:12
+      }},
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:3,marginBottom:2,
+          color:flip7?"var(--r)":"rgba(255,255,255,.3)",transition:"color .3s"
+        }},flip7?"💀 FLIP 7 — BONUS +15":"TOTAL DE ESTA RONDA"),
+        React.createElement("div",{style:{
+          fontFamily:"'Anton',sans-serif",
+          fontSize:selected.length===0?"3rem":"5rem",
+          color:selected.length===0?"rgba(255,255,255,.15)":"var(--r)",
+          lineHeight:1,textShadow:selected.length>0?"4px 4px 0 rgba(230,57,70,.4)":"none",
+          transition:"all .2s"
+        }},total),
+        // Desglose del calculo
+        selected.length>0&&React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+          color:"rgba(255,255,255,.4)",marginTop:6,lineHeight:1.8
+        }},
+          React.createElement("span",null,"Base: "+selected.slice().sort(function(a,b){return a-b;}).join("+")+" = "+baseTotal),
+          hasDivTwo&&React.createElement(React.Fragment,null,
+            React.createElement("br"),
+            React.createElement("span",{style:{color:"rgba(230,57,70,.8)"}},"÷2 = "+afterDiv)
+          ),
+          negMods.length>0&&React.createElement(React.Fragment,null,
+            React.createElement("br"),
+            React.createElement("span",{style:{color:"rgba(230,57,70,.8)"}},
+              negMods.join("")+" = "+afterNeg+(afterNeg<afterDiv?" (min 0)":"")
+            )
+          ),
+          flip7&&React.createElement(React.Fragment,null,
+            React.createElement("br"),
+            React.createElement("span",{style:{color:"var(--r)",fontWeight:900}},"+15 Flip 7 = "+total)
+          )
+        )
+      ),
+
+      // ── PALETA DE CARTAS 1-13 ────────────────────────────────────
+      React.createElement("div",{style:{marginBottom:12}},
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+          color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8,textAlign:"center"
+        }},"TOCA LAS CARTAS QUE TIENES (1-13)"),
+        // Fila 1-7
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5,marginBottom:5}},
+          [1,2,3,4,5,6,7].map(function(n){
+            var isSel=selected.includes(n);
+            var countN=selected.filter(function(x){return x===n;}).length;
+            var maxAllowed=(n===13&&lucky13)?2:1;
+            var locked=(countN>=maxAllowed&&selected.length>=7)||(countN>=maxAllowed&&countN>0)||(selected.length>=7&&countN===0);
+            // Special: lucky13 allows adding second 13
+            if(n===13&&lucky13&&countN<2&&selected.length<7)locked=false;
+            return React.createElement("button",{key:n,
+              onClick:function(){toggleCard(n);},
+              style:{
+                background:isSel?VENG_CARD_BG:"rgba(255,255,255,.04)",
+                border:"2px solid "+(isSel?VENG_CARD_TEXT[n]+"99":(n===13&&lucky13&&countN<2?"rgba(123,45,139,.5)":"rgba(255,255,255,.1)")),
+                borderRadius:10,padding:"10px 3px 8px",
+                cursor:locked?"not-allowed":"pointer",
+                display:"flex",flexDirection:"column",alignItems:"center",gap:2,
+                transition:"all .15s",
+                transform:isSel?"scale(1.08)":"scale(1)",
+                boxShadow:isSel?"0 4px 14px "+VENG_CARD_TEXT[n]+"55":"none",
+                opacity:locked?0.3:1,position:"relative"
+              }},
+              React.createElement("span",{style:{
+                fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",lineHeight:1,
+                color:isSel?VENG_CARD_TEXT[n]:"rgba(255,255,255,.35)",
+                transition:"color .15s"
+              }},n),
+              isSel&&React.createElement("div",{style:{
+                position:"absolute",top:-4,right:-4,width:14,height:14,
+                borderRadius:"50%",background:"var(--r)",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:"8px",color:"#fff",fontWeight:900,lineHeight:1
+              }},"✓")
+            );
+          })
+        ),
+        // Fila 8-13 + hueco
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5}},
+          [8,9,10,11,12,13,null].map(function(n,i){
+            if(n===null)return React.createElement("div",{key:"e"});
+            var isSel=selected.includes(n);
+            var countN=selected.filter(function(x){return x===n;}).length;
+            var isLucky=(n===13&&lucky13);
+            var locked=isLucky?(countN>=2||selected.length>=7&&countN<2):(countN>=1||selected.length>=7&&!isSel);
+            if(isLucky&&countN<2&&selected.length<7)locked=false;
+            return React.createElement("button",{key:n,
+              onClick:function(){toggleCard(n);},
+              style:{
+                background:isSel?VENG_CARD_BG:"rgba(255,255,255,.04)",
+                border:"2px solid "+(isSel?VENG_CARD_TEXT[n]+"99":(isLucky&&countN<2&&!locked?"rgba(123,45,139,.5)":"rgba(255,255,255,.1)")),
+                borderRadius:10,padding:"10px 3px 8px",
+                cursor:locked?"not-allowed":"pointer",
+                display:"flex",flexDirection:"column",alignItems:"center",gap:2,
+                transition:"all .15s",
+                transform:isSel?"scale(1.08)":"scale(1)",
+                boxShadow:isSel?"0 4px 14px "+VENG_CARD_TEXT[n]+"55":"none",
+                opacity:locked?0.3:1,position:"relative"
+              }},
+              React.createElement("span",{style:{
+                fontFamily:"'Anton',sans-serif",
+                fontSize:n>=10?"1.05rem":"1.3rem",lineHeight:1,
+                color:isSel?VENG_CARD_TEXT[n]:"rgba(255,255,255,.35)",
+                transition:"color .15s"
+              }},n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"13×2":n),
+              isSel&&React.createElement("div",{style:{
+                position:"absolute",top:-4,right:-4,width:14,height:14,
+                borderRadius:"50%",background:"var(--r)",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:"8px",color:"#fff",fontWeight:900,lineHeight:1
+              }},"✓")
+            );
+          })
+        )
+      ),
+
+      // ── LUCKY 13 TOGGLE ──────────────────────────────────────────
+      React.createElement("div",{
+        onClick:function(){snd("tap");setLucky13(function(v){return !v;});},
+        style:{
+          display:"flex",alignItems:"center",gap:12,
+          background:lucky13?"rgba(123,45,139,.2)":"rgba(255,255,255,.03)",
+          border:"2px solid "+(lucky13?"rgba(123,45,139,.6)":"rgba(255,255,255,.1)"),
+          borderRadius:12,padding:"9px 13px",marginBottom:8,
+          cursor:"pointer",transition:"all .2s",
+          boxShadow:lucky13?"0 0 16px rgba(123,45,139,.3)":"none"
+        }
+      },
+        React.createElement("div",{style:{fontSize:"1.3rem"}},"🍀"),
+        React.createElement("div",{style:{flex:1}},
+          React.createElement("div",{style:{
+            fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
+            color:lucky13?"#cc88ff":"rgba(255,255,255,.4)",letterSpacing:2
+          }},"LUCKY 13"),
+          React.createElement("div",{style:{
+            fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+            color:"rgba(255,255,255,.3)",marginTop:2,lineHeight:1.4
+          }},"Permite tener 2 cartas del 13 sin bustear")
+        ),
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+          color:lucky13?"#cc88ff":"rgba(255,255,255,.2)",letterSpacing:1,
+          textAlign:"center",lineHeight:1.5
+        }},
+          lucky13
+            ? React.createElement("span",{style:{
+                background:"rgba(123,45,139,.4)",padding:"2px 8px",
+                borderRadius:20,fontSize:".65rem",color:"#cc88ff"
+              }},"ACTIVO — 2x13")
+            : React.createElement("span",null,"OFF")
+        )
+      ),
+      // ── FLIP 7 BONUS ─────────────────────────────────────────────
+      React.createElement("div",{
+        onClick:function(){snd("op");setFlip7(function(f){return !f;});},
+        style:{
+          background:flip7?"linear-gradient(135deg,rgba(230,57,70,.2),rgba(230,57,70,.08))"
+            :"rgba(255,255,255,.03)",
+          border:"2px solid "+(flip7?"rgba(230,57,70,.7)":"rgba(255,255,255,.1)"),
+          borderRadius:12,padding:"10px 14px",marginBottom:10,
+          display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"all .25s",
+          boxShadow:flip7?"0 0 20px rgba(230,57,70,.25)":"none"
+        }
+      },
+        React.createElement("div",{style:{fontSize:"1.4rem"}},"🃏"),
+        React.createElement("div",{style:{flex:1}},
+          React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",
+            fontSize:".7rem",color:flip7?"var(--r)":"rgba(255,255,255,.4)",letterSpacing:2}},
+            "FLIP 7 — 7 CARTAS DISTINTAS"),
+          React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",
+            fontSize:".58rem",color:"rgba(255,255,255,.3)",marginTop:2}},
+            selected.length+"/7 · "+(selected.length>=7
+              ?"Bonus automatico":"Faltan "+(7-selected.length)))
+        ),
+        React.createElement("div",{style:{
+          fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",
+          color:flip7?"var(--r)":"rgba(255,255,255,.2)",
+          textShadow:flip7?"0 0 15px rgba(230,57,70,.6)":"none",
+          transition:"all .25s"
+        }},flip7?"+15":"±0")
+      ),
+
+      // ── MODIFICADORES NEGATIVOS ───────────────────────────────────
+      React.createElement("div",{style:{
+        background:"rgba(230,57,70,.06)",border:"1px solid rgba(230,57,70,.2)",
+        borderRadius:12,padding:"10px 12px",marginBottom:10
+      }},
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+          color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"
+        }},"MODIFICADORES — si alguien te los jugo"),
+        React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"center"}},
+          // Carta /2 — se aplica ANTES que los -N
+          React.createElement("button",{
+            onClick:function(){snd("op");setHasDivTwo(function(v){return !v;});},
+            style:{
+              border:"2px solid "+(hasDivTwo?"var(--r)":"rgba(230,57,70,.25)"),
+              background:hasDivTwo?"var(--r)":"rgba(230,57,70,.07)",
+              borderRadius:10,padding:"8px 12px",cursor:"pointer",
+              fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",
+              color:hasDivTwo?"#fff":"var(--r)",
+              transition:"all .2s",minWidth:52,textAlign:"center",
+              transform:hasDivTwo?"scale(1.08)":"scale(1)"
+            }
+          },"÷2",hasDivTwo&&React.createElement("div",{style:{
+            fontFamily:"'Righteous',sans-serif",fontSize:".52rem",
+            color:"#fff",letterSpacing:1,marginTop:1
+          }},"ON")),
+          // Cartas -2 a -10
+          NEG_MODS.map(function(n){
+            var active=negMods.includes(n);
+            return React.createElement("button",{key:n,
+              onClick:function(){toggleNeg(n);},
+              style:{
+                border:"2px solid "+(active?"var(--r)":"rgba(230,57,70,.2)"),
+                background:active?"var(--r)":"rgba(230,57,70,.05)",
+                borderRadius:10,padding:"8px 10px",cursor:"pointer",
+                fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",
+                color:active?"#fff":"var(--r)",
+                transition:"all .2s",minWidth:44,textAlign:"center",
+                transform:active?"scale(1.08)":"scale(1)"
+              }
+            },n,active&&React.createElement("div",{style:{
+              fontFamily:"'Righteous',sans-serif",fontSize:".52rem",
+              color:"#fff",letterSpacing:1,marginTop:1
+            }},"ON"));
+          })
+        ),
+        // Orden de calculo visible
+        (hasDivTwo||negMods.length>0)&&React.createElement("div",{style:{
+          marginTop:8,borderTop:"1px solid rgba(230,57,70,.2)",paddingTop:8,
+          fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+          color:"var(--r)",textAlign:"center",letterSpacing:1
+        }},
+          "Suma("+baseTotal+") "+
+          (hasDivTwo?"÷2="+afterDiv+" ":"")+
+          (negMods.length>0?negMods.join("")+"="+afterNeg+" ":"")+
+          (flip7?"+15="+total:"= "+afterNeg)
+        )
+      ),
+
+      // ── CARTAS DE ACCION (informativo) ───────────────────────────
+      React.createElement("div",{style:{
+        background:"rgba(123,45,139,.08)",border:"1px solid rgba(123,45,139,.25)",
+        borderRadius:12,padding:"10px 12px",marginBottom:12
+      }},
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+          color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:7,textAlign:"center"
+        }},"CARTAS DE ACCION (registrar si las usaste)"),
+        React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center"}},
+          ACTION_CARDS.map(function(a){
+            var active=actionCards.includes(a);
+            return React.createElement("button",{key:a,
+              onClick:function(){toggleAction(a);},
+              style:{
+                border:"1px solid "+(active?"rgba(123,45,139,.6)":"rgba(255,255,255,.1)"),
+                background:active?"rgba(123,45,139,.3)":"rgba(255,255,255,.03)",
+                borderRadius:20,padding:"4px 10px",cursor:"pointer",
+                fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                color:active?"#cc88ff":"rgba(255,255,255,.35)",
+                letterSpacing:.5,transition:"all .15s"
+              }
+            },(active?"✓ ":"")+a);
+          })
+        )
+      ),
+
+      // ── BOTONES ───────────────────────────────────────────────────
+      React.createElement("div",{style:{display:"flex",gap:8,marginBottom:8}},
+        React.createElement("button",{className:"mc",style:{flex:1},
+          onClick:function(){snd("tap");onClose();}
+        },"Cancelar"),
+        React.createElement("button",{
+          disabled:selected.length===0,
+          onClick:function(){snd("score");onSubmit(total);},
+          style:{
+            flex:2,padding:"13px",border:"none",borderRadius:11,
+            fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".9rem",
+            background:selected.length===0?"rgba(255,255,255,.07)"
+              :"linear-gradient(135deg,var(--r),#c0392b)",
+            color:selected.length===0?"rgba(255,255,255,.3)":"#fff",
+            cursor:selected.length===0?"not-allowed":"pointer",
+            boxShadow:selected.length>0?"0 4px 15px rgba(230,57,70,.35)":"none",
+            transition:"all .2s"
+          }
+        },selected.length===0
+          ?"Selecciona cartas"
+          :"💀 Confirmar "+total+(flip7?" (+15)":"")+" pts")
+      ),
+      React.createElement("button",{
+        onClick:function(){snd("zero");onSubmit(0);},
+        style:{
+          width:"100%",background:"rgba(255,255,255,.04)",
+          border:"1px solid rgba(255,255,255,.1)",borderRadius:11,
+          padding:"10px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+          color:"rgba(255,255,255,.35)",letterSpacing:1
+        }
+      },"💀 Bust — Cero esta ronda")
+    )
+  );
+}
+
 // ── MANUALMODAL — soporta initialScore para corrección ────────
-function ManualModal({playerName,initialScore,onSubmit,onClose}){
+function ManualModal({playerName,initialScore,onSubmit,onClose,gameMode}){
   const[expr,setExpr]=useState(initialScore!=null&&initialScore>0?String(initialScore):"");
   const[calcResult,setCalcResult]=useState(initialScore!=null?initialScore:0);
   const[error,setError]=useState(false);
@@ -2051,8 +2609,11 @@ function ManualModal({playerName,initialScore,onSubmit,onClose}){
         React.createElement("button",{className:"npb op-key",onClick:()=>pressOp("+")}," + "),
         React.createElement("button",{className:"npb op-key",onClick:()=>pressOp("-")}," − "),
         React.createElement("button",{className:"npb op-key",onClick:()=>pressOp("*")}," × "),
-        React.createElement("button",{className:"npb clr-key",onClick:pressClear},"CLR")
+        gameMode==="venganza"
+          ? React.createElement("button",{className:"npb op-key",style:{fontSize:"1.2rem"},onClick:()=>pressOp("/")},"÷")
+          : React.createElement("button",{className:"npb clr-key",onClick:pressClear},"CLR")
       ),
+      gameMode==="venganza"&&React.createElement("button",{className:"npb clr-key",style:{width:"100%",borderRadius:14,padding:"10px",marginBottom:8},onClick:pressClear},"CLR — Limpiar"),
       React.createElement("button",{className:"npb ok-key",onClick:()=>{
         if(error||(!expr&&finalVal===0)){snd("zero");onSubmit(0);}
         else{snd("score");onSubmit(Math.max(0,Math.round(finalVal)));}
