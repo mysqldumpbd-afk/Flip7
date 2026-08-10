@@ -954,8 +954,40 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           ℹ️ Algún jugador está desconectado. Puede reconectarse con el código de sala.
         </div>
       )}
-      {!room.finished&&allDone&&<div className="alert al-g">{isHost?T.allReady:T.waitingHost}</div>}
-      {!room.finished&&!allDone&&room.players.some(p=>room.roundScores?.[p.id])&&<div className="alert al-y">{T.waitingCaps}</div>}
+      {!room.finished&&allDone&&(
+        <div className="alert al-g" style={{flexDirection:"column",gap:4}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:"1.1rem"}}>✅</span>
+            <span>{isHost?T.allReady:T.waitingHost}</span>
+          </div>
+        </div>
+      )}
+      {!room.finished&&!allDone&&(()=>{
+        const pending=room.players.filter(p=>room.roundScores?.[p.id]===undefined);
+        const done=room.players.filter(p=>room.roundScores?.[p.id]!==undefined);
+        if(done.length===0)return null; // nadie ha capturado aún, no mostrar
+        return(
+          <div className="alert al-y" style={{flexDirection:"column",gap:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontSize:"1rem"}}>⏳</span>
+              <span style={{fontWeight:900}}>Faltan {pending.length} de {room.players.length}</span>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:2}}>
+              {pending.map(p=>(
+                <span key={p.id} style={{
+                  display:"inline-flex",alignItems:"center",gap:4,
+                  background:"rgba(245,200,0,.12)",border:"1px solid rgba(245,200,0,.35)",
+                  borderRadius:20,padding:"3px 9px",
+                  fontFamily:"'Righteous',sans-serif",fontSize:".68rem",letterSpacing:1
+                }}>
+                  <span style={{color:p.color}}>{p.emoji}</span>
+                  <span style={{color:"rgba(255,255,255,.8)",fontWeight:800}}>{p.name}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>{T.players2}</p>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -972,7 +1004,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         const isShaking=shakePid===p.id;
         return(
           <div key={p.id}
-            className={"pr "+(done?"done":"")+(p.id===myPlayerId?" me":"")+(isShaking?" zero-flash":"")}
+            className={"pr "+(done?"done":"")+(p.id===myPlayerId?" me":"")+((done&&p.id===myPlayerId)?" me-done":"")+(isShaking?" zero-flash":"")}
             style={{"--clr":p.color}}>
             <div className="ava" style={{background:p.color+"22",color:p.color,border:"2px solid "+p.color+"55",boxShadow:"0 0 10px "+p.color+"33",fontSize:"1.4rem"}}>{p.emoji}</div>
             <div style={{flex:1}}>
@@ -993,9 +1025,25 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
               </div>
               {done?(
                 <div style={{display:"flex",alignItems:"center",gap:7,marginTop:2,flexWrap:"wrap"}}>
-                  <span className="pr-pts">{entry.score===0?"💀":"+"+entry.score}</span>
-                  <span className={"mtag mt-"+entry.method}>{entry.method==="scan"?"📷":entry.method==="cards"?"🃏":entry.method==="zero"?"💀":""} {entry.method==="cards"?"cartas":entry.method}</span>
-                  {/* Botón Corregir — siempre visible cuando done, abre manual con valor actual */}
+                  {/* Score: más grande y verde cuando es tuyo */}
+                  <span className="pr-pts" style={p.id===myPlayerId
+                    ?{fontSize:"1.5rem",color:"var(--gr)",textShadow:"0 0 14px rgba(59,178,115,.6)"}
+                    :{}}>
+                    {entry.score===0?"💀":"+"+entry.score}
+                  </span>
+                  <span className={"mtag mt-"+entry.method}>
+                    {entry.method==="scan"?"📷":entry.method==="cards"?"🃏":entry.method==="zero"?"💀":""} {entry.method==="cards"?"cartas":entry.method}
+                  </span>
+                  {/* Badge LISTO solo para el jugador actual */}
+                  {p.id===myPlayerId&&(
+                    <span style={{
+                      display:"inline-flex",alignItems:"center",gap:3,
+                      background:"rgba(59,178,115,.2)",border:"1px solid rgba(59,178,115,.5)",
+                      borderRadius:20,padding:"2px 9px",
+                      fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+                      color:"var(--gr)",letterSpacing:1,fontWeight:900
+                    }}>✓ LISTO</span>
+                  )}
                   {mine&&!room.finished&&(
                     <button onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:entry.score});}}
                       style={{background:"rgba(46,196,182,.12)",border:"1px solid rgba(46,196,182,.3)",

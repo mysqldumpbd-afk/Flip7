@@ -401,3 +401,12 @@ tbody tr:last-child td{border-bottom:none}
   animation:counterPop .4s cubic-bezier(.34,1.56,.64,1)}
 @keyframes counterPop{0%{transform:scale(2);opacity:0}100%{transform:scale(1);opacity:1}}
 .rematch-sparks{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+
+/* ── 18. PENDING / ME-DONE STATES ───────────────────────────── */
+/* Card del jugador cuando YA confirmó su puntuación */
+.pr.me-done{
+  border-color:rgba(59,178,115,.55)!important;
+  background:linear-gradient(135deg,rgba(59,178,115,.1),rgba(59,178,115,.05))!important;
+  box-shadow:0 0 18px rgba(59,178,115,.15),inset 0 0 0 1px rgba(59,178,115,.1)}
+/* Barra lateral verde cuando confirmado */
+.pr.me-done::before{background:var(--gr)!important}
