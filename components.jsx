@@ -592,10 +592,14 @@ function App(){
     setRematchPending(false);setWinner(null);setTab("round");
   }
 
-  async function submitScore(pid,score,method){
+  async function submitScore(pid,score,method,breakdown){
     snd('score');
-    const cur=room?.roundScores||{};
-    await dbRef.current.set("rooms/"+roomCode,{...room,roundScores:{...cur,[pid]:{score,method}}});
+    const cur=room&&room.roundScores||{};
+    var entry={score:score,method:method};
+    if(breakdown)entry.breakdown=breakdown;
+    var newRoundScores=Object.assign({},cur);
+    newRoundScores[pid]=entry;
+    await dbRef.current.set("rooms/"+roomCode,Object.assign({},room,{roundScores:newRoundScores}));
   }
   async function undoScore(pid){
     snd('tap');
@@ -1246,10 +1250,10 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         </div>
       )}
       {scanModal&&<ScanModal playerName={scanModal.name} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{onSubmit(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
-      {cardModal&&<CardPickerModal playerName={cardModal.name} onSubmit={s=>{onSubmit(cardModal.pid,s,"cards");setCard(null);}} onClose={()=>setCard(null)}/>}
+      {cardModal&&<CardPickerModal playerName={cardModal.name} onSubmit={function(s,bd){onSubmit(cardModal.pid,s,"cards",bd);setCard(null);}} onClose={()=>setCard(null)}/>}
       {/* ManualModal recibe initialScore para permitir corrección */}
       {manModal&&<ManualModal playerName={manModal.name} initialScore={manModal.initialScore} gameMode={gameMode} onSubmit={s=>{onSubmit(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
-      {vengCardModal&&<VenganzaCardPickerModal playerName={vengCardModal.name} onSubmit={s=>{onSubmit(vengCardModal.pid,s,"cards");setVengCard(null);}} onClose={()=>setVengCard(null)}/>}
+      {vengCardModal&&<VenganzaCardPickerModal playerName={vengCardModal.name} onSubmit={function(s,bd){onSubmit(vengCardModal.pid,s,"cards",bd);setVengCard(null);}} onClose={()=>setVengCard(null)}/>}
     </>
   );
 }
@@ -1291,7 +1295,11 @@ function ScoreTab({sorted,room,T}){
           <tbody>{sorted.map((p,ri)=>(
             <tr key={p.id} className={ri===0?"lr":""}>
               <td><span style={{color:p.color}}>{p.emoji}</span> <span style={{color:p.color}}>{p.name}</span></td>
-              {(p.rounds||[]).map((r,i)=><td key={i} className={r.score===0?"rz":""}>{r.score===0?"💀":r.score}</td>)}
+              {(p.rounds||[]).map((r,i)=><td key={i}
+                className={r.score===0?"rz":""}
+                title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
+                  ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(r.breakdown.flip7?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}
+              >{r.score===0?"💀":"+"+r.score}</td>)}
               {Array.from({length:mr-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
               <td className="tc">{p.total}</td>
             </tr>
@@ -1413,7 +1421,11 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
                 <tbody>{sorted.map((p,ri)=>(
                   <tr key={p.id} className={ri===0?"lr":""}>
                     <td style={{fontSize:".82rem",color:p.color}}>{p.emoji} {p.name}</td>
-                    {(p.rounds||[]).map((r,i)=><td key={i} className={r.score===0?"rz":""}>{r.score===0?"💀":r.score}</td>)}
+                    {(p.rounds||[]).map((r,i)=><td key={i}
+                className={r.score===0?"rz":""}
+                title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
+                  ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(r.breakdown.flip7?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}
+              >{r.score===0?"💀":"+"+r.score}</td>)}
                     {Array.from({length:maxRound-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
                     <td className="tc">{p.total}</td>
                   </tr>
@@ -1887,13 +1899,11 @@ function CardPickerModal({playerName,onSubmit,onClose}){
 
   function handleConfirm(){
     snd("score");
-    onSubmit(total);
+    var bd={cards:cards.slice(),flip7:flip7,multiplier:multiplier,plusCards:plusCards.slice()};
+    onSubmit(total,bd);
   }
 
-  function handleZero(){
-    snd("zero");
-    onSubmit(0);
-  }
+  function handleZero(){snd("zero");onSubmit(0,{cards:[],flip7:false,multiplier:null,plusCards:[]});}
 
   return React.createElement("div",{className:"mbg"},
     React.createElement("div",{className:"ms",style:{paddingBottom:40}},
@@ -2558,21 +2568,29 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center"}},
           ACTION_CARDS.map(function(a){
             var active=actionCards.includes(a);
-            return React.createElement("button",{key:a,
-              onClick:function(){toggleAction(a);},
-              style:{
-                border:"2px solid "+(active?"#fff":"rgba(255,255,255,.15)"),
-                background:active?"#fff":"rgba(255,255,255,.05)",
-                borderRadius:20,padding:"7px 13px",cursor:"pointer",
-                fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
-                color:active?"#1a0a2e":"rgba(255,255,255,.5)",
-                letterSpacing:.5,transition:"all .2s",
-                fontWeight:active?900:400,
-                boxShadow:active?"0 0 14px rgba(255,255,255,.3)":"none",
-                transform:active?"scale(1.08)":"scale(1)"
-              }
-            },active?"✓ "+a:a);
-
+            return React.createElement("div",{key:a,style:{position:"relative"}},
+              React.createElement("button",{
+                onClick:function(){toggleAction(a);},
+                style:{
+                  background:active?"linear-gradient(135deg,#7B2D8B,#5A1F70)":"rgba(255,255,255,.05)",
+                  border:"2px solid "+(active?"rgba(200,100,255,.8)":"rgba(255,255,255,.15)"),
+                  borderRadius:20,padding:"8px 14px",cursor:"pointer",
+                  fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+                  color:active?"#fff":"rgba(255,255,255,.5)",
+                  letterSpacing:.5,transition:"background .2s, border .2s, color .2s",
+                  boxShadow:active?"0 0 16px rgba(123,45,139,.6),inset 0 1px 0 rgba(255,255,255,.15)":"none",
+                  display:"flex",alignItems:"center",gap:5
+                }
+              },
+                active&&React.createElement("span",{style:{
+                  width:14,height:14,borderRadius:"50%",
+                  background:"rgba(255,255,255,.9)",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:"9px",color:"#5A1F70",fontWeight:900,flexShrink:0
+                }},"✓"),
+                a
+              )
+            );
           })
         )
       ),
@@ -2584,7 +2602,11 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
         },"Cancelar"),
         React.createElement("button",{
           disabled:selected.length===0,
-          onClick:function(){snd("score");onSubmit(total);},
+          onClick:function(){
+            snd("score");
+            var bd={cards:selected.slice(),flip7:flip7,divTwo:hasDivTwo,negMods:negMods.slice(),lucky13:lucky13,unlucky7:unlucky7,actionCards:actionCards.slice()};
+            onSubmit(total,bd);
+          },
           style:{
             flex:2,padding:"13px",border:"none",borderRadius:11,
             fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".9rem",
@@ -2600,7 +2622,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
           :"💀 Confirmar "+total+(flip7?" (+15)":"")+" pts")
       ),
       React.createElement("button",{
-        onClick:function(){snd("zero");onSubmit(0);},
+        onClick:function(){snd("zero");onSubmit(0,{cards:[],bust:true});},
         style:{
           width:"100%",background:"rgba(255,255,255,.07)",
           border:"1px solid rgba(255,255,255,.2)",borderRadius:11,
