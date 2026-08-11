@@ -3421,7 +3421,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
     return(
       <div className="wrap"><div className="page" style={{paddingTop:16}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-          <button onClick={()=>setSelectedPlayers({});setActiveGroup(null)} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
+          <button onClick={()=>{setSelectedPlayers({});setActiveGroup(null);}} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
             color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
             fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Grupos</button>
           <div style={{flex:1}}>
@@ -3607,7 +3607,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
         {ok&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--gr)",
           textAlign:"center",padding:"8px",marginTop:4}}>{ok}</div>}
         <div style={{height:8}}/>
-        <button className="btn btn-g" onClick={()=>setSelectedPlayers({});setActiveGroup(null)}>← Volver a Grupos</button>
+        <button className="btn btn-g" onClick={()=>{setSelectedPlayers({});setActiveGroup(null);}}>← Volver a Grupos</button>
       </div></div>
     );
   }
