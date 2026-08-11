@@ -859,13 +859,13 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,reconn
                   {mode.badge}
                 </div>
                 <div style={{fontSize:"1.8rem",marginBottom:4,lineHeight:1}}>{mode.emoji}</div>
-                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:".95rem",
                   letterSpacing:2,lineHeight:1,marginBottom:1,
                   color:isSel?mode.color:"rgba(255,255,255,.7)"}}>
                   {mode.name}
                 </div>
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                  letterSpacing:1,marginBottom:6,
+                  letterSpacing:1,marginBottom:5,
                   color:isSel?mode.color:"rgba(255,255,255,.3)"}}>
                   {mode.subtitle}
                 </div>
@@ -878,7 +878,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,reconn
                 {isSel&&!mode.comingSoon&&(
                   <div style={{marginTop:8,borderTop:"1px solid "+mode.color+"33",paddingTop:8}}>
                     {mode.rules.map((r,ri)=>(
-                      <div key={ri} style={{fontFamily:"'Righteous',sans-serif",fontSize:".56rem",
+                      <div key={ri} style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
                         color:mode.color,letterSpacing:.5,display:"flex",gap:4,marginBottom:2}}>
                         <span style={{opacity:.6}}>▸</span><span>{r}</span>
                       </div>
@@ -1564,7 +1564,7 @@ function ScanModal({playerName,onResult,onClose,aiConfig}){
     fetchKey();
   },[]);
 
-  var PROMPT="Mira esta foto de cartas del juego Flip 7.\n\nTu UNICA tarea: lee los numeros que aparecen en las cartas de fondo BLANCO o CREMA.\nLas cartas base tienen escrito el numero en grande y debajo el nombre en ingles (SEVEN, TEN, TWELVE, etc.)\n\nIGNORA completamente:\n- Cualquier carta de fondo AMARILLO o DORADO\n- Cualquier carta de accion (Flip, Freeze, Second Chance)\n- Cualquier simbolo como x2, +2, +4, +6, +8, +10\n\nNOTA sobre colores de numeros:\n- Carta 7: color CAFE/MARRON claro, texto SEVEN\n- Carta 12: color GRIS oscuro, texto TWELVE\n- Carta 11: color AZUL/LILA, texto ELEVEN\n- Carta 10: color ROJO brillante, texto TEN\n\nSOLO reporta los numeros de cartas blancas/crema que veas claramente.\n\nResponde UNICAMENTE con este JSON sin markdown:\n{\"cards\":[<lista de numeros enteros>],\"total\":<suma>,\"note\":\"<que cartas viste>\"}";
+  var PROMPT="Mira esta foto de cartas del juego Flip 7 (Classic o With a Vengeance).\n\nTu UNICA tarea: identificar los NUMEROS de las cartas de fondo BLANCO o CREMA que ves claramente.\n\nCARTAS NUMERICAS POSIBLES:\n- Classic: 0 al 12. El 0 tiene color rosa/magenta.\n- With a Vengeance: 0 al 13. Cada numero tiene un color distinto.\n\nCOLORES DE REFERENCIA (With a Vengeance):\n0=rosa/magenta, 1=gris, 2=amarillo-verde, 3=rojo-rosa, 4=cyan, 5=verde, 6=morado, 7=salmon, 8=verde claro, 9=naranja, 10=rojo oscuro, 11=azul, 12=gris-cafe, 13=azul brillante\n\nIGNORA completamente:\n- Cartas de fondo AMARILLO/DORADO (modificadores)\n- Cartas de accion (Swap, Steal, Discard, Flip Four, Just One More)\n- Cartas bocabajo\n\nNOTA: si hay exactamente 7 cartas distintas, el jugador hizo Flip 7 (bonus +15).\n\nResponde UNICAMENTE con JSON sin markdown:\n{\"cards\":[<lista de numeros enteros>],\"total\":<suma de los numeros>,\"flip7\":<true si hay 7 cartas unicas>,\"note\":\"<que viste>\"}"
 
   function handleFile(e){
     var f=e.target.files[0];if(!f)return;
@@ -2195,9 +2195,10 @@ function CardPickerModal({playerName,onSubmit,onClose}){
 
 // ── VENGANZA CARD COLORS (1-13) ────────────────────────────────
 const VENG_CARD_TEXT={
-  0:"#FF2FA3",1:"#E63946",2:"#FF6B35",3:"#F5C800",4:"#3BB273",5:"#2EC4B6",
-  6:"#7B2D8B",7:"#118AB2",8:"#E63946",9:"#FF6B35",10:"#F5C800",
-  11:"#3BB273",12:"#2EC4B6",13:"#7B2D8B"
+  0:"#FF2FA3",
+  1:"#9c9096",2:"#d9e026",3:"#c9466f",4:"#44c1bb",5:"#38b44a",
+  6:"#b9529f",7:"#d9837b",8:"#b1d57a",9:"#f79420",10:"#bb2540",
+  11:"#6a8fc8",12:"#9a8776",13:"#008cd3"
 };
 const VENG_CARD_BG="#FFF8F0"; // crema ligeramente distinto al classic
 

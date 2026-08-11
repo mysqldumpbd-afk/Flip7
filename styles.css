@@ -111,17 +111,18 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .al-r{background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.35);color:var(--r);flex-direction:column}
 .psr{display:flex;gap:7px;margin-bottom:7px;align-items:center}
 .psr .inp{margin:0;flex:1}
+.player-setup-row .inp{padding:6px 9px;font-size:.86rem;border-radius:8px;margin-bottom:0}
 .psr-rm{background:none;border:none;color:var(--r);font-size:1.1rem;cursor:pointer;padding:0 5px}
 
 /* ── 7. PLAYER ROW SETUP ─────────────────────────────────────── */
-.player-setup-row{margin-bottom:6px;border-radius:12px;padding:7px 9px;
-  border:2px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);transition:border-color .3s}
-.player-setup-row:focus-within{border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.05)}
-.psr-top{display:flex;gap:6px;align-items:center;margin-bottom:6px}
-/* Compact emoji button — expands visually when dropdown opens */
-.emoji-big-btn{width:38px;height:38px;border-radius:10px;font-size:1.35rem;
+.player-setup-row{margin-bottom:5px;border-radius:10px;padding:5px 8px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);transition:border-color .25s}
+.player-setup-row:focus-within{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.05)}
+.psr-top{display:flex;gap:5px;align-items:center;margin-bottom:0}
+/* Compact emoji button */
+.emoji-big-btn{width:34px;height:34px;border-radius:9px;font-size:1.2rem;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
-  transition:all .18s;flex-shrink:0;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)}
+  transition:all .18s;flex-shrink:0;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)}
 .emoji-big-btn:hover{transform:scale(1.1);box-shadow:0 0 12px rgba(255,255,255,.1)}
 .emoji-big-btn:active{transform:scale(.92)}
 .emoji-dd{position:fixed;z-index:500;background:#13152b;border:1px solid rgba(255,255,255,.2);
@@ -134,7 +135,7 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
   display:flex;align-items:center;justify-content:center}
 .emoji-dd-opt:hover{background:rgba(255,255,255,.14);transform:scale(1.2)}
 .emoji-dd-opt.sel{border-color:var(--y);background:rgba(245,200,0,.18);box-shadow:0 0 10px rgba(245,200,0,.3)}
-.color-dd-btn{width:38px;height:38px;border-radius:10px;cursor:pointer;
+.color-dd-btn{width:34px;height:34px;border-radius:9px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   transition:all .18s;flex-shrink:0;border:3px solid rgba(255,255,255,.4)}
 .color-dd-btn:hover{transform:scale(1.08);box-shadow:0 0 14px rgba(255,255,255,.2)}
