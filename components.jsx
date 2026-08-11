@@ -3780,6 +3780,7 @@ function PersonalDashboard({authUser, onBack, T}){
   const[addOk,setAddOk]=React.useState("");
   const[suggestions,setSuggestions]=React.useState([]);
   const[searching,setSearching]=React.useState(false);
+  const[confirmRemove,setConfirmRemove]=React.useState(null); // uid pendiente de confirmar
 
   const isAnon=authUser&&authUser.isAnonymous;
   const uid=authUser&&authUser.uid;
@@ -3869,6 +3870,19 @@ function PersonalDashboard({authUser, onBack, T}){
       setSuggestions([]);
       setFriends(prev=>[...prev,{uid:found.uid,name:full.displayName||found.name||found.email,email:full.email||found.email}]);
     }catch(e){setAddErr("Error: "+e.message);}
+  }
+
+  // Eliminar amistad (bidireccional). NO toca /stats — el historial de
+  // partidas vive independiente en /stats/players/{pKey}, así que cada
+  // quien conserva sus partidas jugadas aunque ya no sean amigos.
+  async function removeFriend(friendUid){
+    setAddErr("");setAddOk("");
+    try{
+      await _db.ref("users/"+uid+"/friends/"+friendUid).remove();
+      await _db.ref("users/"+friendUid+"/friends/"+uid).remove();
+      setFriends(prev=>prev.filter(f=>f.uid!==friendUid));
+      setConfirmRemove(null);
+    }catch(e){setAddErr("Error al eliminar: "+e.message);}
   }
 
   const fmtD=ts=>new Date(ts).toLocaleDateString("es-MX",{day:"numeric",month:"short"});
@@ -4108,6 +4122,25 @@ function PersonalDashboard({authUser, onBack, T}){
                     {fs&&<div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",
                       color:"rgba(255,255,255,.4)"}}>{fs.wins||0}<div style={{fontFamily:"'Righteous',sans-serif",
                         fontSize:".52rem",color:"rgba(255,255,255,.25)",letterSpacing:1}}>WINS</div></div>}
+                    {confirmRemove===f.uid ? (
+                      <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                        <button onClick={()=>{snd("tap");removeFriend(f.uid);}}
+                          style={{background:"var(--r)",border:"none",borderRadius:8,padding:"5px 9px",
+                            cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                            color:"#fff",fontWeight:900,whiteSpace:"nowrap"}}>Confirmar</button>
+                        <button onClick={()=>setConfirmRemove(null)}
+                          style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:8,padding:"5px 9px",
+                            cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                            color:"rgba(255,255,255,.5)",whiteSpace:"nowrap"}}>Cancelar</button>
+                      </div>
+                    ) : (
+                      <button onClick={()=>{snd("tap");setConfirmRemove(f.uid);}}
+                        title="Eliminar amigo"
+                        style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",
+                          borderRadius:8,width:30,height:30,cursor:"pointer",flexShrink:0,
+                          display:"flex",alignItems:"center",justifyContent:"center",
+                          color:"rgba(255,255,255,.4)",fontSize:".9rem"}}>🗑</button>
+                    )}
                   </div>
                 );
               })
