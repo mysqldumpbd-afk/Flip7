@@ -1251,7 +1251,11 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     </div></div>
   );
 
-  if(view==="stats")return<StatsScreen onBack={()=>go("main")} T={T}/>;
+  if(view==="stats"){
+    if(authUser&&!authUser.isAnonymous)
+      return<PersonalDashboard authUser={authUser} onBack={()=>go("main")} T={T}/>;
+    return<StatsScreen onBack={()=>go("main")} T={T}/>;
+  }
 
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
@@ -1308,6 +1312,28 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                 borderLeft:"1px solid rgba(255,255,255,.1)",paddingLeft:8}}>
               salir
             </span>
+          </div>
+        ):authUser&&authUser.isAnonymous?(
+          <div style={{marginTop:8,display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,
+              background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",
+              borderRadius:20,padding:"4px 12px 4px 8px"}}>
+              <span style={{fontSize:"1rem"}}>👤</span>
+              <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+                color:"rgba(255,255,255,.4)",letterSpacing:1}}>Modo anónimo</span>
+              <span onClick={()=>signOut()}
+                style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+                  color:"var(--t)",letterSpacing:1,cursor:"pointer",
+                  borderLeft:"1px solid rgba(255,255,255,.1)",paddingLeft:8}}>
+                Cambiar cuenta
+              </span>
+            </div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+              color:"rgba(230,57,70,.5)",letterSpacing:1,maxWidth:260,textAlign:"center",
+              background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.2)",
+              borderRadius:8,padding:"4px 10px"}}>
+              ⚠ Las sesiones anónimas se eliminan tras 30 días de inactividad
+            </div>
           </div>
         ):(
           <p style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".8rem",
@@ -2997,6 +3023,341 @@ function ManualModal({playerName,initialScore,onSubmit,onClose,gameMode}){
       React.createElement("div",{style:{height:10}}),
       React.createElement("button",{className:"mc",style:{width:"100%"},onClick:()=>{snd("tap");onClose();}},"Cancelar")
     ))
+  );
+}
+
+
+// ── PERSONALDASHBOARD — stats del jugador + amigos ────────────
+function PersonalDashboard({authUser, onBack, T}){
+  const[tab,setTab]=React.useState("me");
+  const[myStats,setMyStats]=React.useState(null);
+  const[myGames,setMyGames]=React.useState([]);
+  const[friends,setFriends]=React.useState([]);
+  const[friendsStats,setFriendsStats]=React.useState({});
+  const[loading,setLoading]=React.useState(true);
+  const[addInput,setAddInput]=React.useState("");
+  const[addErr,setAddErr]=React.useState("");
+  const[addOk,setAddOk]=React.useState("");
+
+  const isAnon=authUser&&authUser.isAnonymous;
+  const uid=authUser&&authUser.uid;
+
+  React.useEffect(()=>{
+    if(!uid)return;
+    async function load(){
+      setLoading(true);
+      try{
+        // Load personal stats by uid
+        const snap=await _db.ref("stats/players").orderByChild("summary/uid").equalTo(uid).once("value");
+        const data=snap.val()||{};
+        const entries=Object.values(data);
+        if(entries.length>0){
+          const p=entries[0];
+          setMyStats(p.summary||null);
+          const gSnap=await _db.ref("stats/players/"+Object.keys(data)[0]+"/games")
+            .orderByChild("date").limitToLast(20).once("value");
+          const gData=gSnap.val()||{};
+          setMyGames(Object.values(gData).sort((a,b)=>b.date-a.date));
+        }
+        // Load friends
+        const fSnap=await _db.ref("users/"+uid+"/friends").once("value");
+        const fData=fSnap.val()||{};
+        const fList=Object.values(fData);
+        setFriends(fList);
+        // Load friends stats
+        const fStats={};
+        for(const f of fList){
+          if(f.pKey){
+            const fs=await _db.ref("stats/players/"+f.pKey+"/summary").once("value");
+            if(fs.val())fStats[f.uid]=fs.val();
+          }
+        }
+        setFriendsStats(fStats);
+      }catch(e){console.log("Personal stats error:",e);}
+      setLoading(false);
+    }
+    load();
+  },[uid]);
+
+  async function addFriend(){
+    setAddErr("");setAddOk("");
+    const search=addInput.trim().toLowerCase();
+    if(!search){setAddErr("Ingresa un nombre o email");return;}
+    try{
+      // Search by displayName or email in /users
+      const snap=await _db.ref("users").once("value");
+      const data=snap.val()||{};
+      const found=Object.values(data).find(u=>
+        u.uid!==uid&&(
+          (u.displayName||"").toLowerCase()===search||
+          (u.email||"").toLowerCase()===search
+        )
+      );
+      if(!found){setAddErr("Usuario no encontrado. Deben haber jugado con cuenta.");return;}
+      // Add friend bidirectionally
+      const myRef=_db.ref("users/"+uid+"/friends/"+found.uid);
+      const theirRef=_db.ref("users/"+found.uid+"/friends/"+uid);
+      // Get my profile
+      const meSnap=await _db.ref("users/"+uid).once("value");
+      const me=meSnap.val()||{};
+      await myRef.set({uid:found.uid,name:found.displayName||found.email,email:found.email||"",addedAt:Date.now(),pKey:found.pKey||""});
+      await theirRef.set({uid:uid,name:me.displayName||me.email||"?",email:me.email||"",addedAt:Date.now(),pKey:me.pKey||""});
+      setAddOk("✅ "+( found.displayName||found.email)+" agregado como amigo");
+      setAddInput("");
+      // Refresh friends list
+      setFriends(prev=>[...prev,{uid:found.uid,name:found.displayName||found.email,email:found.email}]);
+    }catch(e){setAddErr("Error: "+e.message);}
+  }
+
+  const fmtD=ts=>new Date(ts).toLocaleDateString("es-MX",{day:"numeric",month:"short"});
+  const winRate=myStats&&myStats.games>0?Math.round((myStats.wins/myStats.games)*100):0;
+  const avgScore=myStats&&myStats.games>0?Math.round((myStats.totalScore||0)/myStats.games):0;
+
+  return(
+    <div className="wrap"><div className="page" style={{paddingTop:16}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
+          color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
+        <div style={{flex:1,textAlign:"center"}}>
+          {authUser.photoURL
+            ? <img src={authUser.photoURL} style={{width:48,height:48,borderRadius:"50%",objectFit:"cover",border:"2px solid var(--y)"}} alt=""/>
+            : <div style={{width:48,height:48,borderRadius:"50%",background:"var(--y)",
+                display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",
+                fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--dark)"}}>
+                {(authUser.displayName||authUser.email||"?")[0].toUpperCase()}
+              </div>
+          }
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:"var(--y)",
+            letterSpacing:2,marginTop:4}}>
+            {authUser.displayName||(authUser.email||"").split("@")[0]||"Jugador"}
+          </div>
+          {authUser.email&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+            color:"rgba(255,255,255,.3)",letterSpacing:1}}>{authUser.email}</div>}
+        </div>
+        <div style={{width:60}}/>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        {[["me","👤 Yo"],["friends","👥 Amigos"],["history","🎮 Historial"]].map(([id,lbl])=>(
+          <button key={id} className={"nb "+(tab===id?"on":"")}
+            onClick={()=>{snd("tap");setTab(id);}} style={{flex:1,padding:"9px 4px",fontSize:".65rem"}}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {loading&&<div style={{textAlign:"center",paddingTop:30,color:"rgba(255,255,255,.3)",
+        fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:2}}>CARGANDO...</div>}
+
+      {/* ── TAB: YO ── */}
+      {!loading&&tab==="me"&&(
+        isAnon
+        ? <div style={{textAlign:"center",padding:"30px 20px"}}>
+            <div style={{fontSize:"3rem",marginBottom:10}}>👤</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",
+              color:"rgba(255,255,255,.5)",marginBottom:6}}>Modo anónimo</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+              color:"rgba(255,255,255,.3)",lineHeight:1.6}}>
+              Crea una cuenta para guardar tus stats, ver tu historial y agregar amigos.
+            </div>
+            <button onClick={()=>signOut()} className="btn btn-y" style={{marginTop:20,maxWidth:280}}>
+              Crear cuenta / Iniciar sesión
+            </button>
+          </div>
+        : !myStats
+        ? <div style={{textAlign:"center",padding:"30px 20px"}}>
+            <div style={{fontSize:"2.5rem",marginBottom:8}}>🎴</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
+              color:"rgba(255,255,255,.4)"}}>Aún sin partidas registradas</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+              color:"rgba(255,255,255,.25)",marginTop:6}}>Juega tu primera partida para ver tus stats</div>
+          </div>
+        : <>
+          {/* Stats grid */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            {[
+              ["🏆","Victorias",myStats.wins||0,"var(--y)"],
+              ["🎮","Partidas",myStats.games||0,"var(--t)"],
+              ["⭐","Mejor score",myStats.bestScore||0,"var(--y)"],
+              ["📊","Prom. partida",avgScore,"rgba(255,255,255,.6)"],
+              ["🃏","Flip 7s",myStats.flip7Count||0,"var(--y)"],
+              ["💀","Busts",myStats.bustCount||0,"var(--r)"],
+            ].map(([ico,lbl,val,clr])=>(
+              <div key={lbl} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",
+                borderRadius:13,padding:"12px 14px",textAlign:"center"}}>
+                <div style={{fontSize:"1.3rem",marginBottom:3}}>{ico}</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:clr,lineHeight:1}}>{val}</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                  color:"rgba(255,255,255,.3)",letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>{lbl}</div>
+              </div>
+            ))}
+          </div>
+          {/* Win rate bar */}
+          <div style={{background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",
+            borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+                color:"rgba(255,255,255,.5)",letterSpacing:2}}>WIN RATE</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:"var(--y)"}}>{winRate}%</div>
+            </div>
+            <div style={{height:6,background:"rgba(255,255,255,.08)",borderRadius:3,overflow:"hidden"}}>
+              <div style={{height:"100%",width:winRate+"%",background:"linear-gradient(90deg,var(--y),var(--or))",
+                borderRadius:3,transition:"width 1s"}}/>
+            </div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+              color:"rgba(255,255,255,.3)",marginTop:6,letterSpacing:1}}>
+              {myStats.wins||0} victorias · {(myStats.games||0)-(myStats.wins||0)} derrotas
+            </div>
+          </div>
+          {/* Flip 7 vs Bust ratio */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            <div style={{background:"rgba(245,200,0,.06)",border:"1px solid rgba(245,200,0,.15)",
+              borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:4}}>FLIP 7 POR PARTIDA</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:"var(--y)"}}>
+                {myStats.games>0?((myStats.flip7Count||0)/myStats.games).toFixed(1):0}
+              </div>
+            </div>
+            <div style={{background:"rgba(230,57,70,.06)",border:"1px solid rgba(230,57,70,.15)",
+              borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:4}}>BUST POR PARTIDA</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:"var(--r)"}}>
+                {myStats.games>0?((myStats.bustCount||0)/myStats.games).toFixed(1):0}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── TAB: AMIGOS ── */}
+      {!loading&&tab==="friends"&&(
+        isAnon
+        ? <div style={{textAlign:"center",padding:"30px 20px"}}>
+            <div style={{fontSize:"2.5rem",marginBottom:8}}>👥</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".75rem",color:"rgba(255,255,255,.4)"}}>
+              Necesitas cuenta para agregar amigos
+            </div>
+            <button onClick={()=>signOut()} className="btn btn-y" style={{marginTop:16,maxWidth:280}}>
+              Crear cuenta
+            </button>
+          </div>
+        : <>
+          {/* Add friend */}
+          <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",
+            borderRadius:12,padding:"12px 13px",marginBottom:14}}>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+              color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8}}>AGREGAR AMIGO</div>
+            <div style={{display:"flex",gap:8}}>
+              <input className="inp" style={{margin:0,flex:1,padding:"7px 10px",fontSize:".86rem"}}
+                placeholder="Nombre o email del amigo"
+                value={addInput} onChange={e=>setAddInput(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&addFriend()}/>
+              <button onClick={addFriend} style={{background:"var(--y)",border:"none",
+                borderRadius:10,padding:"0 14px",cursor:"pointer",
+                fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+                color:"var(--dark)",fontWeight:900,flexShrink:0}}>+ Agregar</button>
+            </div>
+            {addErr&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+              color:"var(--r)",marginTop:6}}>{addErr}</div>}
+            {addOk&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+              color:"var(--gr)",marginTop:6}}>{addOk}</div>}
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+              color:"rgba(255,255,255,.2)",marginTop:6,letterSpacing:.5}}>
+              El amigo debe tener cuenta y haber jugado al menos una partida
+            </div>
+          </div>
+
+          {/* Friends list */}
+          {friends.length===0
+            ? <div style={{textAlign:"center",padding:"20px",color:"rgba(255,255,255,.3)",
+                fontFamily:"'Righteous',sans-serif",fontSize:".75rem"}}>
+                Sin amigos aún — agrega a tus compañeros de juego
+              </div>
+            : friends.map(f=>{
+                const fs=friendsStats[f.uid];
+                const fWinRate=fs&&fs.games>0?Math.round((fs.wins/fs.games)*100):0;
+                return(
+                  <div key={f.uid} style={{background:"rgba(255,255,255,.04)",
+                    border:"1px solid rgba(255,255,255,.07)",borderRadius:13,
+                    padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(245,200,0,.15)",
+                      border:"2px solid rgba(245,200,0,.3)",display:"flex",alignItems:"center",
+                      justifyContent:"center",fontFamily:"'Anton',sans-serif",
+                      fontSize:"1.1rem",color:"var(--y)",flexShrink:0}}>
+                      {(f.name||"?")[0].toUpperCase()}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:900,fontSize:".9rem",color:"rgba(255,255,255,.85)"}}>{f.name}</div>
+                      {fs
+                        ? <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                            color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
+                            {fs.games||0} partidas · {fWinRate}% wins · mejor: {fs.bestScore||0}pts · 🃏{fs.flip7Count||0}
+                          </div>
+                        : <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                            color:"rgba(255,255,255,.25)",letterSpacing:1}}>Sin partidas aún</div>
+                      }
+                    </div>
+                    {fs&&<div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",
+                      color:"rgba(255,255,255,.4)"}}>{fs.wins||0}<div style={{fontFamily:"'Righteous',sans-serif",
+                        fontSize:".52rem",color:"rgba(255,255,255,.25)",letterSpacing:1}}>WINS</div></div>}
+                  </div>
+                );
+              })
+          }
+        </>
+      )}
+
+      {/* ── TAB: HISTORIAL ── */}
+      {!loading&&tab==="history"&&(
+        myGames.length===0
+        ? <div style={{textAlign:"center",padding:"30px",color:"rgba(255,255,255,.3)",
+            fontFamily:"'Righteous',sans-serif",fontSize:".75rem"}}>
+            Sin partidas registradas aún
+          </div>
+        : myGames.map((g,i)=>(
+            <div key={g.gameId||i} style={{background:g.won?"rgba(59,178,115,.08)":"rgba(255,255,255,.03)",
+              border:"2px solid "+(g.won?"rgba(59,178,115,.35)":"rgba(255,255,255,.07)"),
+              borderRadius:13,padding:"11px 13px",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                <div style={{fontSize:"1.5rem"}}>{g.won?"🏆":g.position===2?"🥈":g.position===3?"🥉":"💀"}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:900,fontSize:".88rem",
+                    color:g.won?"var(--gr)":"rgba(255,255,255,.8)"}}>{g.title||"Partida"}</div>
+                  <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                    color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
+                    {fmtD(g.date)} · {g.playerCount} jugadores · pos #{g.position}
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",
+                    color:g.won?"var(--y)":"rgba(255,255,255,.5)"}}>{g.total}</div>
+                  <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                    color:"rgba(255,255,255,.3)",letterSpacing:1}}>pts totales</div>
+                </div>
+              </div>
+              {/* Round chips */}
+              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                {(g.rounds||[]).map((r,ri)=>(
+                  <span key={ri} style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                    padding:"2px 6px",borderRadius:8,
+                    background:r.score===0?"rgba(230,57,70,.15)":(r.breakdown&&r.breakdown.flip7)?"rgba(245,200,0,.2)":"rgba(255,255,255,.07)",
+                    color:r.score===0?"var(--r)":(r.breakdown&&r.breakdown.flip7)?"var(--y)":"rgba(255,255,255,.5)"}}>
+                    R{ri+1}: {r.score===0?"💀":(r.score>0?"+":"")+r.score}{r.breakdown&&r.breakdown.flip7?"🃏":""}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))
+      )}
+
+      <div style={{height:8}}/>
+      <button className="btn btn-g" onClick={onBack}>← Volver al menú</button>
+    </div></div>
   );
 }
 
