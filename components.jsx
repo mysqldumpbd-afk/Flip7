@@ -619,7 +619,8 @@ function App(){
     snd('round');
     const newPlayers=room.players.map(p=>{
       const e=room.roundScores?.[p.id];const pts=e?e.score:0;
-      return{...p,total:p.total+pts,rounds:[...(p.rounds||[]),{score:pts,method:e?.method||"zero"}]};
+      var roundEntry={score:pts,method:e?.method||"zero"};if(e&&e.breakdown)roundEntry.breakdown=e.breakdown;
+      return{...p,total:p.total+pts,rounds:[...(p.rounds||[]),roundEntry]};
     });
     const maxScore=Math.max(...newPlayers.map(p=>p.total));
     const champs=newPlayers.filter(p=>p.total>=WIN&&p.total===maxScore);
@@ -1277,7 +1278,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
 
 // ── SCORETAB — nombre con color del jugador ───────────────────
 function ScoreTab({sorted,room,T}){
-  const mr=room.round-1;
+  const mr=room.finished?room.round:room.round-1; // finished=last round shown
   return(<>
     <p className="sec">CLASIFICACIÓN</p>
     <div className="sg">
