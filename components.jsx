@@ -2185,7 +2185,6 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
   var lucky13=lk13State[0],setLucky13=lk13State[1]; // permite 2x el 13
   var ul7State=useState(false);
   var unlucky7=ul7State[0],setUnlucky7=ul7State[1]; // borra cartas, deja solo el 7
-  var prevSelState=React.useRef([]); // guarda selección antes de activar unlucky7
 
   var NUMS=[1,2,3,4,5,6,7,8,9,10,11,12,13];
   var NEG_MODS=[-2,-4,-6,-8,-10];
@@ -2240,9 +2239,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
 
   function activateUnlucky7(){
     snd("del");
-    // Guardar selección actual antes de activar
-    prevSelState.current=selected.slice();
-    // Unlucky 7: mantiene solo el 7, descarta todo lo demás
+    // Unlucky 7: pierdes TODAS tus cartas, solo queda el 7. Sin recuperacion.
     setSelected([7]);
     setHasDivTwo(false);
     setNegMods([]);
@@ -2251,10 +2248,10 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
     setLucky13(false);
   }
   function deactivateUnlucky7(){
+    // Solo para desmarcar si el usuario lo activo por error
+    // No restaura nada — las cartas ya se perdieron
     snd("tap");
-    // Restaurar selección previa (sin el 7 que queda del unlucky)
-    // El usuario decide si quiere el 7 o no — lo quitamos para que solo queden sus cartas originales
-    setSelected(prevSelState.current.filter(function(x){return x!==7;}));
+    setSelected([]);
     setUnlucky7(false);
   }
 
@@ -2454,17 +2451,18 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
             fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
             color:"rgba(255,255,255,.3)",marginTop:2,lineHeight:1.4
           }},unlucky7
-            ?"Activo — solo queda el 7 en tu linea"
-            :"Descarta tus cartas, mantiene solo el 7")
+            ?"Activo — solo tienes el 7. Agrega las cartas nuevas que te lleguen."
+            :"Te cayo Unlucky 7 — pierdes TODAS tus cartas. Solo te quedas con el 7. Puedes seguir acumulando cartas nuevas.")
         ),
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,
-          color:unlucky7?"var(--r)":"rgba(255,255,255,.2)"
+          color:unlucky7?"var(--r)":"rgba(255,255,255,.2)",textAlign:"right",lineHeight:1.6
         }},unlucky7
-          ? React.createElement("span",{style:{
-              background:"rgba(230,57,70,.3)",padding:"2px 8px",
-              borderRadius:20,color:"var(--r)",fontSize:".62rem"
-            }},"ACTIVO")
+          ? React.createElement(React.Fragment,null,
+              React.createElement("div",{style:{background:"rgba(230,57,70,.35)",padding:"2px 8px",
+                borderRadius:20,color:"var(--r)",fontSize:".62rem",marginBottom:3}},"ACTIVO"),
+              React.createElement("div",{style:{fontSize:".55rem",color:"rgba(255,255,255,.3)"}},"tap solo si lo activaste por error")
+            )
           : "OFF")
       ),
       // ── FLIP 7 BONUS ─────────────────────────────────────────────
@@ -2566,30 +2564,30 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
           color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:7,textAlign:"center"
         }},"CARTAS DE ACCION (registrar si las usaste)"),
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center"}},
-          ACTION_CARDS.map(function(a){
+          ACTION_CARDS.map(function(a,ai){
             var active=actionCards.includes(a);
-            return React.createElement("div",{key:a,style:{position:"relative"}},
-              React.createElement("button",{
-                onClick:function(){toggleAction(a);},
-                style:{
-                  background:active?"linear-gradient(135deg,#7B2D8B,#5A1F70)":"rgba(255,255,255,.05)",
-                  border:"2px solid "+(active?"rgba(200,100,255,.8)":"rgba(255,255,255,.15)"),
-                  borderRadius:20,padding:"8px 14px",cursor:"pointer",
-                  fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
-                  color:active?"#fff":"rgba(255,255,255,.5)",
-                  letterSpacing:.5,transition:"background .2s, border .2s, color .2s",
-                  boxShadow:active?"0 0 16px rgba(123,45,139,.6),inset 0 1px 0 rgba(255,255,255,.15)":"none",
-                  display:"flex",alignItems:"center",gap:5
-                }
-              },
-                active&&React.createElement("span",{style:{
-                  width:14,height:14,borderRadius:"50%",
-                  background:"rgba(255,255,255,.9)",
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  fontSize:"9px",color:"#5A1F70",fontWeight:900,flexShrink:0
-                }},"✓"),
-                a
-              )
+            return React.createElement("button",{
+              key:a,
+              onClick:function(e){e.stopPropagation();toggleAction(a);},
+              style:{
+                background:active?"linear-gradient(135deg,#7B2D8B,#5A1F70)":"rgba(255,255,255,.05)",
+                border:"2px solid "+(active?"rgba(200,100,255,.8)":"rgba(255,255,255,.15)"),
+                borderRadius:20,padding:"8px 14px",cursor:"pointer",
+                fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+                color:active?"#fff":"rgba(255,255,255,.5)",
+                letterSpacing:.5,
+                boxShadow:active?"0 0 16px rgba(123,45,139,.6)":"none",
+                display:"inline-flex",alignItems:"center",gap:5,
+                userSelect:"none"
+              }
+            },
+              active&&React.createElement("span",{style:{
+                width:14,height:14,borderRadius:"50%",
+                background:"rgba(255,255,255,.9)",
+                display:"inline-flex",alignItems:"center",justifyContent:"center",
+                fontSize:"9px",color:"#5A1F70",fontWeight:900,flexShrink:0
+              }},"✓"),
+              a
             );
           })
         )
