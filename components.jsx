@@ -481,12 +481,35 @@ function App(){
 
   // ── LISTEN TO AUTH STATE ────────────────────────────────────
   React.useEffect(()=>{
-    const unsub=_auth.onAuthStateChanged(user=>{
+    const unsub=_auth.onAuthStateChanged(async user=>{
       setAuthUser(user||null);
       setAuthChecked(true);
       if(user&&!user.isAnonymous){
-        // Actualizar lastLogin silenciosamente
-        saveUserProfile(user).catch(()=>{});
+        await saveUserProfile(user).catch(()=>{});
+        // ── Handle invite link ─────────────────────────────────
+        const params=new URLSearchParams(window.location.search);
+        const inviterUid=params.get("invite");
+        if(inviterUid&&inviterUid!==user.uid){
+          try{
+            const inviterSnap=await _db.ref("users/"+inviterUid).once("value");
+            const inviter=inviterSnap.val();
+            if(inviter&&inviter.uid){
+              const myKey=_db.ref("users/"+user.uid+"/friends/"+inviterUid);
+              const theirKey=_db.ref("users/"+inviterUid+"/friends/"+user.uid);
+              const meSnap=await _db.ref("users/"+user.uid).once("value");
+              const me=meSnap.val()||{};
+              const alreadyFriend=(await myKey.once("value")).val();
+              if(!alreadyFriend){
+                await myKey.set({uid:inviterUid,name:inviter.displayName||inviter.email||"?",
+                  email:inviter.email||"",addedAt:Date.now(),pKey:inviter.pKey||""});
+                await theirKey.set({uid:user.uid,name:me.displayName||me.email||"?",
+                  email:me.email||"",addedAt:Date.now(),pKey:me.pKey||""});
+              }
+            }
+          }catch(e){console.log("Invite error:",e);}
+          // Clean URL without reload
+          window.history.replaceState({},"",window.location.pathname);
+        }
       }
     });
     return()=>unsub();
@@ -960,7 +983,10 @@ function AuthScreen({onAuth}){
 function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUser,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
   const[view,setView]=useState("main");
   const[gameMode,setGameMode]=useState("classic");
-  const[names,setNames]=useState(["","",""]);
+  // Pre-fill player 1 with logged user's name
+  const myDisplayName=authUser&&!authUser.isAnonymous
+    ?(authUser.displayName||(authUser.email||"").split("@")[0]||""):"";
+  const[names,setNames]=useState([myDisplayName,"",""]);
   const[playerEmojis,setPlayerEmojis]=useState(EMOJIS.slice(0,3));
   const[playerColors,setPlayerColors]=useState(COLORS.slice(0,3));
   const[jcode,setJcode]=useState("");
@@ -3247,29 +3273,46 @@ function PersonalDashboard({authUser, onBack, T}){
             </button>
           </div>
         : <>
-          {/* Add friend */}
+          {/* Invite link */}
           <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",
             borderRadius:12,padding:"12px 13px",marginBottom:14}}>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-              color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8}}>AGREGAR AMIGO</div>
+              color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8}}>INVITAR AMIGO</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+              color:"rgba(255,255,255,.6)",marginBottom:10,lineHeight:1.5}}>
+              Comparte tu link — cuando tu amigo lo abra quedará conectado contigo automáticamente.
+            </div>
+            <button onClick={()=>{
+              const link="https://mysqldumpbd-afk.github.io/Flip7/?invite="+uid;
+              if(navigator.share){
+                navigator.share({title:"¡Únete a Flip 7!",text:"Agrégate como mi amigo en Flip 7 🃏",url:link});
+              } else {
+                navigator.clipboard.writeText(link).then(()=>setAddOk("✅ Link copiado — pégalo en WhatsApp"));
+              }
+              snd("tap");
+            }} style={{width:"100%",padding:"11px",background:"linear-gradient(135deg,var(--t),#1A9A94)",
+              border:"none",borderRadius:11,cursor:"pointer",
+              fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".9rem",color:"#fff",
+              display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              🔗 Compartir link de invitación
+            </button>
+            {addOk&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+              color:"var(--gr)",marginTop:8,textAlign:"center"}}>{addOk}</div>}
+            <div style={{height:12}}/>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+              color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>O BUSCAR POR NOMBRE / EMAIL</div>
             <div style={{display:"flex",gap:8}}>
               <input className="inp" style={{margin:0,flex:1,padding:"7px 10px",fontSize:".86rem"}}
-                placeholder="Nombre o email del amigo"
+                placeholder="Nombre o email exacto"
                 value={addInput} onChange={e=>setAddInput(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&addFriend()}/>
-              <button onClick={addFriend} style={{background:"var(--y)",border:"none",
+              <button onClick={addFriend} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",
                 borderRadius:10,padding:"0 14px",cursor:"pointer",
                 fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
-                color:"var(--dark)",fontWeight:900,flexShrink:0}}>+ Agregar</button>
+                color:"rgba(255,255,255,.7)",fontWeight:900,flexShrink:0,whiteSpace:"nowrap"}}>Buscar</button>
             </div>
             {addErr&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
               color:"var(--r)",marginTop:6}}>{addErr}</div>}
-            {addOk&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
-              color:"var(--gr)",marginTop:6}}>{addOk}</div>}
-            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-              color:"rgba(255,255,255,.2)",marginTop:6,letterSpacing:.5}}>
-              El amigo debe tener cuenta y haber jugado al menos una partida
-            </div>
           </div>
 
           {/* Friends list */}
