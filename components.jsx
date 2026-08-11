@@ -138,6 +138,7 @@ async function saveGameStats(session, roomData){
   });
 
   // Guardar por jugador
+  const callerUid = currentUser()&&!currentUser().isAnonymous ? currentUser().uid : null;
   for(const p of roomData.players){
     const pKey = p.name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_").slice(0,30);
     const position = sorted.findIndex(s=>s.id===p.id)+1;
@@ -162,6 +163,7 @@ async function saveGameStats(session, roomData){
     const partBestRound = pRounds.reduce((mx,r)=>Math.max(mx,r.score||0),0);
     await summaryRef.set({
       name: p.name, emoji: p.emoji, color: p.color, pKey,
+      uid: callerUid||prev.uid||null,
       games: (prev.games||0)+1,
       wins: (prev.wins||0)+(won?1:0),
       totalScore: (prev.totalScore||0)+p.total,
@@ -442,8 +444,10 @@ function App(){
   const[winner,setWinner]=useState(null);
   const[aiConfig,setAiConfig]=useState({provider:"gemini",key:"",claudeKey:""});
   const[aiLoaded,setAiLoaded]=useState(false);
-  // Revancha en camino para no-host
   const[rematchPending,setRematchPending]=useState(false);
+  // ── AUTH STATE ──────────────────────────────────────────────
+  const[authUser,setAuthUser]=useState(undefined); // undefined=loading, null=not authed, obj=authed
+  const[authChecked,setAuthChecked]=useState(false);
   // Reconexión automática: guardar último código activo en localStorage
   const[lastKnownCode,setLastKnownCode]=useState(()=>localStorage.getItem("f7lastCode")||"");
   const[reconnectReady,setReconnectReady]=useState(false);
@@ -473,6 +477,19 @@ function App(){
       setAiLoaded(true);
     }
     loadAiConfig();
+  },[]);
+
+  // ── LISTEN TO AUTH STATE ────────────────────────────────────
+  React.useEffect(()=>{
+    const unsub=_auth.onAuthStateChanged(user=>{
+      setAuthUser(user||null);
+      setAuthChecked(true);
+      if(user&&!user.isAnonymous){
+        // Actualizar lastLogin silenciosamente
+        saveUserProfile(user).catch(()=>{});
+      }
+    });
+    return()=>unsub();
   },[]);
 
   // ── Reconexión automática: si hay código guardado, chequear sala ──
@@ -672,6 +689,18 @@ function App(){
   const isHost=!myPlayerId&&!isSpectator;
 
   if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>;
+  // ── AUTH GATE ──────────────────────────────────────────────
+  if(!authChecked)return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",
+      height:"100dvh",background:"var(--dark)"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:"3rem",marginBottom:12,animation:"fl 1.5s infinite"}}>🎴</div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".75rem",
+          color:"rgba(255,255,255,.3)",letterSpacing:3}}>CARGANDO...</div>
+      </div>
+    </div>
+  );
+  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);}}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
 
   // Animación revancha para TODOS (host la ve también para sincronía visual)
@@ -696,6 +725,27 @@ function App(){
               color:GAME_MODES[room.gameMode].color,
               padding:"3px 8px",borderRadius:20,display:"flex",alignItems:"center",gap:4}}>
               {GAME_MODES[room.gameMode].emoji} {room.gameMode.toUpperCase()}
+            </div>
+          )}
+          {/* User account pill */}
+          {authUser&&!authUser.isAnonymous&&(
+            <div style={{display:"flex",alignItems:"center",gap:6,
+              background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",
+              borderRadius:20,padding:"4px 10px 4px 6px",cursor:"pointer"}}
+              onClick={()=>{if(confirm("¿Cerrar sesión?"))signOut();}}>
+              {authUser.photoURL
+                ? <img src={authUser.photoURL} style={{width:20,height:20,borderRadius:"50%",objectFit:"cover"}} alt=""/>
+                : <div style={{width:20,height:20,borderRadius:"50%",background:"var(--y)",
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    fontFamily:"'Anton',sans-serif",fontSize:".65rem",color:"var(--dark)"}}>
+                    {(authUser.displayName||authUser.email||"?")[0].toUpperCase()}
+                  </div>
+              }
+              <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                color:"rgba(255,255,255,.6)",letterSpacing:1,maxWidth:60,
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {(authUser.displayName||authUser.email||"").split(" ")[0]}
+              </span>
             </div>
           )}
           <div className={"badge "+(demoMode?"demo":"")}>
@@ -725,6 +775,178 @@ function App(){
       </div>
       {winner&&<WinnerScreen winner={winner} onClose={()=>{setWinner(null);setTab("scores");}} onRematch={()=>{if(room&&room.players)startRematch(room.players);}} isHost={isHost} T={T}/>}
     </div>
+  );
+}
+
+
+// ── AUTHSCREEN — Google / Email / Anónimo ──────────────────────
+function AuthScreen({onAuth}){
+  const[mode,setMode]=React.useState("main"); // main | email-login | email-signup
+  const[email,setEmail]=React.useState("");
+  const[password,setPassword]=React.useState("");
+  const[name,setName]=React.useState("");
+  const[busy,setBusy]=React.useState(false);
+  const[err,setErr]=React.useState("");
+
+  async function handleGoogle(){
+    setBusy(true);setErr("");
+    try{
+      const r=await signInGoogle();
+      await saveUserProfile(r.user);
+      onAuth(r.user);
+    }catch(e){setErr(e.message||"Error con Google");}
+    setBusy(false);
+  }
+
+  async function handleEmailLogin(){
+    if(!email||!password){setErr("Ingresa email y contraseña");return;}
+    setBusy(true);setErr("");
+    try{
+      const r=await signInEmail(email,password);
+      await saveUserProfile(r.user);
+      onAuth(r.user);
+    }catch(e){
+      if(e.code==="auth/user-not-found"||e.code==="auth/wrong-password")
+        setErr("Email o contraseña incorrectos");
+      else setErr(e.message||"Error al iniciar sesión");
+    }
+    setBusy(false);
+  }
+
+  async function handleEmailSignup(){
+    if(!name.trim()){setErr("Ingresa tu nombre");return;}
+    if(!email||!password){setErr("Ingresa email y contraseña");return;}
+    if(password.length<6){setErr("Mínimo 6 caracteres");return;}
+    setBusy(true);setErr("");
+    try{
+      const r=await signUpEmail(email,password,name.trim());
+      await saveUserProfile(r.user);
+      onAuth(r.user);
+    }catch(e){
+      if(e.code==="auth/email-already-in-use")
+        setErr("Este email ya tiene cuenta — inicia sesión");
+      else setErr(e.message||"Error al crear cuenta");
+    }
+    setBusy(false);
+  }
+
+  async function handleAnon(){
+    setBusy(true);setErr("");
+    try{
+      const r=await signInAnon();
+      onAuth(r.user);
+    }catch(e){setErr(e.message||"Error");}
+    setBusy(false);
+  }
+
+  return(
+    <div className="wrap"><div className="page" style={{paddingTop:32,paddingBottom:40}}>
+      {/* Logo */}
+      <div style={{textAlign:"center",marginBottom:32}}>
+        <div style={{fontSize:"3.5rem",marginBottom:8}}>🎴</div>
+        <div className="hero-logo">FLIP 7</div>
+        <div className="hero-tag">Race to 200!</div>
+      </div>
+
+      {mode==="main"&&(<>
+        {/* Google */}
+        <button onClick={handleGoogle} disabled={busy} style={{
+          width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:12,
+          padding:"14px",marginBottom:10,
+          background:"#fff",border:"none",borderRadius:14,cursor:"pointer",
+          fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:"1rem",color:"#222",
+          boxShadow:"0 4px 20px rgba(0,0,0,.3)",transition:"all .15s",
+          opacity:busy?.6:1
+        }}>
+          {/* Google icon */}
+          <svg width="20" height="20" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          Continuar con Google
+        </button>
+
+        {/* Email */}
+        <button onClick={()=>setMode("email-login")} disabled={busy} style={{
+          width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+          padding:"14px",marginBottom:10,
+          background:"rgba(255,255,255,.07)",border:"2px solid rgba(255,255,255,.15)",
+          borderRadius:14,cursor:"pointer",
+          fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:"1rem",color:"rgba(255,255,255,.85)",
+          transition:"all .15s"
+        }}>
+          ✉️ Continuar con Email
+        </button>
+
+        {/* Divider */}
+        <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0"}}>
+          <div style={{flex:1,height:1,background:"rgba(255,255,255,.1)"}}/>
+          <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+            color:"rgba(255,255,255,.3)",letterSpacing:2}}>O SIN CUENTA</span>
+          <div style={{flex:1,height:1,background:"rgba(255,255,255,.1)"}}/>
+        </div>
+
+        {/* Anónimo */}
+        <button onClick={handleAnon} disabled={busy} style={{
+          width:"100%",padding:"12px",
+          background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",
+          borderRadius:14,cursor:"pointer",
+          fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".9rem",
+          color:"rgba(255,255,255,.45)",transition:"all .15s"
+        }}>
+          👤 Jugar sin cuenta
+        </button>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+          color:"rgba(255,255,255,.2)",textAlign:"center",marginTop:8,letterSpacing:1}}>
+          Sin cuenta no se guarda tu historial entre dispositivos
+        </div>
+
+        {err&&<div style={{marginTop:14,padding:"10px 13px",background:"rgba(230,57,70,.15)",
+          border:"1px solid rgba(230,57,70,.4)",borderRadius:10,
+          fontFamily:"'Righteous',sans-serif",fontSize:".75rem",color:"var(--r)"}}>{err}</div>}
+      </>)}
+
+      {(mode==="email-login"||mode==="email-signup")&&(<>
+        <button onClick={()=>{setMode("main");setErr("");}} style={{
+          background:"none",border:"none",color:"rgba(255,255,255,.4)",
+          fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:1,
+          cursor:"pointer",marginBottom:20,display:"flex",alignItems:"center",gap:5
+        }}>← Volver</button>
+
+        {/* Tabs login / signup */}
+        <div style={{display:"flex",gap:6,marginBottom:20}}>
+          {[["email-login","Iniciar sesión"],["email-signup","Crear cuenta"]].map(([m,lbl])=>(
+            <button key={m} onClick={()=>{setMode(m);setErr("");}} style={{
+              flex:1,padding:"10px",borderRadius:11,cursor:"pointer",
+              fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:1,
+              background:mode===m?"rgba(245,200,0,.15)":"rgba(255,255,255,.04)",
+              border:"2px solid "+(mode===m?"rgba(245,200,0,.5)":"rgba(255,255,255,.1)"),
+              color:mode===m?"var(--y)":"rgba(255,255,255,.4)"
+            }}>{lbl}</button>
+          ))}
+        </div>
+
+        {mode==="email-signup"&&(
+          <input className="inp" placeholder="Tu nombre" value={name}
+            onChange={e=>setName(e.target.value)} style={{marginBottom:8}}/>
+        )}
+        <input className="inp" placeholder="Email" type="email" value={email}
+          onChange={e=>setEmail(e.target.value)} style={{marginBottom:8}}/>
+        <input className="inp" placeholder="Contraseña (mín. 6 caracteres)" type="password"
+          value={password} onChange={e=>setPassword(e.target.value)} style={{marginBottom:16}}/>
+
+        {err&&<div style={{marginBottom:12,padding:"10px 13px",background:"rgba(230,57,70,.15)",
+          border:"1px solid rgba(230,57,70,.4)",borderRadius:10,
+          fontFamily:"'Righteous',sans-serif",fontSize:".75rem",color:"var(--r)"}}>{err}</div>}
+
+        <button className="btn btn-y" disabled={busy}
+          onClick={mode==="email-login"?handleEmailLogin:handleEmailSignup}>
+          {busy?"⏳ ...":(mode==="email-login"?"🎮 Iniciar sesión":"🚀 Crear cuenta")}
+        </button>
+      </>)}
+    </div></div>
   );
 }
 
@@ -1057,7 +1279,34 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,reconn
         <div style={{fontSize:"3.5rem",marginBottom:8}}>🎴</div>
         <div className="hero-logo">FLIP 7</div>
         <div className="hero-tag">Race to 200!</div>
-        <p style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".8rem",maxWidth:240,margin:"0 auto"}}>{T.appTag}</p>
+        {/* User greeting */}
+        {authUser&&!authUser.isAnonymous?(
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,
+            background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",
+            borderRadius:20,padding:"5px 12px 5px 8px",marginTop:6}}>
+            {authUser.photoURL
+              ? <img src={authUser.photoURL} style={{width:22,height:22,borderRadius:"50%",objectFit:"cover"}} alt=""/>
+              : <div style={{width:22,height:22,borderRadius:"50%",background:"var(--y)",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontFamily:"'Anton',sans-serif",fontSize:".7rem",color:"var(--dark)"}}>
+                  {(authUser.displayName||authUser.email||"?")[0].toUpperCase()}
+                </div>
+            }
+            <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
+              color:"rgba(255,255,255,.7)",letterSpacing:1}}>
+              {authUser.displayName||(authUser.email||"").split("@")[0]}
+            </span>
+            <span onClick={()=>{if(confirm("¿Cerrar sesión?"))signOut();}}
+              style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                color:"rgba(255,255,255,.25)",letterSpacing:1,cursor:"pointer",
+                borderLeft:"1px solid rgba(255,255,255,.1)",paddingLeft:8}}>
+              salir
+            </span>
+          </div>
+        ):(
+          <p style={{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".8rem",
+            maxWidth:240,margin:"6px auto 0"}}>{T.appTag}</p>
+        )}
       </div>
       <button className="btn btn-y" onClick={()=>go("create")}>{T.createGame}</button>
       <button className="btn btn-t" onClick={()=>go("join")}>🎮 {T.joinGame}</button>

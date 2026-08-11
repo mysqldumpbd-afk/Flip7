@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-// app.js — FLIP 7: Race to 200
-// Contenido: Firebase init, Demo store, Sounds, Utilities
-// NO contiene React. Se carga antes de components.jsx
+// app.js — FLIP 7: Race to 200  v4.0
+// Firebase init + Auth (Google / Email / Anónimo) + Demo + Sounds
 // ═══════════════════════════════════════════════════════════════
 
 firebase.initializeApp({
@@ -13,7 +12,56 @@ firebase.initializeApp({
   messagingSenderId:"505574308605",
   appId:"1:505574308605:web:51c63edb57b32a289f1c94"
 });
-const _db=firebase.database();
+const _db   = firebase.database();
+const _auth = firebase.auth();
+
+// ── AUTH HELPERS ────────────────────────────────────────────────
+// Google Sign-In
+async function signInGoogle(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  return _auth.signInWithPopup(provider);
+}
+// Email / Password
+async function signInEmail(email, password){
+  return _auth.signInWithEmailAndPassword(email, password);
+}
+async function signUpEmail(email, password, displayName){
+  const cred = await _auth.createUserWithEmailAndPassword(email, password);
+  await cred.user.updateProfile({displayName});
+  return cred;
+}
+// Anónimo (como antes — sin cuenta)
+async function signInAnon(){
+  return _auth.signInAnonymously();
+}
+// Cerrar sesión
+async function signOut(){
+  return _auth.signOut();
+}
+// Estado actual
+function currentUser(){ return _auth.currentUser; }
+
+// ── USUARIO PROFILE en Firebase ─────────────────────────────────
+// Guarda/actualiza perfil del usuario autenticado en /users/{uid}
+async function saveUserProfile(user, extraData={}){
+  if(!user) return;
+  const ref = _db.ref('users/'+user.uid);
+  const snap = await ref.once('value');
+  const prev = snap.val()||{};
+  await ref.update({
+    uid: user.uid,
+    email: user.email||'',
+    displayName: user.displayName||prev.displayName||'',
+    photoURL: user.photoURL||prev.photoURL||'',
+    provider: user.providerData&&user.providerData[0]
+      ? user.providerData[0].providerId : 'anonymous',
+    isAnon: user.isAnonymous||false,
+    lastLogin: Date.now(),
+    createdAt: prev.createdAt||Date.now(),
+    ...extraData
+  });
+}
 
 // ── DEMO STORE (modo offline sin Firebase) ──────────────────────
 const _DS={},_DL={};
@@ -41,19 +89,13 @@ function snd(t){
     const notes=[523,659,784,1047,784,1047,1175,1047];
     const durs=[.12,.12,.12,.25,.1,.12,.12,.35];
     let t2=0;
-    notes.forEach((f,i)=>{
-      setTimeout(()=>beep(f,durs[i],'sine',.4),t2*1000);
-      t2+=durs[i]+.04;
-    });
+    notes.forEach((f,i)=>{setTimeout(()=>beep(f,durs[i],'sine',.4),t2*1000);t2+=durs[i]+.04;});
   }
   else if(t==='victory'){
     const melody=[523,523,523,392,523,659,392,330,440,494,466,440,392,523,659,784];
     const dur=[.15,.15,.15,.2,.3,.5,.3,.2,.15,.15,.15,.15,.2,.2,.2,.5];
     let t2=0;
-    melody.forEach((f,i)=>{
-      setTimeout(()=>beep(f,dur[i],'sine',.35),t2*1000);
-      t2+=dur[i]+.05;
-    });
+    melody.forEach((f,i)=>{setTimeout(()=>beep(f,dur[i],'sine',.35),t2*1000);t2+=dur[i]+.05;});
   }
   else if(t==='spec_join'){
     [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.15,'sine',.3),i*180));
@@ -65,7 +107,6 @@ function safeEval(expr){
   try{
     const clean=expr.replace(/[^0-9+\-*/().]/g,'');
     if(!clean)return 0;
-    // eslint-disable-next-line no-new-func
     const r=Function('"use strict";return ('+clean+')')();
     return isFinite(r)?Math.round(r*100)/100:null;
   }catch{return null;}
