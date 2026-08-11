@@ -717,9 +717,9 @@ function App(){
     if(groupId&&!demo&&!code){
       try{
         await _db.ref("groups/"+groupId+"/currentRoom").set(roomCode2);
-        const uid2=currentUser()&&currentUser().uid;
-        if(uid2)await _db.ref("presence/"+groupId+"/"+uid2+"/status").set("in-lobby");
-      }catch(e){}
+        const u2=_auth&&_auth.currentUser;
+        if(u2&&u2.uid)await _db.ref("presence/"+groupId+"/"+u2.uid+"/status").set("in-lobby");
+      }catch(e){console.log("Group presence error:",e);}
     }
     setDemoMode(demo);setRoomCode(roomCode2);setIsSpectator(spectator||false);
     setMyPlayerId(playerId||null);
@@ -3277,8 +3277,12 @@ function GroupsScreen({authUser, onBack, onJoinRoom, T}){
     setErr("");
     try{
       const code=Math.random().toString(36).slice(2,6).toUpperCase();
-      const meSnap=await _db.ref("users/"+uid).once("value");
-      const me=meSnap.val()||{};
+      // Use authUser directly instead of reading /users/{uid} (avoids permission issues)
+      const me={
+        displayName:authUser.displayName||"",
+        email:authUser.email||"",
+        photoURL:authUser.photoURL||""
+      };
       const newGroup={
         name:newGroupName.trim(),
         code,
@@ -3315,8 +3319,11 @@ function GroupsScreen({authUser, onBack, onJoinRoom, T}){
       const gid=Object.keys(data)[0];
       const group=data[gid];
       if(group.members&&group.members[uid]){setErr("Ya eres miembro de este grupo");return;}
-      const meSnap=await _db.ref("users/"+uid).once("value");
-      const me=meSnap.val()||{};
+      const me={
+        displayName:authUser.displayName||"",
+        email:authUser.email||"",
+        photoURL:authUser.photoURL||""
+      };
       await _db.ref("groups/"+gid+"/members/"+uid).set({
         name:me.displayName||me.email||"?",
         email:me.email||"",
