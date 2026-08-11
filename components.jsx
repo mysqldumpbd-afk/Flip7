@@ -216,7 +216,7 @@ const LANGS={
     spectator:"MODO ESPECTADOR",spectatorDesc:"Solo ver marcador, sin controles",
     spectatorBtn:"👁 ENTRAR COMO ESPECTADOR",
     round:"🎴 Ronda",table:"📊 Tabla",history:"📋 Historial",
-    players2:"JUGADORES",winner:"ganó",allReady:"✅ Todos listos! Cierra la ronda.",
+    players2:"JUGADORES",winner:"ganó",allReady:"Todos listos! Cierra la ronda.",
     waitingHost:"Esperando al host",waitingCaps:"⏳ Esperando capturas",
     closeRound:"🔒 CERRAR RONDA",rematch:"🔁 REVANCHA",endGame:"🚪 Terminar",
     ranking:"CLASIFICACIÓN",rounds2:"TABLA DE RONDAS",goal:"META: 200 PUNTOS",
@@ -256,7 +256,7 @@ const LANGS={
     spectator:"SPECTATOR MODE",spectatorDesc:"View scoreboard only, no controls",
     spectatorBtn:"👁 ENTER AS SPECTATOR",
     round:"🎴 Round",table:"📊 Table",history:"📋 History",
-    players2:"PLAYERS",winner:"won",allReady:"✅ Everyone ready! Close the round.",
+    players2:"PLAYERS",winner:"won",allReady:"Everyone ready! Close the round.",
     waitingHost:"Waiting for host",waitingCaps:"⏳ Waiting for captures",
     closeRound:"🔒 CLOSE ROUND",rematch:"🔁 REMATCH",endGame:"🚪 End Game",
     ranking:"RANKING",rounds2:"ROUND TABLE",goal:"GOAL: 200 POINTS",
@@ -2175,6 +2175,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
   var lucky13=lk13State[0],setLucky13=lk13State[1]; // permite 2x el 13
   var ul7State=useState(false);
   var unlucky7=ul7State[0],setUnlucky7=ul7State[1]; // borra cartas, deja solo el 7
+  var prevSelState=React.useRef([]); // guarda selección antes de activar unlucky7
 
   var NUMS=[1,2,3,4,5,6,7,8,9,10,11,12,13];
   var NEG_MODS=[-2,-4,-6,-8,-10];
@@ -2229,6 +2230,8 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
 
   function activateUnlucky7(){
     snd("del");
+    // Guardar selección actual antes de activar
+    prevSelState.current=selected.slice();
     // Unlucky 7: mantiene solo el 7, descarta todo lo demás
     setSelected([7]);
     setHasDivTwo(false);
@@ -2239,7 +2242,9 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
   }
   function deactivateUnlucky7(){
     snd("tap");
-    setSelected([]);
+    // Restaurar selección previa (sin el 7 que queda del unlucky)
+    // El usuario decide si quiere el 7 o no — lo quitamos para que solo queden sus cartas originales
+    setSelected(prevSelState.current.filter(function(x){return x!==7;}));
     setUnlucky7(false);
   }
 
@@ -2308,9 +2313,9 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
           [1,2,3,4,5,6,7].map(function(n){
             var isSel=selected.includes(n);
             var countN=selected.filter(function(x){return x===n;}).length;
-            var maxAllowed=(n===13&&lucky13)?2:1;
-            var locked=(countN>=maxAllowed&&selected.length>=7)||(countN>=maxAllowed&&countN>0)||(selected.length>=7&&countN===0);
-            // Special: lucky13 allows adding second 13
+            // A card is "locked" (can't add more) when: already selected (unless lucky13+13) OR grid full
+            var locked=isSel||(selected.length>=7&&!isSel);
+            // Lucky 13 exception: can add a 2nd 13
             if(n===13&&lucky13&&countN<2&&selected.length<7)locked=false;
             return React.createElement("button",{key:n,
               onClick:function(){toggleCard(n);},
@@ -2332,7 +2337,8 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
               }},n),
               isSel&&React.createElement("div",{style:{
                 position:"absolute",top:-4,right:-4,width:14,height:14,
-                borderRadius:"50%",background:n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"var(--pu)":"var(--r)",
+                borderRadius:"50%",
+                background:n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"var(--pu)":"var(--gr)",
                 display:"flex",alignItems:"center",justifyContent:"center",
                 fontSize:"7px",color:"#fff",fontWeight:900,lineHeight:1
               }},n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"2":"✓")
@@ -2346,8 +2352,9 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
             var isSel=selected.includes(n);
             var countN=selected.filter(function(x){return x===n;}).length;
             var isLucky=(n===13&&lucky13);
-            var locked=isLucky?(countN>=2||selected.length>=7&&countN<2):(countN>=1||selected.length>=7&&!isSel);
-            if(isLucky&&countN<2&&selected.length<7)locked=false;
+            // Locked: already selected (unless lucky13) OR grid full
+            var locked=isSel||(selected.length>=7&&!isSel);
+            if(isLucky&&countN<2&&selected.length<7)locked=false; // allow 2nd 13
             return React.createElement("button",{key:n,
               onClick:function(){toggleCard(n);},
               style:{
@@ -2369,7 +2376,8 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
               }},n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"13×2":n),
               isSel&&React.createElement("div",{style:{
                 position:"absolute",top:-4,right:-4,width:14,height:14,
-                borderRadius:"50%",background:n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"var(--pu)":"var(--r)",
+                borderRadius:"50%",
+                background:n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"var(--pu)":"var(--gr)",
                 display:"flex",alignItems:"center",justifyContent:"center",
                 fontSize:"7px",color:"#fff",fontWeight:900,lineHeight:1
               }},n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"2":"✓")
@@ -2553,19 +2561,18 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
             return React.createElement("button",{key:a,
               onClick:function(){toggleAction(a);},
               style:{
-                border:"2px solid "+(active?"rgba(123,45,139,.8)":"rgba(255,255,255,.12)"),
-                background:active?"linear-gradient(135deg,rgba(123,45,139,.5),rgba(123,45,139,.3))":"rgba(255,255,255,.04)",
-                borderRadius:20,padding:"6px 12px",cursor:"pointer",
+                border:"2px solid "+(active?"#fff":"rgba(255,255,255,.15)"),
+                background:active?"#fff":"rgba(255,255,255,.05)",
+                borderRadius:20,padding:"7px 13px",cursor:"pointer",
                 fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
-                color:active?"#e0aaff":"rgba(255,255,255,.45)",
-                letterSpacing:.5,transition:"all .15s",
-                boxShadow:active?"0 0 10px rgba(123,45,139,.4)":"none",
-                transform:active?"scale(1.05)":"scale(1)"
+                color:active?"#1a0a2e":"rgba(255,255,255,.5)",
+                letterSpacing:.5,transition:"all .2s",
+                fontWeight:active?900:400,
+                boxShadow:active?"0 0 14px rgba(255,255,255,.3)":"none",
+                transform:active?"scale(1.08)":"scale(1)"
               }
-            },React.createElement(React.Fragment,null,
-              active&&React.createElement("span",{style:{marginRight:4,fontSize:".7rem"}},"✓"),
-              a
-            ));
+            },active?"✓ "+a:a);
+
           })
         )
       ),
