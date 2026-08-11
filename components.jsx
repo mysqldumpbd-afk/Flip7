@@ -2162,7 +2162,7 @@ function CardPickerModal({playerName,onSubmit,onClose}){
 
 // ── VENGANZA CARD COLORS (1-13) ────────────────────────────────
 const VENG_CARD_TEXT={
-  1:"#E63946",2:"#FF6B35",3:"#F5C800",4:"#3BB273",5:"#2EC4B6",
+  0:"#FF2FA3",1:"#E63946",2:"#FF6B35",3:"#F5C800",4:"#3BB273",5:"#2EC4B6",
   6:"#7B2D8B",7:"#118AB2",8:"#E63946",9:"#FF6B35",10:"#F5C800",
   11:"#3BB273",12:"#2EC4B6",13:"#7B2D8B"
 };
@@ -2186,7 +2186,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
   var ul7State=useState(false);
   var unlucky7=ul7State[0],setUnlucky7=ul7State[1]; // borra cartas, deja solo el 7
 
-  var NUMS=[1,2,3,4,5,6,7,8,9,10,11,12,13];
+  var NUMS=[0,1,2,3,4,5,6,7,8,9,10,11,12,13];
   var NEG_MODS=[-2,-4,-6,-8,-10];
   var ACTION_CARDS=["Just One More","Swap","Steal","Discard","Flip Four"];
 
@@ -2321,7 +2321,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
             var isSel=selected.includes(n);
             var countN=selected.filter(function(x){return x===n;}).length;
             // A card is "locked" (can't add more) when: already selected (unless lucky13+13) OR grid full
-            var locked=isSel||(selected.length>=7&&!isSel);
+            var locked=(!isSel&&selected.length>=7); // full grid, can't add new
             // Lucky 13 exception: can add a 2nd 13
             if(n===13&&lucky13&&countN<2&&selected.length<7)locked=false;
             return React.createElement("button",{key:n,
@@ -2354,13 +2354,12 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
         ),
         // Fila 8-13 + hueco
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5}},
-          [8,9,10,11,12,13,null].map(function(n,i){
-            if(n===null)return React.createElement("div",{key:"e"});
+          [0,8,9,10,11,12,13].map(function(n,i){
             var isSel=selected.includes(n);
             var countN=selected.filter(function(x){return x===n;}).length;
             var isLucky=(n===13&&lucky13);
             // Locked: already selected (unless lucky13) OR grid full
-            var locked=isSel||(selected.length>=7&&!isSel);
+            var locked=(!isSel&&selected.length>=7); // full grid, can't add
             if(isLucky&&countN<2&&selected.length<7)locked=false; // allow 2nd 13
             return React.createElement("button",{key:n,
               onClick:function(){toggleCard(n);},
@@ -2377,7 +2376,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
               }},
               React.createElement("span",{style:{
                 fontFamily:"'Anton',sans-serif",
-                fontSize:n>=10?"1.05rem":"1.3rem",lineHeight:1,
+                fontSize:"1.3rem",lineHeight:1,
                 color:isSel?VENG_CARD_TEXT[n]:"rgba(255,255,255,.35)",
                 transition:"color .15s"
               }},n===13&&lucky13&&selected.filter(function(x){return x===13;}).length===2?"13×2":n),
@@ -2465,15 +2464,14 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
             )
           : "OFF")
       ),
-      // ── FLIP 7 BONUS ─────────────────────────────────────────────
+      // ── FLIP 7 BONUS — solo informativo, se activa automáticamente ─
       React.createElement("div",{
-        onClick:function(){snd("op");setFlip7(function(f){return !f;});},
         style:{
           background:flip7?"linear-gradient(135deg,rgba(230,57,70,.2),rgba(230,57,70,.08))"
             :"rgba(255,255,255,.03)",
           border:"2px solid "+(flip7?"rgba(230,57,70,.7)":"rgba(255,255,255,.1)"),
           borderRadius:12,padding:"10px 14px",marginBottom:10,
-          display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"all .25s",
+          display:"flex",alignItems:"center",gap:12,cursor:"default",transition:"all .25s",
           boxShadow:flip7?"0 0 20px rgba(230,57,70,.25)":"none"
         }
       },
