@@ -486,6 +486,25 @@ function App(){
       setAuthChecked(true);
       if(user&&!user.isAnonymous){
         await saveUserProfile(user).catch(()=>{});
+        // ── Set global presence (online) for all user's groups ──
+        try{
+          const gSnap=await _db.ref("users/"+user.uid+"/groups").once("value");
+          const gids=Object.keys(gSnap.val()||{});
+          if(gids.length>0){
+            const updates={};
+            gids.forEach(gid=>{
+              updates["presence/"+gid+"/"+user.uid]={
+                online:true,status:"idle",lastSeen:Date.now()
+              };
+            });
+            await _db.ref().update(updates);
+            // Auto-set offline on disconnect for each group
+            gids.forEach(gid=>{
+              _db.ref("presence/"+gid+"/"+user.uid+"/online").onDisconnect().set(false);
+              _db.ref("presence/"+gid+"/"+user.uid+"/lastSeen").onDisconnect().set({".sv":"timestamp"});
+            });
+          }
+        }catch(e){}
         // ── Handle invite link ─────────────────────────────────
         const params=new URLSearchParams(window.location.search);
         const inviterUid=params.get("invite");
@@ -1374,7 +1393,21 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     return<StatsScreen onBack={()=>go("main")} T={T}/>;
   }
   if(view==="grupos")return<GroupsScreen authUser={authUser} onBack={()=>go("main")}
-    onJoinRoom={code=>{setJcode(code);go("join");}} T={T}/>;
+    onJoinRoom={code=>{setJcode(code);go("join");}}
+    onPlay={({names,groupId,groupName})=>{
+      snd("round");
+      // Pre-fill names with selected players + empty slots for others to join
+      const filled=names.slice(0,8);
+      const padded=[...filled,"",""].slice(0,Math.max(filled.length+1,3));
+      setNames(padded);
+      // Set emojis/colors for filled slots
+      setPlayerEmojis(EMOJIS.slice(0,padded.length));
+      setPlayerColors(COLORS.slice(0,padded.length));
+      // Associate with the group
+      setSelectedGroup(myGroupsHome.find(g=>g.id===groupId)||{id:groupId,name:groupName,code:""});
+      go("create");
+    }}
+    T={T}/>;
 
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
@@ -3198,7 +3231,7 @@ function ManualModal({playerName,initialScore,onSubmit,onClose,gameMode}){
 
 
 // ── GROUPSSCREEN — grupos persistentes + presencia ─────────────
-function GroupsScreen({authUser, onBack, onJoinRoom, T}){
+function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
   const[tab,setTab]=React.useState("my"); // my | browse
   const[myGroups,setMyGroups]=React.useState([]);
   const[activeGroup,setActiveGroup]=React.useState(null); // group detail
@@ -3209,6 +3242,8 @@ function GroupsScreen({authUser, onBack, onJoinRoom, T}){
   const[joinCode,setJoinCode]=React.useState("");
   const[err,setErr]=React.useState("");
   const[ok,setOk]=React.useState("");
+  const[friends,setFriends]=React.useState([]);
+  const[selectedPlayers,setSelectedPlayers]=React.useState({}); // uid→true
   const presUnsubRef=React.useRef([]);
 
   const uid=authUser&&authUser.uid;
@@ -3229,6 +3264,10 @@ function GroupsScreen({authUser, onBack, onJoinRoom, T}){
         }
         setMyGroups(groups);
         if(groups.length>0)listenPresence(groups);
+        // Load friends for quick-add
+        const fSnap=await _db.ref("users/"+uid+"/friends").once("value");
+        const fData=fSnap.val()||{};
+        setFriends(Object.values(fData));
       }catch(e){console.log("Groups load error:",e);}
       setLoading(false);
     }
@@ -3382,7 +3421,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, T}){
     return(
       <div className="wrap"><div className="page" style={{paddingTop:16}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-          <button onClick={()=>setActiveGroup(null)} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
+          <button onClick={()=>setSelectedPlayers({});setActiveGroup(null)} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
             color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
             fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Grupos</button>
           <div style={{flex:1}}>
@@ -3424,53 +3463,151 @@ function GroupsScreen({authUser, onBack, onJoinRoom, T}){
 
         {/* Members with presence */}
         <p className="sec">MIEMBROS</p>
+        {/* Instrucción de selección */}
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+          color:"rgba(255,255,255,.3)",letterSpacing:1,marginBottom:8,textAlign:"center"}}>
+          TOCA A LOS QUE VAN A JUGAR · CUALQUIERA PUEDE UNIRSE DESPUÉS
+        </div>
         {memberList.map(m=>{
           const pres=presence[m.uid]||{};
           const isOnline=pres.online;
           const status=pres.status||"idle";
           const isMe=m.uid===uid;
+          const isSel=selectedPlayers[m.uid]||false;
           return(
-            <div key={m.uid} style={{display:"flex",alignItems:"center",gap:10,
-              padding:"10px 12px",marginBottom:6,borderRadius:12,
-              background:isMe?"rgba(245,200,0,.06)":"rgba(255,255,255,.03)",
-              border:"1px solid "+(isMe?"rgba(245,200,0,.2)":"rgba(255,255,255,.06)")}}>
-              {/* Avatar */}
-              {m.photoURL
-                ? <img src={m.photoURL} style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",
-                    border:"2px solid "+(isOnline?"var(--gr)":"rgba(255,255,255,.1)")}} alt=""/>
-                : <div style={{width:38,height:38,borderRadius:"50%",
-                    background:isOnline?"rgba(59,178,115,.2)":"rgba(255,255,255,.08)",
-                    border:"2px solid "+(isOnline?"var(--gr)":"rgba(255,255,255,.1)"),
-                    display:"flex",alignItems:"center",justifyContent:"center",
-                    fontFamily:"'Anton',sans-serif",fontSize:"1rem",
-                    color:isOnline?"var(--gr)":"rgba(255,255,255,.3)"}}>
-                    {(m.name||"?")[0].toUpperCase()}
-                  </div>
-              }
+            <div key={m.uid}
+              onClick={()=>{
+                snd("tap");
+                setSelectedPlayers(p=>({...p,[m.uid]:!p[m.uid]}));
+              }}
+              style={{display:"flex",alignItems:"center",gap:10,
+                padding:"10px 12px",marginBottom:6,borderRadius:12,cursor:"pointer",
+                background:isSel
+                  ?"linear-gradient(135deg,rgba(59,178,115,.15),rgba(59,178,115,.08))"
+                  :isMe?"rgba(245,200,0,.06)":"rgba(255,255,255,.03)",
+                border:"2px solid "+(isSel?"rgba(59,178,115,.6)":isMe?"rgba(245,200,0,.2)":"rgba(255,255,255,.06)"),
+                boxShadow:isSel?"0 0 12px rgba(59,178,115,.2)":"none",
+                transition:"all .15s"}}>
+              {/* Checkmark / Avatar */}
+              <div style={{position:"relative",flexShrink:0}}>
+                {m.photoURL
+                  ? <img src={m.photoURL} style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",
+                      border:"2px solid "+(isSel?"var(--gr)":isOnline?"var(--gr)":"rgba(255,255,255,.1)")}} alt=""/>
+                  : <div style={{width:38,height:38,borderRadius:"50%",
+                      background:isSel?"rgba(59,178,115,.3)":isOnline?"rgba(59,178,115,.15)":"rgba(255,255,255,.08)",
+                      border:"2px solid "+(isSel?"var(--gr)":isOnline?"var(--gr)":"rgba(255,255,255,.1)"),
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      fontFamily:"'Anton',sans-serif",fontSize:"1rem",
+                      color:isSel?"var(--gr)":isOnline?"var(--gr)":"rgba(255,255,255,.3)"}}>
+                      {(m.name||"?")[0].toUpperCase()}
+                    </div>
+                }
+                {isSel&&<div style={{position:"absolute",top:-4,right:-4,
+                  width:16,height:16,borderRadius:"50%",background:"var(--gr)",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:"9px",color:"#fff",fontWeight:900}}>✓</div>}
+              </div>
               <div style={{flex:1}}>
                 <div style={{fontWeight:900,fontSize:".88rem",
-                  color:isMe?"var(--y)":"rgba(255,255,255,.85)"}}>
-                  {m.name}{isMe&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                  color:isSel?"var(--gr)":isMe?"var(--y)":"rgba(255,255,255,.85)"}}>
+                  {m.name}
+                  {isMe&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
                     color:"rgba(255,255,255,.3)",marginLeft:6,letterSpacing:1}}>tú</span>}
                 </div>
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",letterSpacing:1,marginTop:2,
                   color:isOnline?(status==="in-game"?"var(--t)":"var(--gr)"):"rgba(255,255,255,.25)"}}>
                   {isOnline
-                    ? (status==="in-game"?"🎮 En partida":status==="in-lobby"?"🎴 En lobby":"🟢 Online")
-                    : (pres.lastSeen?"⚫ "+fmtAgo(pres.lastSeen):"⚫ Offline")}
+                    ?(status==="in-game"?"🎮 En partida":status==="in-lobby"?"🎴 En lobby":"🟢 Online")
+                    :(pres.lastSeen?"⚫ "+fmtAgo(pres.lastSeen):"⚫ Offline")}
                 </div>
               </div>
               {m.role==="admin"&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
                 background:"rgba(245,200,0,.15)",border:"1px solid rgba(245,200,0,.3)",
                 color:"var(--y)",padding:"2px 7px",borderRadius:20,letterSpacing:1}}>ADMIN</span>}
+              {/* Tap hint for offline */}
+              {!isOnline&&!isSel&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                color:"rgba(255,255,255,.15)",letterSpacing:1}}>tap para incluir</span>}
             </div>
           );
         })}
 
+        {/* JUGAR AHORA button — shows when players selected */}
+        {Object.values(selectedPlayers).some(Boolean)&&(()=>{
+          const selList=memberList.filter(m=>selectedPlayers[m.uid]);
+          const count=selList.length;
+          return(
+            <div style={{position:"sticky",bottom:16,zIndex:10,marginTop:12}}>
+              <button
+                onClick={()=>{
+                  snd("round");
+                  // Build player list: selected members as named players
+                  const names=selList.map(m=>m.name||"?");
+                  onPlay({
+                    names,
+                    groupId:activeGroup.id,
+                    groupName:activeGroup.name
+                  });
+                }}
+                style={{
+                  width:"100%",padding:"15px",
+                  background:"linear-gradient(135deg,var(--gr),#1A9A6A)",
+                  border:"none",borderRadius:14,cursor:"pointer",
+                  fontFamily:"'Lilita One',sans-serif",fontSize:"1.1rem",
+                  color:"#fff",letterSpacing:1,
+                  boxShadow:"0 6px 24px rgba(59,178,115,.4)",
+                  display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+                  transition:"all .2s"
+                }}>
+                <span style={{fontSize:"1.3rem"}}>🎮</span>
+                Jugar ahora · {count} jugador{count!==1?"es":""}
+                <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+                  background:"rgba(255,255,255,.2)",borderRadius:20,padding:"2px 8px",marginLeft:4}}>
+                  {selList.map(m=>(m.name||"?")[0]).join(" · ")}
+                </span>
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* Quick add from friends list */}
+        {friends.length>0&&(()=>{
+          const notInGroup=friends.filter(f=>!members[f.uid]);
+          if(notInGroup.length===0)return null;
+          return(<>
+            <p className="sec" style={{marginTop:8}}>AGREGAR AMIGOS AL GRUPO</p>
+            {notInGroup.map(f=>(
+              <div key={f.uid} style={{display:"flex",alignItems:"center",gap:10,
+                padding:"8px 12px",marginBottom:6,borderRadius:11,
+                background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.06)"}}>
+                <div style={{width:32,height:32,borderRadius:"50%",
+                  background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.1)",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontFamily:"'Anton',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)"}}>
+                  {(f.name||"?")[0].toUpperCase()}
+                </div>
+                <div style={{flex:1,fontWeight:900,fontSize:".85rem",color:"rgba(255,255,255,.7)"}}>{f.name}</div>
+                <button onClick={async()=>{
+                  try{
+                    await _db.ref("groups/"+activeGroup.id+"/members/"+f.uid).set({
+                      name:f.name,email:f.email||"",photoURL:"",role:"member",joinedAt:Date.now()
+                    });
+                    setOk("✅ "+f.name+" agregado al grupo");
+                    setActiveGroup(g=>({...g,members:{...g.members,[f.uid]:{name:f.name,role:"member"}}}));
+                    snd("join");
+                  }catch(e){setOk("❌ Error al agregar");}
+                }} style={{background:"rgba(46,196,182,.12)",border:"1px solid rgba(46,196,182,.3)",
+                  color:"var(--t)",borderRadius:8,padding:"5px 12px",cursor:"pointer",
+                  fontFamily:"'Righteous',sans-serif",fontSize:".65rem",flexShrink:0}}>
+                  + Agregar
+                </button>
+              </div>
+            ))}
+          </>);
+        })()}
         {ok&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--gr)",
           textAlign:"center",padding:"8px",marginTop:4}}>{ok}</div>}
         <div style={{height:8}}/>
-        <button className="btn btn-g" onClick={()=>setActiveGroup(null)}>← Volver a Grupos</button>
+        <button className="btn btn-g" onClick={()=>setSelectedPlayers({});setActiveGroup(null)}>← Volver a Grupos</button>
       </div></div>
     );
   }
@@ -3515,7 +3652,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, T}){
               const onlineM=mList.filter(m=>presence[m.uid]&&presence[m.uid].online);
               const hasRoom=g.currentRoom;
               return(
-                <div key={g.id} onClick={()=>{snd("tap");setActiveGroup(g);}}
+                <div key={g.id} onClick={()=>{snd("tap");setSelectedPlayers({});setActiveGroup(g);}}
                   style={{background:"rgba(255,255,255,.04)",border:"2px solid rgba(255,255,255,.08)",
                     borderRadius:14,padding:"12px 14px",marginBottom:10,cursor:"pointer",
                     transition:"border-color .2s"}}
@@ -3525,9 +3662,13 @@ function GroupsScreen({authUser, onBack, onJoinRoom, T}){
                     <div style={{flex:1}}>
                       <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",
                         color:"var(--y)",letterSpacing:2}}>{g.name}</div>
-                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-                        color:"rgba(255,255,255,.3)",letterSpacing:2,marginTop:2}}>
-                        CÓDIGO: {g.code} · {mList.length} miembros
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+                        <span style={{fontFamily:"'Anton',sans-serif",fontSize:".9rem",
+                          letterSpacing:4,color:"var(--y)",background:"rgba(245,200,0,.1)",
+                          border:"1px solid rgba(245,200,0,.25)",borderRadius:6,
+                          padding:"1px 7px"}}>{g.code}</span>
+                        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                          color:"rgba(255,255,255,.3)",letterSpacing:1}}>{mList.length} miembros</span>
                       </div>
                     </div>
                     {hasRoom&&(
