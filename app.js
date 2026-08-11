@@ -73,11 +73,13 @@ async function saveUserProfile(user, extraData={}){
     ...extraData
   });
 
-  // Actualizar índice de búsqueda (solo agrega, no pisa el de otro usuario —
-  // las reglas de Firebase deben validar esto también, ver nota de reglas)
+  // Actualizar índice de búsqueda. Cada clave guarda {uid,name,email} completos
+  // (no solo el uid) para poder listar sugerencias por prefijo sin leer /users
+  // de cada candidato — más rápido y evita lecturas de más.
+  const idxEntry = { uid: user.uid, name: displayName||email||'', email };
   const idxUpdates = {};
-  if(email)       idxUpdates['userIndex/'+fbKey(email)]       = user.uid;
-  if(displayName) idxUpdates['userIndex/'+fbKey(displayName)] = user.uid;
+  if(email)       idxUpdates['userIndex/'+fbKey(email)]       = idxEntry;
+  if(displayName) idxUpdates['userIndex/'+fbKey(displayName)] = idxEntry;
   if(Object.keys(idxUpdates).length){
     try{ await _db.ref().update(idxUpdates); }
     catch(e){ console.warn('userIndex update falló (no bloquea login):', e.message); }

@@ -3778,6 +3778,8 @@ function PersonalDashboard({authUser, onBack, T}){
   const[addInput,setAddInput]=React.useState("");
   const[addErr,setAddErr]=React.useState("");
   const[addOk,setAddOk]=React.useState("");
+  const[suggestions,setSuggestions]=React.useState([]);
+  const[searching,setSearching]=React.useState(false);
 
   const isAnon=authUser&&authUser.isAnonymous;
   const uid=authUser&&authUser.uid;
@@ -3819,31 +3821,53 @@ function PersonalDashboard({authUser, onBack, T}){
     load();
   },[uid]);
 
-  async function addFriend(){
+  // Búsqueda en vivo por prefijo mientras escribes — consulta un rango de
+  // claves en /userIndex (no todo /users) y arma la lista de sugerencias.
+  React.useEffect(()=>{
+    const q=addInput.trim().toLowerCase();
+    if(q.length<2){setSuggestions([]);return;}
+    let cancelled=false;
+    setSearching(true);
+    const key=fbKey(q);
+    const t=setTimeout(async()=>{
+      try{
+        const snap=await _db.ref("userIndex")
+          .orderByKey().startAt(key).endAt(key+"\uf8ff")
+          .limitToFirst(8).once("value");
+        if(cancelled)return;
+        const data=snap.val()||{};
+        // Deduplicar por uid (una persona puede tener 2 claves: nombre y email)
+        const seen=new Set();
+        const list=[];
+        for(const entry of Object.values(data)){
+          if(!entry||!entry.uid||entry.uid===uid||seen.has(entry.uid))continue;
+          seen.add(entry.uid);
+          if(friends.some(f=>f.uid===entry.uid))continue; // ya es amigo
+          list.push(entry);
+        }
+        setSuggestions(list);
+      }catch(e){ console.warn("search error:",e.message); }
+      if(!cancelled)setSearching(false);
+    },300); // debounce
+    return()=>{cancelled=true;clearTimeout(t);};
+  },[addInput,uid,friends]);
+
+  async function addFriendCandidate(found){
     setAddErr("");setAddOk("");
-    const search=addInput.trim().toLowerCase();
-    if(!search){setAddErr("Ingresa un nombre o email");return;}
     try{
-      // Buscar el uid en /userIndex (clave sanitizada -> uid) en vez de
-      // leer todo /users, que da permission_denied y expone datos de más
-      const idxSnap=await _db.ref("userIndex/"+fbKey(search)).once("value");
-      const foundUid=idxSnap.val();
-      if(!foundUid||foundUid===uid){setAddErr("Usuario no encontrado. Deben haber jugado con cuenta.");return;}
-      const foundSnap=await _db.ref("users/"+foundUid).once("value");
-      const found=foundSnap.val();
-      if(!found){setAddErr("Usuario no encontrado. Deben haber jugado con cuenta.");return;}
-      // Add friend bidirectionally
+      // Traer perfil completo del candidato (pKey/photoURL) antes de agregar
+      const foundSnap=await _db.ref("users/"+found.uid).once("value");
+      const full=foundSnap.val()||found;
       const myRef=_db.ref("users/"+uid+"/friends/"+found.uid);
       const theirRef=_db.ref("users/"+found.uid+"/friends/"+uid);
-      // Get my profile
       const meSnap=await _db.ref("users/"+uid).once("value");
       const me=meSnap.val()||{};
-      await myRef.set({uid:found.uid,name:found.displayName||found.email,email:found.email||"",addedAt:Date.now(),pKey:found.pKey||""});
+      await myRef.set({uid:found.uid,name:full.displayName||found.name||found.email,email:full.email||found.email||"",addedAt:Date.now(),pKey:full.pKey||""});
       await theirRef.set({uid:uid,name:me.displayName||me.email||"?",email:me.email||"",addedAt:Date.now(),pKey:me.pKey||""});
-      setAddOk("✅ "+( found.displayName||found.email)+" agregado como amigo");
+      setAddOk("✅ "+(full.displayName||found.name||found.email)+" agregado como amigo");
       setAddInput("");
-      // Refresh friends list
-      setFriends(prev=>[...prev,{uid:found.uid,name:found.displayName||found.email,email:found.email}]);
+      setSuggestions([]);
+      setFriends(prev=>[...prev,{uid:found.uid,name:full.displayName||found.name||found.email,email:full.email||found.email}]);
     }catch(e){setAddErr("Error: "+e.message);}
   }
 
@@ -4012,16 +4036,40 @@ function PersonalDashboard({authUser, onBack, T}){
               color:"var(--gr)",marginTop:8,textAlign:"center"}}>{addOk}</div>}
             <div style={{height:12}}/>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-              color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>O BUSCAR POR NOMBRE / EMAIL</div>
-            <div style={{display:"flex",gap:8}}>
-              <input className="inp" style={{margin:0,flex:1,padding:"7px 10px",fontSize:".86rem"}}
-                placeholder="Nombre o email exacto"
-                value={addInput} onChange={e=>setAddInput(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&addFriend()}/>
-              <button onClick={addFriend} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",
-                borderRadius:10,padding:"0 14px",cursor:"pointer",
-                fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
-                color:"rgba(255,255,255,.7)",fontWeight:900,flexShrink:0,whiteSpace:"nowrap"}}>Buscar</button>
+              color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>O BUSCAR POR NOMBRE / EMAIL (2+ letras)</div>
+            <div style={{position:"relative"}}>
+              <input className="inp" style={{margin:0,width:"100%",padding:"7px 10px",fontSize:".86rem"}}
+                placeholder="Escribe nombre o email…"
+                value={addInput} onChange={e=>setAddInput(e.target.value)}/>
+              {searching&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+                color:"rgba(255,255,255,.3)",marginTop:6}}>Buscando…</div>}
+              {!searching&&suggestions.length>0&&(
+                <div style={{marginTop:8,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",
+                  borderRadius:10,overflow:"hidden"}}>
+                  {suggestions.map(s=>(
+                    <div key={s.uid} onClick={()=>{snd("tap");addFriendCandidate(s);}}
+                      style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",cursor:"pointer",
+                        borderBottom:"1px solid rgba(255,255,255,.06)"}}>
+                      <div style={{width:30,height:30,borderRadius:"50%",background:"rgba(245,200,0,.15)",
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        fontFamily:"'Anton',sans-serif",color:"var(--y)",fontSize:".9rem",flexShrink:0}}>
+                        {(s.name||"?")[0].toUpperCase()}
+                      </div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:900,fontSize:".82rem",color:"#fff"}}>{s.name}</div>
+                        {s.email&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                          color:"rgba(255,255,255,.35)"}}>{s.email}</div>}
+                      </div>
+                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",
+                        fontWeight:900,letterSpacing:1,flexShrink:0}}>+ AGREGAR</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!searching&&addInput.trim().length>=2&&suggestions.length===0&&(
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+                  color:"rgba(255,255,255,.3)",marginTop:6}}>Sin resultados</div>
+              )}
             </div>
             {addErr&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
               color:"var(--r)",marginTop:6}}>{addErr}</div>}
