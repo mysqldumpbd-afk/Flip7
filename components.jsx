@@ -368,7 +368,8 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
     snd('tap');
     if(emojiBtnRef.current){
       const r=emojiBtnRef.current.getBoundingClientRect();
-      setEmojiPos({top:Math.min(r.bottom+4,window.innerHeight-270),left:Math.max(4,Math.min(r.left,window.innerWidth-228))});
+      // Always open downward — if near bottom, modal will scroll internally
+      setEmojiPos({top:r.bottom+6,left:Math.max(4,Math.min(r.left,window.innerWidth-210))});
     }
     setEmojiOpen(v=>!v);setColorOpen(false);
   }
@@ -396,7 +397,7 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
             </div>
           )}
         </div>
-        <input className="inp" style={{margin:0,flex:1,borderColor:color+"55",padding:"10px 12px"}}
+        <input className="inp" style={{margin:0,flex:1,borderColor:color+"55",padding:"7px 10px",fontSize:".9rem"}}
           placeholder={(T?T.players:"Jugador")+" "+(idx+1)} value={name}
           onChange={e=>{snd('num');onName(e.target.value);}} onFocus={()=>snd('tap')}/>
         <div style={{position:"relative",flexShrink:0}}>
@@ -894,27 +895,35 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,reconn
             );
           })}
         </div>
-        {/* Meta info bar */}
-        <div style={{display:"flex",alignItems:"center",gap:10,
-          background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",
-          borderRadius:11,padding:"9px 13px",marginBottom:14}}>
-          <div style={{flex:1}}>
-            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-              color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:1}}>META</div>
-            <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",
-              color:GAME_MODES[gameMode].color,letterSpacing:2}}>
-              {GAME_MODES[gameMode].goal} pts
+        {/* Panel descriptivo del modo seleccionado */}
+        {gameMode==="classic"?(
+          <div style={{marginTop:0,background:"rgba(245,200,0,.06)",border:"1px solid rgba(245,200,0,.18)",
+            borderRadius:12,padding:"10px 13px",marginBottom:10}}>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"var(--y)",
+              letterSpacing:2,marginBottom:6}}>CÓMO FUNCIONA</div>
+            <div style={{fontSize:".76rem",color:"rgba(255,255,255,.6)",lineHeight:1.75,fontWeight:700}}>
+              🃏 <b style={{color:"rgba(255,255,255,.85)"}}>Cartas 0–12</b> · suma los valores de tu mano.<br/>
+              💀 <b style={{color:"rgba(255,255,255,.85)"}}>Carta duplicada</b> = bust, cero pts en la ronda.<br/>
+              ⭐ <b style={{color:"var(--y)"}}>Flip 7</b>: 7 cartas únicas = +15 pts bonus + fin de ronda.<br/>
+              🔧 <b style={{color:"rgba(255,255,255,.85)"}}>Modificadores:</b> ×2, +2 al +10 sobre tu suma.<br/>
+              🏆 <b style={{color:"var(--y)"}}>Meta 200 pts</b> · primero en llegar gana.
             </div>
           </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-              color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:1}}>FLIP 7 BONUS</div>
-            <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",
-              color:GAME_MODES[gameMode].color}}>
-              +{GAME_MODES[gameMode].flip7Bonus} pts
+        ):(
+          <div style={{marginTop:0,background:"rgba(230,57,70,.06)",border:"1px solid rgba(230,57,70,.2)",
+            borderRadius:12,padding:"10px 13px",marginBottom:10}}>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"var(--r)",
+              letterSpacing:2,marginBottom:6}}>CÓMO FUNCIONA</div>
+            <div style={{fontSize:".76rem",color:"rgba(255,255,255,.6)",lineHeight:1.75,fontWeight:700}}>
+              💀 <b style={{color:"rgba(255,255,255,.85)"}}>Cartas 0–13</b> · incluye especiales: Zero, Unlucky 7, Lucky 13.<br/>
+              🔴 <b style={{color:"rgba(255,255,255,.85)"}}>Duplicado</b> = bust · Unlucky 7 = pierdes tus cartas, queda el 7.<br/>
+              ⭐ <b style={{color:"var(--r)"}}>Flip 7</b>: 7 cartas únicas = +15 pts bonus + fin de ronda.<br/>
+              🔧 <b style={{color:"rgba(255,255,255,.85)"}}>Modificadores negativos</b> (te los juegan): ÷2, −2 al −10.<br/>
+              ⚡ <b style={{color:"rgba(255,255,255,.85)"}}>Acciones:</b> Swap, Steal, Discard, Flip Four, Just One More.<br/>
+              🏆 <b style={{color:"var(--r)"}}>Meta 200 pts</b> · primero en llegar gana.
             </div>
           </div>
-        </div>
+        )}
         <p className="sec" style={{marginTop:4}}>{T.players} (min. 2)</p>
         {names.map((n,i)=>(
           <PlayerRow key={i} idx={i} T={T}

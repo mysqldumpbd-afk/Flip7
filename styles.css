@@ -114,25 +114,27 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .psr-rm{background:none;border:none;color:var(--r);font-size:1.1rem;cursor:pointer;padding:0 5px}
 
 /* ── 7. PLAYER ROW SETUP ─────────────────────────────────────── */
-.player-setup-row{margin-bottom:7px;border-radius:13px;padding:9px 10px;
-  border:2px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);transition:border-color .3s}
-.psr-top{display:flex;gap:7px;align-items:center;margin-bottom:7px}
-.emoji-big-btn{width:50px;height:50px;border-radius:13px;font-size:1.8rem;
+.player-setup-row{margin-bottom:6px;border-radius:12px;padding:7px 9px;
+  border:2px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);transition:border-color .3s}
+.player-setup-row:focus-within{border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.05)}
+.psr-top{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+/* Compact emoji button — expands visually when dropdown opens */
+.emoji-big-btn{width:38px;height:38px;border-radius:10px;font-size:1.35rem;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
-  transition:all .18s;flex-shrink:0;border:2px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06)}
-.emoji-big-btn:hover{transform:scale(1.08);box-shadow:0 0 14px rgba(255,255,255,.12)}
-.emoji-big-btn:active{transform:scale(.93)}
+  transition:all .18s;flex-shrink:0;border:2px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)}
+.emoji-big-btn:hover{transform:scale(1.1);box-shadow:0 0 12px rgba(255,255,255,.1)}
+.emoji-big-btn:active{transform:scale(.92)}
 .emoji-dd{position:fixed;z-index:500;background:#13152b;border:1px solid rgba(255,255,255,.2);
-  border-radius:16px;padding:10px;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;
-  box-shadow:0 20px 60px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.06);
-  max-height:250px;overflow-y:auto;width:220px}
+  border-radius:14px;padding:8px;display:grid;grid-template-columns:repeat(5,1fr);gap:3px;
+  box-shadow:0 16px 48px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.06);
+  max-height:230px;overflow-y:auto;width:200px;overflow-x:hidden}
 .emoji-dd-opt{font-size:1.45rem;padding:6px 3px;border-radius:9px;
   border:2px solid transparent;background:rgba(255,255,255,.04);
   cursor:pointer;transition:all .1s;text-align:center;
   display:flex;align-items:center;justify-content:center}
 .emoji-dd-opt:hover{background:rgba(255,255,255,.14);transform:scale(1.2)}
 .emoji-dd-opt.sel{border-color:var(--y);background:rgba(245,200,0,.18);box-shadow:0 0 10px rgba(245,200,0,.3)}
-.color-dd-btn{width:50px;height:50px;border-radius:13px;cursor:pointer;
+.color-dd-btn{width:38px;height:38px;border-radius:10px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   transition:all .18s;flex-shrink:0;border:3px solid rgba(255,255,255,.4)}
 .color-dd-btn:hover{transform:scale(1.08);box-shadow:0 0 14px rgba(255,255,255,.2)}
