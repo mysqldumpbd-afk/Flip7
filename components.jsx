@@ -510,6 +510,29 @@ function App(){
           // Clean URL without reload
           window.history.replaceState({},"",window.location.pathname);
         }
+        // ── Handle group invite link ──────────────────────────
+        const groupCode=params.get("group");
+        if(groupCode&&user&&!user.isAnonymous){
+          try{
+            const snap=await _db.ref("groups").orderByChild("code").equalTo(groupCode.toUpperCase()).once("value");
+            const data=snap.val();
+            if(data){
+              const gid=Object.keys(data)[0];
+              const group=data[gid];
+              const already=(await _db.ref("users/"+user.uid+"/groups/"+gid).once("value")).val();
+              if(!already&&!group.members[user.uid]){
+                const meSnap=await _db.ref("users/"+user.uid).once("value");
+                const me=meSnap.val()||{};
+                await _db.ref("groups/"+gid+"/members/"+user.uid).set({
+                  name:me.displayName||me.email||"?",email:me.email||"",
+                  photoURL:me.photoURL||"",role:"member",joinedAt:Date.now()
+                });
+                await _db.ref("users/"+user.uid+"/groups/"+gid).set(true);
+              }
+            }
+          }catch(e){console.log("Group invite error:",e);}
+          window.history.replaceState({},"",window.location.pathname)
+        }
       }
     });
     return()=>unsub();
@@ -669,15 +692,17 @@ function App(){
     await dbRef.current.set("rooms/"+roomCode,{...room,players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
   }
 
-  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode}){
+  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode,groupId}){
     const db=makeDB(demo);dbRef.current=db;
     let roomCode2=code;
     if(!code){
       roomCode2=demo?"DEMO":uid4();
       const firstPlayerName=names&&names[0]?names[0].trim():"";
+      const groupId2=opts&&opts.groupId||null;
       await db.set("rooms/"+roomCode2,{
         code:roomCode2,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
         gameMode:gameMode||"classic",
+        groupId:groupId2,
         // Guardar nombre del host para permitir reconexión
         hostName: hostName||firstPlayerName,
         players:names.map((name,i)=>({
@@ -687,6 +712,14 @@ function App(){
           total:0,rounds:[]
         }))
       });
+    }
+    // Publish room to group if applicable
+    if(groupId&&!demo&&!code){
+      try{
+        await _db.ref("groups/"+groupId+"/currentRoom").set(roomCode2);
+        const uid2=currentUser()&&currentUser().uid;
+        if(uid2)await _db.ref("presence/"+groupId+"/"+uid2+"/status").set("in-lobby");
+      }catch(e){}
     }
     setDemoMode(demo);setRoomCode(roomCode2);setIsSpectator(spectator||false);
     setMyPlayerId(playerId||null);
@@ -982,6 +1015,9 @@ function AuthScreen({onAuth}){
 // ── HOMESCREEN ────────────────────────────────────────────────
 function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUser,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
   const[view,setView]=useState("main");
+  const[myGroupsHome,setMyGroupsHome]=React.useState([]); // for presence banner
+  const[presenceHome,setPresenceHome]=React.useState({});  // uid → {online,status}
+  const[selectedGroup,setSelectedGroup]=React.useState(null); // for create-with-group
   const[gameMode,setGameMode]=useState("classic");
   // Pre-fill player 1 with logged user's name
   const myDisplayName=authUser&&!authUser.isAnonymous
@@ -1013,6 +1049,33 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     return()=>{if(presUnsubRef.current){presUnsubRef.current();presUnsubRef.current=null;}};
   },[pickingPlayer,jcode]);
 
+  // Load groups for presence banner
+  React.useEffect(()=>{
+    if(!authUser||authUser.isAnonymous)return;
+    const uid=authUser.uid;
+    async function loadGroups(){
+      try{
+        const snap=await _db.ref("users/"+uid+"/groups").once("value");
+        const gids=snap.val()||{};
+        const groups=[];
+        for(const gid of Object.keys(gids)){
+          const g=await _db.ref("groups/"+gid).once("value");
+          if(g.val())groups.push({id:gid,...g.val()});
+        }
+        setMyGroupsHome(groups);
+        // Listen presence for all groups
+        groups.forEach(g=>{
+          _db.ref("presence/"+g.id).on("value",snap=>{
+            const data=snap.val()||{};
+            setPresenceHome(prev=>({...prev,...data}));
+          });
+        });
+      }catch(e){}
+    }
+    loadGroups();
+    return()=>{};
+  },[authUser]);
+
   React.useEffect(()=>{
     setPlayerEmojis(p=>{const a=[...p];while(a.length<names.length){const next=EMOJIS.find(e=>!a.includes(e))||EMOJIS[a.length%EMOJIS.length];a.push(next);}return a.slice(0,names.length);});
     setPlayerColors(p=>{const a=[...p];while(a.length<names.length){const next=COLORS.find(c=>!a.includes(c))||COLORS[a.length%COLORS.length];a.push(next);}return a.slice(0,names.length);});
@@ -1024,8 +1087,10 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     const ns=names.filter(n=>n.trim());
     if(ns.length<2){setErr({msg:"Necesitas al menos 2 jugadores.",steps:[]});return;}
     setBusy(true);setErr(null);
-    // jname guarda el nombre del host para reconexión futura
-    try{await onEnter({names:ns,demo:false,customEmojis:playerEmojis,customColors:playerColors,hostName:jname.trim()||ns[0],gameMode:gameMode});}
+    try{
+      await onEnter({names:ns,demo:false,customEmojis:playerEmojis,customColors:playerColors,
+        hostName:jname.trim()||ns[0],gameMode:gameMode,groupId:selectedGroup?selectedGroup.id:null});
+    }
     catch(e){setErr(classifyError(e));}
     setBusy(false);
   }
@@ -1179,6 +1244,32 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
             </div>
           </div>
         )}
+        {/* Group association selector */}
+        {myGroupsHome.length>0&&(
+          <div style={{marginBottom:12}}>
+            <p className="sec" style={{marginBottom:8}}>ASOCIAR A GRUPO (opcional)</p>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              <button onClick={()=>setSelectedGroup(null)}
+                style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",
+                  fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1,
+                  background:!selectedGroup?"rgba(255,255,255,.15)":"rgba(255,255,255,.04)",
+                  border:"1px solid "+(!selectedGroup?"rgba(255,255,255,.3)":"rgba(255,255,255,.1)"),
+                  color:!selectedGroup?"#fff":"rgba(255,255,255,.4)"}}>
+                Sin grupo
+              </button>
+              {myGroupsHome.map(g=>(
+                <button key={g.id} onClick={()=>setSelectedGroup(g)}
+                  style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",
+                    fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1,
+                    background:selectedGroup&&selectedGroup.id===g.id?"rgba(123,45,139,.3)":"rgba(255,255,255,.04)",
+                    border:"1px solid "+(selectedGroup&&selectedGroup.id===g.id?"rgba(123,45,139,.6)":"rgba(255,255,255,.1)"),
+                    color:selectedGroup&&selectedGroup.id===g.id?"#cc88ff":"rgba(255,255,255,.4)"}}>
+                  👥 {g.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <p className="sec" style={{marginTop:4}}>{T.players} (min. 2)</p>
         {names.map((n,i)=>(
           <PlayerRow key={i} idx={i} T={T}
@@ -1282,6 +1373,8 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       return<PersonalDashboard authUser={authUser} onBack={()=>go("main")} T={T}/>;
     return<StatsScreen onBack={()=>go("main")} T={T}/>;
   }
+  if(view==="grupos")return<GroupsScreen authUser={authUser} onBack={()=>go("main")}
+    onJoinRoom={code=>{setJcode(code);go("join");}} T={T}/>;
 
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
@@ -1368,6 +1461,56 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       </div>
       <button className="btn btn-y" onClick={()=>go("create")}>{T.createGame}</button>
       <button className="btn btn-t" onClick={()=>go("join")}>🎮 {T.joinGame}</button>
+      <button onClick={()=>go("grupos")} style={{
+        width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+        padding:"13px",marginBottom:10,
+        background:"rgba(123,45,139,.15)",border:"2px solid rgba(123,45,139,.35)",
+        borderRadius:14,cursor:"pointer",
+        fontFamily:"'Lilita One',sans-serif",fontSize:"1rem",color:"#cc88ff",
+        transition:"all .15s"
+      }}>
+        👥 Mis grupos
+        {myGroupsHome.length>0&&(()=>{
+          const onlineCount=myGroupsHome.reduce((acc,g)=>{
+            const members=g.members||{};
+            return acc+Object.keys(members).filter(muid=>muid!==authUser.uid&&presenceHome[muid]&&presenceHome[muid].online).length;
+          },0);
+          return onlineCount>0
+            ? <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+                background:"var(--gr)",color:"#fff",borderRadius:20,padding:"2px 8px",
+                letterSpacing:1}}>{onlineCount} online</span>
+            : null;
+        })()}
+      </button>
+      {/* Friends online banner */}
+      {myGroupsHome.length>0&&(()=>{
+        const activeSessions=myGroupsHome.filter(g=>g.currentRoom);
+        if(activeSessions.length===0)return null;
+        return activeSessions.map(g=>(
+          <div key={g.id} style={{
+            background:"linear-gradient(135deg,rgba(59,178,115,.15),rgba(59,178,115,.06))",
+            border:"2px solid rgba(59,178,115,.4)",borderRadius:12,
+            padding:"10px 14px",marginBottom:8,
+            display:"flex",alignItems:"center",gap:10
+          }}>
+            <div style={{fontSize:"1.3rem"}}>🎮</div>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+                color:"var(--gr)",letterSpacing:1,fontWeight:900}}>{g.name}</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                color:"rgba(255,255,255,.4)",letterSpacing:1}}>Partida en curso · sala {g.currentRoom}</div>
+            </div>
+            <button onClick={()=>{
+              go("join");
+              // Pre-fill the room code - handled via URL or state
+            }} style={{background:"var(--gr)",border:"none",borderRadius:9,
+              padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",
+              fontSize:".65rem",color:"#fff",fontWeight:900,flexShrink:0}}>
+              Unirme →
+            </button>
+          </div>
+        ));
+      })()}
       {sessions.length>0&&(<><div className="div"/><p className="sec">{T.recentSessions}</p><SesCards sessions={sessions} T={T} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}}/></>)}
       <div style={{textAlign:"center",marginTop:20,paddingBottom:8}}>
         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.15)",letterSpacing:2}}>v3.1 · FLIP 7</span>
@@ -3052,6 +3195,429 @@ function ManualModal({playerName,initialScore,onSubmit,onClose,gameMode}){
   );
 }
 
+
+
+// ── GROUPSSCREEN — grupos persistentes + presencia ─────────────
+function GroupsScreen({authUser, onBack, onJoinRoom, T}){
+  const[tab,setTab]=React.useState("my"); // my | browse
+  const[myGroups,setMyGroups]=React.useState([]);
+  const[activeGroup,setActiveGroup]=React.useState(null); // group detail
+  const[presence,setPresence]=React.useState({}); // {uid: {online,status,lastSeen}}
+  const[loading,setLoading]=React.useState(true);
+  const[creating,setCreating]=React.useState(false);
+  const[newGroupName,setNewGroupName]=React.useState("");
+  const[joinCode,setJoinCode]=React.useState("");
+  const[err,setErr]=React.useState("");
+  const[ok,setOk]=React.useState("");
+  const presUnsubRef=React.useRef([]);
+
+  const uid=authUser&&authUser.uid;
+  const isAnon=authUser&&authUser.isAnonymous;
+
+  // Load my groups
+  React.useEffect(()=>{
+    if(!uid||isAnon)return;
+    async function load(){
+      setLoading(true);
+      try{
+        const snap=await _db.ref("users/"+uid+"/groups").once("value");
+        const gids=snap.val()||{};
+        const groups=[];
+        for(const gid of Object.keys(gids)){
+          const gSnap=await _db.ref("groups/"+gid).once("value");
+          if(gSnap.val())groups.push({id:gid,...gSnap.val()});
+        }
+        setMyGroups(groups);
+        if(groups.length>0)listenPresence(groups);
+      }catch(e){console.log("Groups load error:",e);}
+      setLoading(false);
+    }
+    load();
+    return()=>presUnsubRef.current.forEach(u=>u());
+  },[uid]);
+
+  function listenPresence(groups){
+    presUnsubRef.current.forEach(u=>u());
+    presUnsubRef.current=[];
+    groups.forEach(g=>{
+      const ref=_db.ref("presence/"+g.id);
+      const handler=snap=>{
+        const data=snap.val()||{};
+        setPresence(prev=>({...prev,...data}));
+      };
+      ref.on("value",handler);
+      presUnsubRef.current.push(()=>ref.off("value",handler));
+    });
+  }
+
+  // Set my presence
+  React.useEffect(()=>{
+    if(!uid||isAnon||myGroups.length===0)return;
+    const updates={};
+    myGroups.forEach(g=>{
+      updates["presence/"+g.id+"/"+uid]={online:true,status:"idle",lastSeen:Date.now()};
+    });
+    _db.ref().update(updates);
+    // On disconnect, mark offline
+    myGroups.forEach(g=>{
+      _db.ref("presence/"+g.id+"/"+uid+"/online").onDisconnect().set(false);
+      _db.ref("presence/"+g.id+"/"+uid+"/lastSeen").onDisconnect().set(Date.now());
+    });
+    return()=>{
+      const offUpdates={};
+      myGroups.forEach(g=>{
+        offUpdates["presence/"+g.id+"/"+uid+"/online"]=false;
+      });
+      _db.ref().update(offUpdates);
+    };
+  },[myGroups,uid]);
+
+  async function createGroup(){
+    if(!newGroupName.trim()){setErr("Ponle nombre al grupo");return;}
+    setErr("");
+    try{
+      const code=Math.random().toString(36).slice(2,6).toUpperCase();
+      const meSnap=await _db.ref("users/"+uid).once("value");
+      const me=meSnap.val()||{};
+      const newGroup={
+        name:newGroupName.trim(),
+        code,
+        createdBy:uid,
+        createdAt:Date.now(),
+        members:{[uid]:{
+          name:me.displayName||me.email||"?",
+          email:me.email||"",
+          photoURL:me.photoURL||"",
+          role:"admin",
+          joinedAt:Date.now()
+        }},
+        currentRoom:null,
+        gameCount:0,
+      };
+      const ref=await _db.ref("groups").push(newGroup);
+      await _db.ref("users/"+uid+"/groups/"+ref.key).set(true);
+      const created={id:ref.key,...newGroup};
+      setMyGroups(prev=>[...prev,created]);
+      setCreating(false);setNewGroupName("");
+      setActiveGroup(created);
+      snd("join");
+      setOk("✅ Grupo creado — código: "+code);
+    }catch(e){setErr("Error: "+e.message);}
+  }
+
+  async function joinGroup(){
+    if(!joinCode.trim()||joinCode.length<4){setErr("Código de 4 letras");return;}
+    setErr("");
+    try{
+      const snap=await _db.ref("groups").orderByChild("code").equalTo(joinCode.toUpperCase()).once("value");
+      const data=snap.val();
+      if(!data){setErr("Grupo no encontrado");return;}
+      const gid=Object.keys(data)[0];
+      const group=data[gid];
+      if(group.members&&group.members[uid]){setErr("Ya eres miembro de este grupo");return;}
+      const meSnap=await _db.ref("users/"+uid).once("value");
+      const me=meSnap.val()||{};
+      await _db.ref("groups/"+gid+"/members/"+uid).set({
+        name:me.displayName||me.email||"?",
+        email:me.email||"",
+        photoURL:me.photoURL||"",
+        role:"member",
+        joinedAt:Date.now()
+      });
+      await _db.ref("users/"+uid+"/groups/"+gid).set(true);
+      const joined={id:gid,...group,members:{...group.members,[uid]:{name:me.displayName||me.email||"?"}}};
+      setMyGroups(prev=>[...prev,joined]);
+      setJoinCode("");
+      snd("join");
+      setOk("✅ Te uniste a "+group.name);
+    }catch(e){setErr("Error: "+e.message);}
+  }
+
+  async function openRoomForGroup(group){
+    // Set currentRoom on the group so members see it
+    if(group.currentRoom){
+      // Already has a room — join it
+      onJoinRoom(group.currentRoom);
+    } else {
+      setErr("Crea una sala desde el menú principal y elige este grupo");
+    }
+  }
+
+  const fmtAgo=ts=>{
+    const diff=Date.now()-ts;
+    if(diff<60000)return"hace un momento";
+    if(diff<3600000)return"hace "+Math.floor(diff/60000)+"min";
+    if(diff<86400000)return"hace "+Math.floor(diff/3600000)+"h";
+    return"hace "+Math.floor(diff/86400000)+"d";
+  };
+
+  if(isAnon)return(
+    <div className="wrap"><div className="page" style={{paddingTop:32}}>
+      <div style={{textAlign:"center",padding:"40px 20px"}}>
+        <div style={{fontSize:"3rem",marginBottom:12}}>👥</div>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)",letterSpacing:2,marginBottom:8}}>GRUPOS</div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.4)",lineHeight:1.6,marginBottom:20}}>
+          Crea una cuenta para crear grupos con tus amigos, ver quién está online y jugar juntos cada semana.
+        </div>
+        <button onClick={()=>signOut()} className="btn btn-y" style={{maxWidth:280,margin:"0 auto"}}>Crear cuenta</button>
+        <div style={{height:12}}/>
+        <button onClick={onBack} className="btn btn-g" style={{maxWidth:280,margin:"0 auto"}}>← Volver</button>
+      </div>
+    </div></div>
+  );
+
+  // Group detail view
+  if(activeGroup){
+    const members=activeGroup.members||{};
+    const memberList=Object.entries(members).map(([muid,m])=>({uid:muid,...m}));
+    const onlineCount=memberList.filter(m=>presence[m.uid]&&presence[m.uid].online).length;
+    const hasActiveRoom=activeGroup.currentRoom;
+    return(
+      <div className="wrap"><div className="page" style={{paddingTop:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+          <button onClick={()=>setActiveGroup(null)} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
+            color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
+            fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Grupos</button>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:2}}>{activeGroup.name}</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2}}>
+              CÓDIGO: {activeGroup.code} · {memberList.length} miembros · {onlineCount} online
+            </div>
+          </div>
+          {/* Copy invite link */}
+          <button onClick={()=>{
+            const link="https://mysqldumpbd-afk.github.io/Flip7/?group="+activeGroup.code;
+            if(navigator.share){navigator.share({title:activeGroup.name,text:"Únete a nuestro grupo Flip 7!",url:link});}
+            else{navigator.clipboard.writeText(link);setOk("✅ Link copiado");}
+            snd("tap");
+          }} style={{background:"rgba(46,196,182,.12)",border:"1px solid rgba(46,196,182,.3)",
+            color:"var(--t)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
+            fontFamily:"'Righteous',sans-serif",fontSize:".62rem",flexShrink:0}}>
+            🔗 Invitar
+          </button>
+        </div>
+
+        {/* Active room banner */}
+        {hasActiveRoom&&(
+          <div style={{background:"linear-gradient(135deg,rgba(59,178,115,.2),rgba(59,178,115,.08))",
+            border:"2px solid rgba(59,178,115,.5)",borderRadius:14,padding:"12px 14px",marginBottom:12,
+            display:"flex",alignItems:"center",gap:12}}>
+            <div style={{fontSize:"1.5rem"}}>🎮</div>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--gr)",letterSpacing:2}}>PARTIDA EN CURSO</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:"#fff",letterSpacing:3}}>{activeGroup.currentRoom}</div>
+            </div>
+            <button onClick={()=>onJoinRoom(activeGroup.currentRoom)}
+              style={{background:"var(--gr)",border:"none",borderRadius:10,padding:"8px 14px",
+                cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".82rem",color:"#fff"}}>
+              Unirme →
+            </button>
+          </div>
+        )}
+
+        {/* Members with presence */}
+        <p className="sec">MIEMBROS</p>
+        {memberList.map(m=>{
+          const pres=presence[m.uid]||{};
+          const isOnline=pres.online;
+          const status=pres.status||"idle";
+          const isMe=m.uid===uid;
+          return(
+            <div key={m.uid} style={{display:"flex",alignItems:"center",gap:10,
+              padding:"10px 12px",marginBottom:6,borderRadius:12,
+              background:isMe?"rgba(245,200,0,.06)":"rgba(255,255,255,.03)",
+              border:"1px solid "+(isMe?"rgba(245,200,0,.2)":"rgba(255,255,255,.06)")}}>
+              {/* Avatar */}
+              {m.photoURL
+                ? <img src={m.photoURL} style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",
+                    border:"2px solid "+(isOnline?"var(--gr)":"rgba(255,255,255,.1)")}} alt=""/>
+                : <div style={{width:38,height:38,borderRadius:"50%",
+                    background:isOnline?"rgba(59,178,115,.2)":"rgba(255,255,255,.08)",
+                    border:"2px solid "+(isOnline?"var(--gr)":"rgba(255,255,255,.1)"),
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    fontFamily:"'Anton',sans-serif",fontSize:"1rem",
+                    color:isOnline?"var(--gr)":"rgba(255,255,255,.3)"}}>
+                    {(m.name||"?")[0].toUpperCase()}
+                  </div>
+              }
+              <div style={{flex:1}}>
+                <div style={{fontWeight:900,fontSize:".88rem",
+                  color:isMe?"var(--y)":"rgba(255,255,255,.85)"}}>
+                  {m.name}{isMe&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                    color:"rgba(255,255,255,.3)",marginLeft:6,letterSpacing:1}}>tú</span>}
+                </div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",letterSpacing:1,marginTop:2,
+                  color:isOnline?(status==="in-game"?"var(--t)":"var(--gr)"):"rgba(255,255,255,.25)"}}>
+                  {isOnline
+                    ? (status==="in-game"?"🎮 En partida":status==="in-lobby"?"🎴 En lobby":"🟢 Online")
+                    : (pres.lastSeen?"⚫ "+fmtAgo(pres.lastSeen):"⚫ Offline")}
+                </div>
+              </div>
+              {m.role==="admin"&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                background:"rgba(245,200,0,.15)",border:"1px solid rgba(245,200,0,.3)",
+                color:"var(--y)",padding:"2px 7px",borderRadius:20,letterSpacing:1}}>ADMIN</span>}
+            </div>
+          );
+        })}
+
+        {ok&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--gr)",
+          textAlign:"center",padding:"8px",marginTop:4}}>{ok}</div>}
+        <div style={{height:8}}/>
+        <button className="btn btn-g" onClick={()=>setActiveGroup(null)}>← Volver a Grupos</button>
+      </div></div>
+    );
+  }
+
+  return(
+    <div className="wrap"><div className="page" style={{paddingTop:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
+          color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)",letterSpacing:2}}>👥 GRUPOS</div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:6,marginBottom:14}}>
+        {[["my","Mis grupos"],["join","Unirme"]].map(([id,lbl])=>(
+          <button key={id} className={"nb "+(tab===id?"on":"")}
+            onClick={()=>{snd("tap");setTab(id);setErr("");setOk("");}} style={{flex:1,padding:"9px 4px"}}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {/* ── MIS GRUPOS ── */}
+      {tab==="my"&&(<>
+        {loading
+          ? <div style={{textAlign:"center",paddingTop:30,color:"rgba(255,255,255,.3)",
+              fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:2}}>CARGANDO...</div>
+          : myGroups.length===0
+          ? <div style={{textAlign:"center",padding:"30px 20px"}}>
+              <div style={{fontSize:"2.5rem",marginBottom:8}}>👥</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.4)"}}>
+                Sin grupos aún
+              </div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.25)",marginTop:6,lineHeight:1.6}}>
+                Crea un grupo para jugar con los mismos amigos cada semana con el mismo código
+              </div>
+            </div>
+          : myGroups.map(g=>{
+              const members=g.members||{};
+              const mList=Object.entries(members).map(([muid,m])=>({uid:muid,...m}));
+              const onlineM=mList.filter(m=>presence[m.uid]&&presence[m.uid].online);
+              const hasRoom=g.currentRoom;
+              return(
+                <div key={g.id} onClick={()=>{snd("tap");setActiveGroup(g);}}
+                  style={{background:"rgba(255,255,255,.04)",border:"2px solid rgba(255,255,255,.08)",
+                    borderRadius:14,padding:"12px 14px",marginBottom:10,cursor:"pointer",
+                    transition:"border-color .2s"}}
+                  onMouseOver={e=>e.currentTarget.style.borderColor="rgba(245,200,0,.3)"}
+                  onMouseOut={e=>e.currentTarget.style.borderColor="rgba(255,255,255,.08)"}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",
+                        color:"var(--y)",letterSpacing:2}}>{g.name}</div>
+                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                        color:"rgba(255,255,255,.3)",letterSpacing:2,marginTop:2}}>
+                        CÓDIGO: {g.code} · {mList.length} miembros
+                      </div>
+                    </div>
+                    {hasRoom&&(
+                      <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                        background:"rgba(59,178,115,.2)",border:"1px solid rgba(59,178,115,.4)",
+                        color:"var(--gr)",padding:"3px 8px",borderRadius:20,letterSpacing:1}}>
+                        🎮 EN JUEGO
+                      </span>
+                    )}
+                    <span style={{color:"rgba(255,255,255,.2)",fontSize:"1.1rem"}}>›</span>
+                  </div>
+                  {/* Presence avatars */}
+                  <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+                    {mList.map(m=>{
+                      const isOnline=presence[m.uid]&&presence[m.uid].online;
+                      return(
+                        <div key={m.uid} title={m.name+(isOnline?" · Online":"")}
+                          style={{width:28,height:28,borderRadius:"50%",
+                            background:isOnline?"rgba(59,178,115,.25)":"rgba(255,255,255,.06)",
+                            border:"2px solid "+(isOnline?"var(--gr)":"rgba(255,255,255,.1)"),
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            fontFamily:"'Anton',sans-serif",fontSize:".75rem",
+                            color:isOnline?"var(--gr)":"rgba(255,255,255,.3)"}}>
+                          {(m.name||"?")[0].toUpperCase()}
+                        </div>
+                      );
+                    })}
+                    {onlineM.length>0&&(
+                      <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                        color:"var(--gr)",letterSpacing:1,marginLeft:4}}>
+                        {onlineM.length} online
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+        }
+
+        {/* Create group */}
+        {creating
+          ? <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",
+              borderRadius:12,padding:"14px",marginTop:10}}>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+                color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:10}}>NOMBRE DEL GRUPO</div>
+              <input className="inp" placeholder="ej. Los Jueves 🎴" value={newGroupName}
+                onChange={e=>setNewGroupName(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&createGroup()}
+                style={{marginBottom:10}} autoFocus/>
+              {err&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+                color:"var(--r)",marginBottom:8}}>{err}</div>}
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{setCreating(false);setErr("");}} className="btn btn-g"
+                  style={{flex:1,margin:0,padding:"11px"}}>Cancelar</button>
+                <button onClick={createGroup} className="btn btn-y"
+                  style={{flex:2,margin:0,padding:"11px"}}>🎮 Crear grupo</button>
+              </div>
+            </div>
+          : <button onClick={()=>{snd("tap");setCreating(true);setErr("");}}
+              style={{width:"100%",background:"none",border:"2px dashed rgba(255,255,255,.12)",
+                color:"rgba(255,255,255,.4)",borderRadius:12,padding:"12px",cursor:"pointer",
+                fontFamily:"'Righteous',sans-serif",fontSize:".78rem",marginTop:10,
+                transition:"all .2s"}}
+              onMouseOver={e=>{e.target.style.borderColor="var(--y)";e.target.style.color="var(--y)";}}
+              onMouseOut={e=>{e.target.style.borderColor="rgba(255,255,255,.12)";e.target.style.color="rgba(255,255,255,.4)";}}>
+              + Crear nuevo grupo
+            </button>
+        }
+        {ok&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--gr)",
+          textAlign:"center",padding:"10px"}}>{ok}</div>}
+      </>)}
+
+      {/* ── UNIRME ── */}
+      {tab==="join"&&(
+        <div style={{paddingTop:8}}>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+            color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:10}}>CÓDIGO DEL GRUPO</div>
+          <input className="inp code-inp" style={{fontSize:"2.5rem",letterSpacing:8}}
+            placeholder="XXXX" maxLength={4} value={joinCode}
+            onChange={e=>setJoinCode(e.target.value.toUpperCase())}/>
+          {err&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+            color:"var(--r)",marginBottom:10}}>{err}</div>}
+          {ok&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+            color:"var(--gr)",marginBottom:10}}>{ok}</div>}
+          <button className="btn btn-y" onClick={joinGroup}
+            disabled={joinCode.length<4}>
+            👥 Unirme al grupo
+          </button>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+            color:"rgba(255,255,255,.25)",textAlign:"center",marginTop:8,lineHeight:1.6}}>
+            Pide el código de 4 letras al admin del grupo
+          </div>
+        </div>
+      )}
+    </div></div>
+  );
+}
 
 // ── PERSONALDASHBOARD — stats del jugador + amigos ────────────
 function PersonalDashboard({authUser, onBack, T}){
