@@ -3824,15 +3824,13 @@ function PersonalDashboard({authUser, onBack, T}){
     const search=addInput.trim().toLowerCase();
     if(!search){setAddErr("Ingresa un nombre o email");return;}
     try{
-      // Search by displayName or email in /users
-      const snap=await _db.ref("users").once("value");
-      const data=snap.val()||{};
-      const found=Object.values(data).find(u=>
-        u.uid!==uid&&(
-          (u.displayName||"").toLowerCase()===search||
-          (u.email||"").toLowerCase()===search
-        )
-      );
+      // Buscar el uid en /userIndex (clave sanitizada -> uid) en vez de
+      // leer todo /users, que da permission_denied y expone datos de más
+      const idxSnap=await _db.ref("userIndex/"+fbKey(search)).once("value");
+      const foundUid=idxSnap.val();
+      if(!foundUid||foundUid===uid){setAddErr("Usuario no encontrado. Deben haber jugado con cuenta.");return;}
+      const foundSnap=await _db.ref("users/"+foundUid).once("value");
+      const found=foundSnap.val();
       if(!found){setAddErr("Usuario no encontrado. Deben haber jugado con cuenta.");return;}
       // Add friend bidirectionally
       const myRef=_db.ref("users/"+uid+"/friends/"+found.uid);

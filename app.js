@@ -43,16 +43,27 @@ async function signOut(){
 function currentUser(){ return _auth.currentUser; }
 
 // ── USUARIO PROFILE en Firebase ─────────────────────────────────
+// Sanitiza un string a una clave válida para Firebase RTDB
+// (sin . # $ [ ] / y en minúsculas, para usar como key de /userIndex)
+function fbKey(str){
+  return (str||'').toString().trim().toLowerCase().replace(/[.#$\[\]\/]/g,'_');
+}
+
 // Guarda/actualiza perfil del usuario autenticado en /users/{uid}
+// y su(s) clave(s) de búsqueda en /userIndex/{clave} -> uid
+// (evita tener que leer el nodo /users completo para buscar amigos)
 async function saveUserProfile(user, extraData={}){
   if(!user) return;
   const ref = _db.ref('users/'+user.uid);
   const snap = await ref.once('value');
   const prev = snap.val()||{};
+  const displayName = user.displayName||prev.displayName||'';
+  const email = user.email||prev.email||'';
+
   await ref.update({
     uid: user.uid,
-    email: user.email||'',
-    displayName: user.displayName||prev.displayName||'',
+    email,
+    displayName,
     photoURL: user.photoURL||prev.photoURL||'',
     provider: user.providerData&&user.providerData[0]
       ? user.providerData[0].providerId : 'anonymous',
@@ -61,6 +72,16 @@ async function saveUserProfile(user, extraData={}){
     createdAt: prev.createdAt||Date.now(),
     ...extraData
   });
+
+  // Actualizar índice de búsqueda (solo agrega, no pisa el de otro usuario —
+  // las reglas de Firebase deben validar esto también, ver nota de reglas)
+  const idxUpdates = {};
+  if(email)       idxUpdates['userIndex/'+fbKey(email)]       = user.uid;
+  if(displayName) idxUpdates['userIndex/'+fbKey(displayName)] = user.uid;
+  if(Object.keys(idxUpdates).length){
+    try{ await _db.ref().update(idxUpdates); }
+    catch(e){ console.warn('userIndex update falló (no bloquea login):', e.message); }
+  }
 }
 
 // ── DEMO STORE (modo offline sin Firebase) ──────────────────────
