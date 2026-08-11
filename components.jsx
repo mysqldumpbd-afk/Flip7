@@ -155,12 +155,20 @@ async function saveGameStats(session, roomData){
     const summaryRef = _db.ref("stats/players/"+pKey+"/summary");
     const snap = await summaryRef.once("value");
     const prev = snap.val()||{games:0,wins:0,totalScore:0,bestScore:0};
+    // Calcular flip7s y busts de esta partida
+    const pRounds = p.rounds||[];
+    const partFlip7s = pRounds.filter(r=>r.breakdown&&r.breakdown.flip7).length;
+    const partBusts  = pRounds.filter(r=>r.score===0).length;
+    const partBestRound = pRounds.reduce((mx,r)=>Math.max(mx,r.score||0),0);
     await summaryRef.set({
       name: p.name, emoji: p.emoji, color: p.color, pKey,
       games: (prev.games||0)+1,
-      wins: (prev.wins||0)+(won?1:0),          // máximo 1 victoria por partida
+      wins: (prev.wins||0)+(won?1:0),
       totalScore: (prev.totalScore||0)+p.total,
       bestScore: Math.max(prev.bestScore||0, p.total),
+      bestRound: Math.max(prev.bestRound||0, partBestRound),
+      flip7Count: (prev.flip7Count||0)+partFlip7s,
+      bustCount:  (prev.bustCount||0)+partBusts,
       lastPlayed: session.date
     });
   }
@@ -1295,11 +1303,19 @@ function ScoreTab({sorted,room,T}){
           <tbody>{sorted.map((p,ri)=>(
             <tr key={p.id} className={ri===0?"lr":""}>
               <td><span style={{color:p.color}}>{p.emoji}</span> <span style={{color:p.color}}>{p.name}</span></td>
-              {(p.rounds||[]).map((r,i)=><td key={i}
-                className={r.score===0?"rz":""}
-                title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
-                  ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(r.breakdown.flip7?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}
-              >{r.score===0?"💀":"+"+r.score}</td>)}
+              {(p.rounds||[]).map((r,i)=>{
+                var hasFlip=r.breakdown&&r.breakdown.flip7;
+                var hasMod=r.breakdown&&(r.breakdown.multiplier||r.breakdown.divTwo||(r.breakdown.negMods&&r.breakdown.negMods.length>0)||(r.breakdown.plusCards&&r.breakdown.plusCards.length>0));
+                return(<td key={i}
+                  className={r.score===0?"rz":""}
+                  style={{position:"relative",minWidth:36}}
+                  title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
+                    ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(hasFlip?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}>
+                  {r.score===0?"💀":(r.score>0?"+":"")+r.score}
+                  {hasFlip&&<span style={{fontSize:".55rem",position:"absolute",top:1,right:2,lineHeight:1}}>🃏</span>}
+                  {hasMod&&<span style={{fontSize:".55rem",position:"absolute",bottom:1,right:2,lineHeight:1,opacity:.6}}>✱</span>}
+                </td>);
+              })}
               {Array.from({length:mr-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
               <td className="tc">{p.total}</td>
             </tr>
@@ -1421,11 +1437,19 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
                 <tbody>{sorted.map((p,ri)=>(
                   <tr key={p.id} className={ri===0?"lr":""}>
                     <td style={{fontSize:".82rem",color:p.color}}>{p.emoji} {p.name}</td>
-                    {(p.rounds||[]).map((r,i)=><td key={i}
-                className={r.score===0?"rz":""}
-                title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
-                  ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(r.breakdown.flip7?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}
-              >{r.score===0?"💀":"+"+r.score}</td>)}
+                    {(p.rounds||[]).map((r,i)=>{
+                var hasFlip=r.breakdown&&r.breakdown.flip7;
+                var hasMod=r.breakdown&&(r.breakdown.multiplier||r.breakdown.divTwo||(r.breakdown.negMods&&r.breakdown.negMods.length>0)||(r.breakdown.plusCards&&r.breakdown.plusCards.length>0));
+                return(<td key={i}
+                  className={r.score===0?"rz":""}
+                  style={{position:"relative",minWidth:36}}
+                  title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
+                    ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(hasFlip?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}>
+                  {r.score===0?"💀":(r.score>0?"+":"")+r.score}
+                  {hasFlip&&<span style={{fontSize:".55rem",position:"absolute",top:1,right:2,lineHeight:1}}>🃏</span>}
+                  {hasMod&&<span style={{fontSize:".55rem",position:"absolute",bottom:1,right:2,lineHeight:1,opacity:.6}}>✱</span>}
+                </td>);
+              })}
                     {Array.from({length:maxRound-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
                     <td className="tc">{p.total}</td>
                   </tr>
@@ -1899,7 +1923,7 @@ function CardPickerModal({playerName,onSubmit,onClose}){
 
   function handleConfirm(){
     snd("score");
-    var bd={cards:cards.slice(),flip7:flip7,multiplier:multiplier,plusCards:plusCards.slice()};
+    var bd={cards:selected.slice(),flip7:flip7,multiplier:multiplier,plusCards:plusCards.slice()};
     onSubmit(total,bd);
   }
 
@@ -2147,12 +2171,12 @@ function CardPickerModal({playerName,onSubmit,onClose}){
       React.createElement("button",{
         onClick:handleZero,
         style:{
-          width:"100%",background:"rgba(255,255,255,.07)",
-          border:"1px solid rgba(255,255,255,.2)",borderRadius:11,
-          padding:"11px",cursor:"pointer",
-          fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
-          color:"rgba(255,255,255,.6)",letterSpacing:1,
-          transition:"all .2s"
+          width:"100%",background:"rgba(255,255,255,.06)",
+          border:"2px solid rgba(255,255,255,.25)",borderRadius:11,
+          padding:"12px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".82rem",
+          color:"rgba(255,255,255,.75)",letterSpacing:1,
+          transition:"all .2s",fontWeight:700
         }
       },"💀 Cero esta ronda")
     )
@@ -2317,7 +2341,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
         }},"TOCA LAS CARTAS QUE TIENES (1-13)"),
         // Fila 1-7
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5,marginBottom:5}},
-          [1,2,3,4,5,6,7].map(function(n){
+          [0,1,2,3,4,5,6].map(function(n){
             var isSel=selected.includes(n);
             var countN=selected.filter(function(x){return x===n;}).length;
             // A card is "locked" (can't add more) when: already selected (unless lucky13+13) OR grid full
@@ -2354,7 +2378,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
         ),
         // Fila 8-13 + hueco
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5}},
-          [0,8,9,10,11,12,13].map(function(n,i){
+          [7,8,9,10,11,12,13].map(function(n,i){
             var isSel=selected.includes(n);
             var countN=selected.filter(function(x){return x===n;}).length;
             var isLucky=(n===13&&lucky13);
@@ -2593,7 +2617,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
 
       // ── BOTONES ───────────────────────────────────────────────────
       React.createElement("div",{style:{display:"flex",gap:8,marginBottom:8}},
-        React.createElement("button",{className:"mc",style:{flex:1},
+        React.createElement("button",{style:{flex:1,padding:"13px",background:"rgba(255,255,255,.1)",border:"2px solid rgba(255,255,255,.25)",color:"rgba(255,255,255,.8)",borderRadius:11,fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".9rem",cursor:"pointer"},
           onClick:function(){snd("tap");onClose();}
         },"Cancelar"),
         React.createElement("button",{
@@ -2620,12 +2644,12 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
       React.createElement("button",{
         onClick:function(){snd("zero");onSubmit(0,{cards:[],bust:true});},
         style:{
-          width:"100%",background:"rgba(255,255,255,.07)",
-          border:"1px solid rgba(255,255,255,.2)",borderRadius:11,
-          padding:"11px",cursor:"pointer",
-          fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
-          color:"rgba(255,255,255,.6)",letterSpacing:1,
-          transition:"all .2s"
+          width:"100%",background:"rgba(255,255,255,.06)",
+          border:"2px solid rgba(255,255,255,.25)",borderRadius:11,
+          padding:"12px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".82rem",
+          color:"rgba(255,255,255,.75)",letterSpacing:1,
+          transition:"all .2s",fontWeight:700
         }
       },"💀 Cero esta ronda")
     )
@@ -2772,10 +2796,12 @@ function StatsScreen({onBack,T}){
         </div>
         {/* Stats summary */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-          {[["🏆","Victorias",p.wins||0],["🎮","Partidas",p.games||0],["⭐","Mejor score",p.bestScore||0],["📊","Prom. score",avgScore]].map(([ico,lbl,val])=>(
+          {[["🏆","Victorias",p.wins||0],["🎮","Partidas",p.games||0],["⭐","Mejor score",p.bestScore||0],["📊","Prom. score",avgScore],
+            ["🃏","Flip 7s",p.flip7Count||0],["💀","Busts",p.bustCount||0]
+          ].map(([ico,lbl,val])=>(
             <div key={lbl} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",borderRadius:13,padding:"12px 14px",textAlign:"center"}}>
               <div style={{fontSize:"1.4rem",marginBottom:4}}>{ico}</div>
-              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"var(--y)",lineHeight:1}}>{val}</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:lbl==="Flip 7s"?"var(--y)":lbl==="Busts"?"var(--r)":"var(--y)",lineHeight:1}}>{val}</div>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>{lbl}</div>
             </div>
           ))}
@@ -2793,11 +2819,24 @@ function StatsScreen({onBack,T}){
             <div style={{fontSize:"1.6rem"}}>{g.won?"🏆":g.position===2?"🥈":g.position===3?"🥉":"💀"}</div>
             <div style={{flex:1}}>
               <div style={{fontWeight:900,fontSize:".88rem",color:g.won?"var(--gr)":"rgba(255,255,255,.8)"}}>{g.title||"Partida"}</div>
-              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>{fmtD(g.date)} · {fmtT(g.date)} · {g.playerCount} jugadores</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
+                {fmtD(g.date)} · {g.playerCount} jug.
+              </div>
+              {/* Round breakdown mini */}
+              <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>
+                {(g.rounds||[]).map((r,ri)=>(
+                  <span key={ri} style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                    padding:"1px 5px",borderRadius:8,
+                    background:r.score===0?"rgba(230,57,70,.15)":(r.breakdown&&r.breakdown.flip7)?"rgba(245,200,0,.2)":"rgba(255,255,255,.07)",
+                    color:r.score===0?"var(--r)":(r.breakdown&&r.breakdown.flip7)?"var(--y)":"rgba(255,255,255,.5)"}}>
+                    {r.score===0?"💀":(r.score>0?"+":"")+r.score}{r.breakdown&&r.breakdown.flip7?"🃏":""}
+                  </span>
+                ))}
+              </div>
             </div>
             <div style={{textAlign:"right"}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:g.won?"var(--y)":"rgba(255,255,255,.5)"}}>{g.total}</div>
-              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>pos #{g.position}</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>#{g.position} de {g.playerCount}</div>
             </div>
           </div>
         ))}
@@ -2874,14 +2913,22 @@ function StatsScreen({onBack,T}){
               <span style={{fontSize:"1.1rem"}}>🏆</span>
               <span style={{fontFamily:"'Lilita One',sans-serif",fontSize:".88rem",color:"var(--y)"}}>{g.winner}</span>
             </div>
-            {(g.players||[]).sort((a,b)=>a.position-b.position).map(p=>(
-              <div key={p.id||p.name} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
+            {(g.players||[]).sort((a,b)=>a.position-b.position).map(p=>{
+              var pFlip7s=(p.rounds||[]).filter(r=>r.breakdown&&r.breakdown.flip7).length;
+              var pBusts=(p.rounds||[]).filter(r=>r.score===0).length;
+              return(
+              <div key={p.id||p.name} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
                 <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",width:24,color:"rgba(255,255,255,.3)"}}>{p.position===1?"🥇":p.position===2?"🥈":p.position===3?"🥉":"#"+p.position}</div>
                 <div style={{fontSize:"1rem"}}>{p.emoji}</div>
                 <div style={{fontWeight:800,flex:1,fontSize:".84rem",color:p.color}}>{p.name}</div>
-                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"rgba(255,255,255,.55)"}}>{p.total}pts</div>
+                <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                  {pFlip7s>0&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",background:"rgba(245,200,0,.15)",color:"var(--y)",padding:"1px 6px",borderRadius:10}}>🃏×{pFlip7s}</span>}
+                  {pBusts>0&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",background:"rgba(230,57,70,.12)",color:"var(--r)",padding:"1px 6px",borderRadius:10}}>💀×{pBusts}</span>}
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"rgba(255,255,255,.55)"}}>{p.total}pts</div>
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ))}
       </>)}
