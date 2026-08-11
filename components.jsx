@@ -688,7 +688,6 @@ function App(){
   const sorted=room?[...room.players].sort((a,b)=>b.total-a.total):[];
   const isHost=!myPlayerId&&!isSpectator;
 
-  if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>;
   // ── AUTH GATE ──────────────────────────────────────────────
   if(!authChecked)return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",
@@ -701,6 +700,7 @@ function App(){
     </div>
   );
   if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);}}/>;
+  if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
 
   // Animación revancha para TODOS (host la ve también para sincronía visual)
@@ -951,7 +951,7 @@ function AuthScreen({onAuth}){
 }
 
 // ── HOMESCREEN ────────────────────────────────────────────────
-function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
+function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUser,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
   const[view,setView]=useState("main");
   const[gameMode,setGameMode]=useState("classic");
   const[names,setNames]=useState(["","",""]);
