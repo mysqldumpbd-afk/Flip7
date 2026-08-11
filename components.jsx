@@ -699,7 +699,7 @@ function App(){
       </div>
     </div>
   );
-  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);}}/>;
+  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}/>;
   if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
 
@@ -835,7 +835,13 @@ function AuthScreen({onAuth}){
     try{
       const r=await signInAnon();
       onAuth(r.user);
-    }catch(e){setErr(e.message||"Error");}
+    }catch(e){
+      if(e.code==="auth/admin-restricted-operation"){
+        setErr("Activa 'Anónimo' en Firebase Console → Authentication → Método de acceso");
+      } else {
+        setErr(e.message||"Error al entrar sin cuenta");
+      }
+    }
     setBusy(false);
   }
 
