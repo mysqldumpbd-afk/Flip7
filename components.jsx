@@ -1054,13 +1054,10 @@ function AuthScreen({onAuth}){
         )}
 
         {/* Email */}
-        <button onClick={()=>setMode("email-login")} disabled={busy} style={{
-          width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,
-          padding:"14px",marginBottom:10,
+        <button className="btn" onClick={()=>setMode("email-login")} disabled={busy} style={{
+          gap:10,marginBottom:10,
           background:"rgba(255,255,255,.07)",border:"2px solid rgba(255,255,255,.15)",
-          borderRadius:14,cursor:"pointer",
-          fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:"1rem",color:"rgba(255,255,255,.85)",
-          transition:"all .15s"
+          color:"rgba(255,255,255,.85)",fontSize:"1rem"
         }}>
           ✉️ Continuar con Email
         </button>
@@ -1074,12 +1071,9 @@ function AuthScreen({onAuth}){
         </div>
 
         {/* Anónimo */}
-        <button onClick={handleAnon} disabled={busy} style={{
-          width:"100%",padding:"12px",
-          background:"rgba(46,196,182,.08)",border:"2px solid rgba(46,196,182,.3)",
-          borderRadius:14,cursor:"pointer",
-          fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".9rem",
-          color:"var(--t)",transition:"all .15s",opacity:busy?.6:1
+        <button className="btn" onClick={handleAnon} disabled={busy} style={{
+          background:"rgba(46,196,182,.1)",border:"2px solid rgba(46,196,182,.35)",
+          color:"var(--t)",fontSize:".92rem",opacity:busy?.6:1
         }}>
           👤 Jugar sin cuenta
         </button>
@@ -1405,6 +1399,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
 
   const isAnonHome=authUser&&authUser.isAnonymous;
   const LOCKED_VIEWS={grupos:"Grupos"}; // stats NO se bloquea: ya tiene fallback público (StatsScreen)
+  const[joinIntent,setJoinIntent]=React.useState("play"); // play | spectate
   const go=v=>{
     if(isAnonHome&&LOCKED_VIEWS[v]){
       snd('tap');setUpgradeModal({label:LOCKED_VIEWS[v]});return;
@@ -1933,27 +1928,40 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         </div>
       )}
       <div className="hero">
-        <div style={{fontSize:"2.8rem",marginBottom:6}}>🎮</div>
-        <div className="hero-logo" style={{fontSize:"2.4rem"}}>UNIRSE</div>
+        <div style={{fontSize:"2.8rem",marginBottom:6}}>{joinIntent==="spectate"?"👁":"🎮"}</div>
+        <div className="hero-logo" style={{fontSize:"2.4rem"}}>{joinIntent==="spectate"?"VER MARCADOR":"UNIRSE"}</div>
         <div className="hero-tag">Código de sala</div>
       </div>
       {!pickingPlayer&&(<>
         <p className="sec">CÓDIGO DE SALA</p>
         <input className="inp code-inp" placeholder="XXXX" maxLength={4} value={jcode}
           onChange={e=>setJcode(e.target.value.toUpperCase())} onFocus={()=>snd('tap')}/>
-        <p className="sec" style={{marginTop:12}}>TU NOMBRE</p>
-        <input className="inp" placeholder="Tu nombre en el juego" value={jname}
-          onChange={e=>setJname(e.target.value)} onFocus={()=>snd('tap')}/>
-        {err&&<ErrBox err={err}/>}
-        <div className="g12"/>
-        <button className="btn btn-y" onClick={()=>{snd('tap');tryJoin(false);}} disabled={busy||jcode.length<4||!jname.trim()}>
-          {busy?"⏳ Buscando sala":"🎮 UNIRME AL JUEGO"}
-        </button>
-        <div className="div"/>
-        <p className="sec">SOLO VER MARCADOR</p>
-        <button className="btn btn-t" onClick={()=>{snd('tap');tryJoin(true);}} disabled={busy||jcode.length<4}>
-          {busy?"⏳":"👁 ENTRAR COMO ESPECTADOR"}
-        </button>
+        {joinIntent==="spectate"?(<>
+          <div className="g12"/>
+          {err&&<ErrBox err={err}/>}
+          <button className="btn btn-t" onClick={()=>{snd('tap');tryJoin(true);}} disabled={busy||jcode.length<4}>
+            {busy?"⏳":"👁 ENTRAR COMO ESPECTADOR"}
+          </button>
+          <button className="btn2" onClick={()=>setJoinIntent("play")} style={{
+            width:"100%",marginTop:10,padding:"8px",fontSize:".65rem",
+            border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.4)"}}>
+            Mejor quiero jugar
+          </button>
+        </>):(<>
+          <p className="sec" style={{marginTop:12}}>TU NOMBRE</p>
+          <input className="inp" placeholder="Tu nombre en el juego" value={jname}
+            onChange={e=>setJname(e.target.value)} onFocus={()=>snd('tap')}/>
+          {err&&<ErrBox err={err}/>}
+          <div className="g12"/>
+          <button className="btn btn-y" onClick={()=>{snd('tap');tryJoin(false);}} disabled={busy||jcode.length<4||!jname.trim()}>
+            {busy?"⏳ Buscando sala":"🎮 UNIRME AL JUEGO"}
+          </button>
+          <div className="div"/>
+          <p className="sec">SOLO VER MARCADOR</p>
+          <button className="btn btn-t" onClick={()=>{snd('tap');tryJoin(true);}} disabled={busy||jcode.length<4}>
+            {busy?"⏳":"👁 ENTRAR COMO ESPECTADOR"}
+          </button>
+        </>)}
       </>)}
       {pickingPlayer&&roomPlayers&&(<>
         <div className="alert al-y" style={{marginBottom:14}}>
@@ -2118,16 +2126,22 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         )}
       </div>
       <button className="btn btn-y" onClick={()=>go("create")}>{T.createGame}</button>
-      <button className="btn btn-t" onClick={()=>go("join")}>🎮 {T.joinGame}</button>
+      <button className="btn btn-t" onClick={()=>{setJoinIntent("play");go("join");}}>🎮 {T.joinGame}</button>
+      <button className="btn2" onClick={()=>{snd('tap');setJoinIntent("spectate");go("join");}} style={{
+        width:"100%",marginBottom:10,padding:"9px",fontSize:".78rem",
+        border:"1.5px solid rgba(255,255,255,.12)",color:"rgba(255,255,255,.5)",
+        background:"rgba(255,255,255,.02)"}}>
+        👁 Ver partida como espectador
+      </button>
 
       {/* Accesos primarios: Estadísticas · Amigos · Grupos */}
       <div style={{display:"flex",gap:8,marginBottom:10}}>
         {[
-          {key:"stats",tab:"me",label:"Stats",icon:"📊",cls:"btn2-y",locked:false},
+          {key:"stats",tab:"me",label:"Estadísticas",icon:"📊",cls:"btn2-y",locked:false},
           {key:"friends",tab:"friends",label:"Amigos",icon:"👥",cls:"btn2-t",locked:isAnonHome},
         ].map(b=>(
           <button key={b.key} className={"btn2 "+b.cls} onClick={()=>goDashboard(b.tab)} style={{
-            flex:1,position:"relative",padding:"11px 6px",fontSize:".82rem",
+            flex:1,position:"relative",padding:"11px 4px",fontSize:".8rem",
             opacity:b.locked?.55:1}}>
             {b.locked&&<span style={{position:"absolute",top:4,right:6,fontSize:".7rem"}}>🔒</span>}
             {b.icon} {b.label}
@@ -2136,7 +2150,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       </div>
 
       <button className="btn2 btn2-pu" onClick={()=>go("grupos")} style={{
-        width:"100%",position:"relative",padding:"13px",marginBottom:10,fontSize:"1rem",
+        width:"100%",position:"relative",padding:"13px",marginBottom:10,fontSize:".8rem",
         borderRadius:14,opacity:isAnonHome?.55:1
       }}>
         {isAnonHome&&<span style={{position:"absolute",top:8,right:12,fontSize:".85rem"}}>🔒</span>}
