@@ -35,6 +35,23 @@ async function signUpEmail(email, password, displayName){
 async function signInAnon(){
   return _auth.signInAnonymously();
 }
+// Vincular cuenta anónima a Google/Email — conserva el mismo uid y todo lo
+// que ya se guardó bajo esa sesión (en vez de crear una cuenta nueva y huérfana)
+async function linkAnonToGoogle(){
+  const user=_auth.currentUser;
+  if(!user||!user.isAnonymous) throw new Error("No hay sesión anónima activa");
+  const provider=new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  return user.linkWithPopup(provider);
+}
+async function linkAnonToEmail(email,password,displayName){
+  const user=_auth.currentUser;
+  if(!user||!user.isAnonymous) throw new Error("No hay sesión anónima activa");
+  const cred=firebase.auth.EmailAuthProvider.credential(email,password);
+  const result=await user.linkWithCredential(cred);
+  if(displayName) await result.user.updateProfile({displayName});
+  return result;
+}
 // Cerrar sesión
 async function signOut(){
   return _auth.signOut();

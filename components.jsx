@@ -1031,9 +1031,114 @@ function AuthScreen({onAuth}){
   );
 }
 
+// ── UPGRADE ACCOUNT MODAL — se dispara al tocar algo bloqueado en modo
+// anónimo. Vincula la sesión actual en vez de crear una cuenta nueva.
+function UpgradeAccountModal({onClose,onDone,featureLabel}){
+  const[mode,setMode]=React.useState("main");
+  const[email,setEmail]=React.useState("");
+  const[password,setPassword]=React.useState("");
+  const[name,setName]=React.useState("");
+  const[busy,setBusy]=React.useState(false);
+  const[err,setErr]=React.useState("");
+
+  async function handleGoogle(){
+    setBusy(true);setErr("");
+    try{
+      const r=await linkAnonToGoogle();
+      await saveUserProfile(r.user);
+      onDone(r.user);
+    }catch(e){setErr(e.message||"Error con Google");}
+    setBusy(false);
+  }
+  async function handleEmail(){
+    if(!name.trim()){setErr("Ingresa tu nombre");return;}
+    if(!email||!password){setErr("Ingresa email y contraseña");return;}
+    if(password.length<6){setErr("Mínimo 6 caracteres");return;}
+    setBusy(true);setErr("");
+    try{
+      const r=await linkAnonToEmail(email,password,name.trim());
+      await saveUserProfile(r.user);
+      onDone(r.user);
+    }catch(e){
+      if(e.code==="auth/email-already-in-use")
+        setErr("Este email ya tiene cuenta — inicia sesión desde 'salir' primero");
+      else setErr(e.message||"Error al crear cuenta");
+    }
+    setBusy(false);
+  }
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:200,
+      display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
+      onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--dark,#14141f)",
+        border:"1px solid rgba(255,255,255,.12)",borderRadius:18,padding:22,
+        maxWidth:360,width:"100%"}}>
+        <div style={{textAlign:"center",marginBottom:16}}>
+          <div style={{fontSize:"2rem",marginBottom:6}}>🔒</div>
+          <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:"1.05rem",color:"#fff"}}>
+            Crea tu cuenta para usar {featureLabel}
+          </div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+            color:"rgba(255,255,255,.4)",marginTop:6}}>
+            Tu progreso actual se queda igual — solo se vincula.
+          </div>
+        </div>
+
+        {mode==="main"&&(<>
+          <button onClick={handleGoogle} disabled={busy} style={{
+            width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+            padding:"12px",marginBottom:8,background:"#fff",border:"none",borderRadius:12,
+            cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".9rem",
+            color:"#222",opacity:busy?.6:1}}>
+            <svg width="18" height="18" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            Continuar con Google
+          </button>
+          <button onClick={()=>setMode("email")} disabled={busy} style={{
+            width:"100%",padding:"12px",marginBottom:4,background:"rgba(255,255,255,.07)",
+            border:"2px solid rgba(255,255,255,.15)",borderRadius:12,cursor:"pointer",
+            fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".9rem",
+            color:"rgba(255,255,255,.85)"}}>
+            ✉️ Continuar con Email
+          </button>
+        </>)}
+
+        {mode==="email"&&(<>
+          <input className="inp" placeholder="Tu nombre" value={name}
+            onChange={e=>setName(e.target.value)} style={{marginBottom:8}}/>
+          <input className="inp" placeholder="Email" type="email" value={email}
+            onChange={e=>setEmail(e.target.value)} style={{marginBottom:8}}/>
+          <input className="inp" placeholder="Contraseña (mín. 6 caracteres)" type="password"
+            value={password} onChange={e=>setPassword(e.target.value)} style={{marginBottom:10}}/>
+          <button className="btn btn-y" disabled={busy} onClick={handleEmail} style={{marginBottom:8}}>
+            {busy?"⏳ ...":"🚀 Crear cuenta"}
+          </button>
+        </>)}
+
+        {err&&<div style={{marginBottom:8,padding:"9px 12px",background:"rgba(230,57,70,.15)",
+          border:"1px solid rgba(230,57,70,.4)",borderRadius:10,
+          fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"var(--r)"}}>{err}</div>}
+
+        <button onClick={onClose} style={{width:"100%",background:"none",border:"none",
+          color:"rgba(255,255,255,.35)",fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+          letterSpacing:1,cursor:"pointer",padding:"6px",marginTop:2}}>
+          Ahora no
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── HOMESCREEN ────────────────────────────────────────────────
 function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUser,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
   const[view,setView]=useState("main");
+  const[showSecondaryMenu,setShowSecondaryMenu]=React.useState(false);
+  const[upgradeModal,setUpgradeModal]=React.useState(null); // {label} | null
   const[myGroupsHome,setMyGroupsHome]=React.useState([]); // for presence banner
   const[presenceHome,setPresenceHome]=React.useState({});  // uid → {online,status}
   const[selectedGroup,setSelectedGroup]=React.useState(null); // for create-with-group
@@ -1100,7 +1205,19 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     setPlayerColors(p=>{const a=[...p];while(a.length<names.length){const next=COLORS.find(c=>!a.includes(c))||COLORS[a.length%COLORS.length];a.push(next);}return a.slice(0,names.length);});
   },[names.length]);
 
-  const go=v=>{snd('tap');setErr(null);setView(v);setRoomPlayers(null);setPickingPlayer(false);};
+  const isAnonHome=authUser&&authUser.isAnonymous;
+  const LOCKED_VIEWS={grupos:"Grupos"}; // stats NO se bloquea: ya tiene fallback público (StatsScreen)
+  const go=v=>{
+    if(isAnonHome&&LOCKED_VIEWS[v]){
+      snd('tap');setUpgradeModal({label:LOCKED_VIEWS[v]});return;
+    }
+    snd('tap');setErr(null);setView(v);setRoomPlayers(null);setPickingPlayer(false);
+  };
+  const[dashboardTab,setDashboardTab]=React.useState("me");
+  const goDashboard=tab=>{
+    if(isAnonHome&&tab==="friends"){snd('tap');setUpgradeModal({label:"Amigos"});return;}
+    snd('tap');setDashboardTab(tab);setView("stats");
+  };
 
   async function createReal(){
     const ns=names.filter(n=>n.trim());
@@ -1389,7 +1506,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
 
   if(view==="stats"){
     if(authUser&&!authUser.isAnonymous)
-      return<PersonalDashboard authUser={authUser} onBack={()=>go("main")} T={T}/>;
+      return<PersonalDashboard authUser={authUser} onBack={()=>go("main")} T={T} initialTab={dashboardTab}/>;
     return<StatsScreen onBack={()=>go("main")} T={T}/>;
   }
   if(view==="grupos")return<GroupsScreen authUser={authUser} onBack={()=>go("main")}
@@ -1423,20 +1540,33 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         </div>
       )}
       <div className="hero">
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}}
+        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8,position:"relative"}}>
+          <button onClick={()=>{snd('tap');setShowSecondaryMenu(v=>!v);}}
+            aria-label="Más opciones"
             style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
-              color:"rgba(255,255,255,.6)",borderRadius:9,padding:"5px 10px",cursor:"pointer",
-              fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:1}}>
-            {lang==="es"?"🌐 English":"🌐 Español"}
+              color:"rgba(255,255,255,.6)",borderRadius:9,width:32,height:32,cursor:"pointer",
+              fontSize:"1rem",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            ⚙️
           </button>
-          <button onClick={()=>{snd('tap');setView("stats");}}
-            style={{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.3)",
-              color:"var(--y)",borderRadius:9,padding:"5px 10px",cursor:"pointer",
-              fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:1,
-              display:"flex",alignItems:"center",gap:5}}>
-            📊 Stats
-          </button>
+          {showSecondaryMenu&&(
+            <div style={{position:"absolute",top:38,right:0,zIndex:20,minWidth:180,
+              background:"var(--dark,#14141f)",border:"1px solid rgba(255,255,255,.15)",
+              borderRadius:12,padding:6,boxShadow:"0 8px 24px rgba(0,0,0,.4)"}}>
+              <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}}
+                style={{width:"100%",textAlign:"left",background:"none",border:"none",
+                  padding:"9px 10px",borderRadius:8,cursor:"pointer",
+                  fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
+                  color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",gap:8}}>
+                🌐 {lang==="es"?"English":"Español"}
+              </button>
+              <button disabled style={{width:"100%",textAlign:"left",background:"none",border:"none",
+                  padding:"9px 10px",borderRadius:8,cursor:"not-allowed",
+                  fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
+                  color:"rgba(255,255,255,.3)",display:"flex",alignItems:"center",gap:8}}>
+                👤 Perfil <span style={{fontSize:".62rem"}}>(próximamente)</span>
+              </button>
+            </div>
+          )}
         </div>
         <div style={{fontSize:"3.5rem",marginBottom:8}}>🎴</div>
         <div className="hero-logo">FLIP 7</div>
@@ -1494,16 +1624,35 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       </div>
       <button className="btn btn-y" onClick={()=>go("create")}>{T.createGame}</button>
       <button className="btn btn-t" onClick={()=>go("join")}>🎮 {T.joinGame}</button>
+
+      {/* Accesos primarios: Estadísticas · Amigos · Grupos */}
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        {[
+          {key:"stats",tab:"me",label:"Stats",icon:"📊",color:"var(--y)",bg:"rgba(245,200,0,.1)",border:"rgba(245,200,0,.3)",locked:false},
+          {key:"friends",tab:"friends",label:"Amigos",icon:"👥",color:"#7dd3c8",bg:"rgba(46,196,182,.1)",border:"rgba(46,196,182,.3)",locked:isAnonHome},
+        ].map(b=>(
+          <button key={b.key} onClick={()=>goDashboard(b.tab)} style={{
+            flex:1,position:"relative",padding:"11px 6px",
+            background:b.bg,border:"1px solid "+b.border,borderRadius:12,cursor:"pointer",
+            fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:b.color,
+            letterSpacing:1,opacity:b.locked?.55:1}}>
+            {b.locked&&<span style={{position:"absolute",top:4,right:6,fontSize:".7rem"}}>🔒</span>}
+            {b.icon} {b.label}
+          </button>
+        ))}
+      </div>
+
       <button onClick={()=>go("grupos")} style={{
-        width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+        width:"100%",position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:8,
         padding:"13px",marginBottom:10,
         background:"rgba(123,45,139,.15)",border:"2px solid rgba(123,45,139,.35)",
         borderRadius:14,cursor:"pointer",
         fontFamily:"'Lilita One',sans-serif",fontSize:"1rem",color:"#cc88ff",
-        transition:"all .15s"
+        transition:"all .15s",opacity:isAnonHome?.55:1
       }}>
+        {isAnonHome&&<span style={{position:"absolute",top:8,right:12,fontSize:".85rem"}}>🔒</span>}
         👥 Mis grupos
-        {myGroupsHome.length>0&&(()=>{
+        {!isAnonHome&&myGroupsHome.length>0&&(()=>{
           const onlineCount=myGroupsHome.reduce((acc,g)=>{
             const members=g.members||{};
             return acc+Object.keys(members).filter(muid=>muid!==authUser.uid&&presenceHome[muid]&&presenceHome[muid].online).length;
@@ -1515,6 +1664,11 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
             : null;
         })()}
       </button>
+      {upgradeModal&&(
+        <UpgradeAccountModal featureLabel={upgradeModal.label}
+          onClose={()=>setUpgradeModal(null)}
+          onDone={()=>{setUpgradeModal(null);}}/>
+      )}
       {/* Friends online banner */}
       {myGroupsHome.length>0&&(()=>{
         const activeSessions=myGroupsHome.filter(g=>g.currentRoom);
@@ -3768,8 +3922,8 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
 }
 
 // ── PERSONALDASHBOARD — stats del jugador + amigos ────────────
-function PersonalDashboard({authUser, onBack, T}){
-  const[tab,setTab]=React.useState("me");
+function PersonalDashboard({authUser, onBack, T, initialTab}){
+  const[tab,setTab]=React.useState(initialTab||"me");
   const[myStats,setMyStats]=React.useState(null);
   const[myGames,setMyGames]=React.useState([]);
   const[friends,setFriends]=React.useState([]);
