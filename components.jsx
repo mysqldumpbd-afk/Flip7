@@ -717,7 +717,7 @@ function App(){
     if(!code){
       roomCode2=demo?"DEMO":uid4();
       const firstPlayerName=names&&names[0]?names[0].trim():"";
-      const groupId2=opts&&opts.groupId||null;
+      const groupId2=groupId||null;
       await db.set("rooms/"+roomCode2,{
         code:roomCode2,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
         gameMode:gameMode||"classic",
@@ -1214,9 +1214,10 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     snd('tap');setErr(null);setView(v);setRoomPlayers(null);setPickingPlayer(false);
   };
   const[dashboardTab,setDashboardTab]=React.useState("me");
+  const[dashboardMode,setDashboardMode]=React.useState("stats");
   const goDashboard=tab=>{
     if(isAnonHome&&tab==="friends"){snd('tap');setUpgradeModal({label:"Amigos"});return;}
-    snd('tap');setDashboardTab(tab);setView("stats");
+    snd('tap');setDashboardTab(tab);setDashboardMode(tab==="friends"?"friends":"stats");setView("stats");
   };
 
   async function createReal(){
@@ -1506,7 +1507,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
 
   if(view==="stats"){
     if(authUser&&!authUser.isAnonymous)
-      return<PersonalDashboard authUser={authUser} onBack={()=>go("main")} T={T} initialTab={dashboardTab}/>;
+      return<PersonalDashboard authUser={authUser} onBack={()=>go("main")} T={T} initialTab={dashboardTab} mode={dashboardMode}/>;
     return<StatsScreen onBack={()=>go("main")} T={T}/>;
   }
   if(view==="grupos")return<GroupsScreen authUser={authUser} onBack={()=>go("main")}
@@ -3922,8 +3923,9 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
 }
 
 // ── PERSONALDASHBOARD — stats del jugador + amigos ────────────
-function PersonalDashboard({authUser, onBack, T, initialTab}){
-  const[tab,setTab]=React.useState(initialTab||"me");
+function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
+  const dashMode=mode||(initialTab==="friends"?"friends":"stats");
+  const[tab,setTab]=React.useState(dashMode==="friends"?"friends":(initialTab||"me"));
   const[myStats,setMyStats]=React.useState(null);
   const[myGames,setMyGames]=React.useState([]);
   const[friends,setFriends]=React.useState([]);
@@ -4069,15 +4071,17 @@ function PersonalDashboard({authUser, onBack, T, initialTab}){
         <div style={{width:60}}/>
       </div>
 
-      {/* Tabs */}
-      <div style={{display:"flex",gap:6,marginBottom:14}}>
-        {[["me","👤 Yo"],["friends","👥 Amigos"],["history","🎮 Historial"]].map(([id,lbl])=>(
-          <button key={id} className={"nb "+(tab===id?"on":"")}
-            onClick={()=>{snd("tap");setTab(id);}} style={{flex:1,padding:"9px 4px",fontSize:".65rem"}}>
-            {lbl}
-          </button>
-        ))}
-      </div>
+      {/* Tabs — separadas por contexto: Estadísticas (Yo+Historial) vs Amigos (aparte) */}
+      {dashMode!=="friends"&&(
+        <div style={{display:"flex",gap:6,marginBottom:14}}>
+          {[["me","👤 Yo"],["history","🎮 Historial"]].map(([id,lbl])=>(
+            <button key={id} className={"nb "+(tab===id?"on":"")}
+              onClick={()=>{snd("tap");setTab(id);}} style={{flex:1,padding:"9px 4px",fontSize:".65rem"}}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading&&<div style={{textAlign:"center",paddingTop:30,color:"rgba(255,255,255,.3)",
         fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:2}}>CARGANDO...</div>}
