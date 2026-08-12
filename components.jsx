@@ -867,21 +867,27 @@ function App(){
           </div>
           <span className="logo-sub">Race to 200!</span>
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+        <div style={{display:"flex",flexWrap:"wrap",justifyContent:"flex-end",
+          alignItems:"center",gap:6,rowGap:8,maxWidth:"62%"}}>
           {room&&room.gameMode&&room.gameMode!=="classic"&&GAME_MODES[room.gameMode]&&(
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:1,
               background:GAME_MODES[room.gameMode].badgeColor,
               border:"1px solid "+GAME_MODES[room.gameMode].badgeBorder,
               color:GAME_MODES[room.gameMode].color,
-              padding:"3px 8px",borderRadius:20,display:"flex",alignItems:"center",gap:4}}>
+              padding:"4px 9px",borderRadius:20,display:"flex",alignItems:"center",gap:4,
+              whiteSpace:"nowrap"}}>
               {GAME_MODES[room.gameMode].emoji} {room.gameMode.toUpperCase()}
             </div>
           )}
+          <div className={"badge "+(demoMode?"demo":"")} style={{margin:0}}>
+            <span className={"dot "+(demoMode?"demo":"")}/>
+            {demoMode?"DEMO":roomCode}
+          </div>
           {/* User account pill */}
           {authUser&&!authUser.isAnonymous&&(
             <div style={{display:"flex",alignItems:"center",gap:6,
               background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",
-              borderRadius:20,padding:"4px 10px 4px 6px",cursor:"pointer"}}
+              borderRadius:20,padding:"4px 10px 4px 6px",cursor:"pointer",whiteSpace:"nowrap"}}
               onClick={()=>{if(confirm("¿Cerrar sesión?"))signOut();}}>
               {authUser.photoURL
                 ? <img src={authUser.photoURL} style={{width:20,height:20,borderRadius:"50%",objectFit:"cover"}} alt=""/>
@@ -898,10 +904,8 @@ function App(){
               </span>
             </div>
           )}
-          <div className={"badge "+(demoMode?"demo":"")}>
-            <span className={"dot "+(demoMode?"demo":"")}/>
-            {demoMode?"DEMO":roomCode}
-          </div>
+          {/* Separador visual antes de los controles de sesión */}
+          <div style={{width:"100%",height:0}}/>
           <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}}
             style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
               color:"rgba(255,255,255,.6)",borderRadius:9,padding:"5px 8px",cursor:"pointer",
