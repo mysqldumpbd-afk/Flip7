@@ -569,6 +569,14 @@ function App(){
     if(unsubRef.current)unsubRef.current();
     unsubRef.current=db.listen("rooms/"+code,data=>{
       if(!data)return;
+      // El host terminó la partida para todos — cualquier cliente conectado
+      // (jugadores, espectadores, incluso el propio host si el listener
+      // llega a alcanzar a procesar el eco de su propio escritura) vuelve
+      // a Home automáticamente.
+      if(data.forceEnded){
+        leaveGame();
+        return;
+      }
       const newSorted=[...data.players].sort((a,b)=>b.total-a.total);
       const prev=prevSortedRef.current;
       newSorted.forEach((p,ni)=>{
@@ -609,11 +617,37 @@ function App(){
   }
 
   function leaveGame(){
+    // Avisar explícitamente que el host se va — antes solo dependía de
+    // onDisconnect, que no siempre dispara al navegar dentro de la SPA
+    // (el socket de Firebase sigue vivo aunque cambies de pantalla).
+    if(isHost&&roomCode&&!demoMode){
+      _db.ref("rooms/"+roomCode+"/hostOnline").set(false).catch(()=>{});
+    }
     if(unsubRef.current){unsubRef.current();unsubRef.current=null;}
     try{localStorage.removeItem("f7lastCode");}catch(e){}
     winnerShown.current=false;prevSortedRef.current=[];
     setRoom(null);setRoomCode("");setWinner(null);setScreen("home");
     setDemoMode(false);setIsSpectator(false);setMyPlayerId(null);setRematchPending(false);
+  }
+
+  // Transferir el rol de host a otro jugador ya conectado — soluciona el
+  // problema de sala "huérfana" cuando el host original se desconecta.
+  async function transferHost(newPlayerId){
+    if(!isHost||!room||!roomCode||demoMode)return;
+    snd('tap');
+    await dbRef.current.set("rooms/"+roomCode,{...room,hostPlayerId:newPlayerId});
+    await _db.ref("rooms/"+roomCode+"/hostOnline").set(true);
+  }
+
+  // Terminar la partida para TODOS — no borra la sala (por si quieren
+  // reiniciar), pero saca a todos a Home y libera el grupo asociado.
+  async function endGameForAll(){
+    if(!isHost||!room||!roomCode||demoMode)return;
+    await dbRef.current.set("rooms/"+roomCode,{...room,forceEnded:true,forceEndedAt:Date.now()});
+    if(room.groupId){
+      _db.ref("groups/"+room.groupId+"/currentRoom").set(null).catch(()=>{});
+    }
+    leaveGame();
   }
 
   // ── RECONEXIÓN RÁPIDA a la última sala ─────────────────────
@@ -708,6 +742,7 @@ function App(){
         groupId:groupId2,
         // Guardar nombre del host para permitir reconexión
         hostName: hostName||firstPlayerName,
+        hostPlayerId: null, // se llena solo si hay una transferencia de host explícita
         players:names.map((name,i)=>({
           id:uid(),name:name.trim(),
           emoji:(customEmojis&&customEmojis[i])||EMOJIS[i%EMOJIS.length],
@@ -745,7 +780,9 @@ function App(){
 
   const allDone=room&&room.players.every(p=>room.roundScores?.[p.id]!==undefined);
   const sorted=room?[...room.players].sort((a,b)=>b.total-a.total):[];
-  const isHost=!myPlayerId&&!isSpectator;
+  // El host puede ser el creador original (playerId null) O, si hubo una
+  // transferencia explícita (room.hostPlayerId), quien tenga ese playerId.
+  const isHost=!isSpectator&&(room&&room.hostPlayerId!=null?myPlayerId===room.hostPlayerId:!myPlayerId);
 
   // ── AUTH GATE ──────────────────────────────────────────────
   if(!authChecked)return(
@@ -828,7 +865,7 @@ function App(){
       <div className="page">
         {demoMode&&tab==="round"&&<div className="demo-banner">🟣 <span>MODO DEMO — local, sin Firebase</span></div>}
         {tab==="round"&&!room&&<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 16px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando</p></div>}
-        {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} isHost={isHost} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig} onRematch={startRematch} onEndGame={leaveGame} roomCode={roomCode} T={T}/>}
+        {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} isHost={isHost} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig} onRematch={startRematch} onEndGame={leaveGame} onTransferHost={transferHost} onEndGameForAll={endGameForAll} roomCode={roomCode} T={T}/>}
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room} T={T}/>}
         {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}} T={T}/>}
       </div>
@@ -1303,7 +1340,13 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       // Buscar si hay un jugador con ese nombre
       const existing=r.players.find(p=>p.name.toLowerCase()===inputName);
       if(existing){
-        // Jugador existente → reconectar con su playerId
+        // Jugador existente → reconectar con su playerId.
+        // Si ese nombre también era el del host original y nadie más tiene
+        // el rol de host asignado, recuperas el host junto con tu propio
+        // jugador (antes se perdía el host al reconectar así).
+        if(!r.hostPlayerId&&r.hostName&&r.hostName.toLowerCase()===inputName){
+          await _db.ref("rooms/"+jcode.toUpperCase()+"/hostPlayerId").set(existing.id);
+        }
         snd('join');
         await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:existing.id});
       } else {
@@ -1359,6 +1402,9 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       const inputName=myName.trim().toLowerCase();
       const existing=r.players.find(p=>p.name.toLowerCase()===inputName);
       if(existing){
+        if(!r.hostPlayerId&&r.hostName&&r.hostName.toLowerCase()===inputName){
+          await _db.ref("rooms/"+code.toUpperCase()+"/hostPlayerId").set(existing.id);
+        }
         snd('join');
         await onEnter({demo:false,spectator:false,code:code.toUpperCase(),playerId:existing.id});
       }else{
@@ -1983,12 +2029,14 @@ function ErrBox({err}){
 }
 
 // ── ROUNDTAB ──────────────────────────────────────────────────
-function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,demoMode,aiConfig,setAiConfig,onRematch,onEndGame,roomCode,T}){
+function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,demoMode,aiConfig,setAiConfig,onRematch,onEndGame,onTransferHost,onEndGameForAll,roomCode,T}){
   const[scanModal,setScan]=useState(null);
   const[manModal,setMan]=useState(null);  // {pid, name, initialScore}
   const[cardModal,setCard]=useState(null); // {pid, name}
   const[vengCardModal,setVengCard]=useState(null); // {pid, name} — Venganza mode
   const[shakePid,setShakePid]=useState(null);
+  const[showTransfer,setShowTransfer]=useState(false);
+  const[confirmEnd,setConfirmEnd]=useState(false);
   const canControl=pid=>!myPlayerId||myPlayerId===pid;
   const gameMode=(room&&room.gameMode)||'classic';
   const isVenganza=gameMode==='venganza';
@@ -2074,6 +2122,71 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           <div className="rbd">R{room.round}</div>
         </div>
       </div>
+      {/* Controles de host — solo visibles para quien tiene el rol */}
+      {isHost&&!room.finished&&!demoMode&&(
+        <div style={{display:"flex",gap:6,marginBottom:10}}>
+          <button onClick={()=>{snd('tap');setShowTransfer(v=>!v);}}
+            style={{flex:1,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",
+              color:"rgba(255,255,255,.55)",borderRadius:9,padding:"7px 8px",cursor:"pointer",
+              fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1}}>
+            🔁 Transferir host
+          </button>
+          <button onClick={()=>{snd('tap');setConfirmEnd(true);}}
+            style={{flex:1,background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.25)",
+              color:"var(--r)",borderRadius:9,padding:"7px 8px",cursor:"pointer",
+              fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1}}>
+            🛑 Terminar partida
+          </button>
+        </div>
+      )}
+      {isHost&&showTransfer&&(
+        <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.1)",
+          borderRadius:12,padding:10,marginBottom:10}}>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+            color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:8}}>
+            ELEGIR NUEVO HOST — debe estar conectado ahora mismo
+          </div>
+          {room.players.filter(p=>p.id!==myPlayerId).map(p=>{
+            const online=room.presence&&room.presence[p.id];
+            return(
+              <button key={p.id} disabled={!online}
+                onClick={()=>{onTransferHost(p.id);setShowTransfer(false);}}
+                style={{width:"100%",display:"flex",alignItems:"center",gap:8,
+                  padding:"8px 10px",marginBottom:5,borderRadius:9,
+                  background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",
+                  cursor:online?"pointer":"not-allowed",opacity:online?1:.4}}>
+                <span style={{color:p.color}}>{p.emoji}</span>
+                <span style={{flex:1,textAlign:"left",fontWeight:900,fontSize:".8rem",color:"#fff"}}>{p.name}</span>
+                <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                  color:online?"var(--gr)":"rgba(255,255,255,.25)"}}>{online?"● en línea":"desconectado"}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {isHost&&confirmEnd&&(
+        <div style={{background:"rgba(230,57,70,.08)",border:"2px solid rgba(230,57,70,.3)",
+          borderRadius:12,padding:12,marginBottom:10,textAlign:"center"}}>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--r)",
+            marginBottom:8,fontWeight:900}}>¿Terminar la partida para todos?</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+            color:"rgba(255,255,255,.4)",marginBottom:10}}>
+            Todos los jugadores volverán al inicio. La sala no se borra.
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{snd('tap');onEndGameForAll();}}
+              style={{flex:1,background:"var(--r)",border:"none",borderRadius:9,padding:"9px",
+                cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".78rem",color:"#fff"}}>
+              Sí, terminar
+            </button>
+            <button onClick={()=>setConfirmEnd(false)}
+              style={{flex:1,background:"rgba(255,255,255,.07)",border:"none",borderRadius:9,padding:"9px",
+                cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".78rem",color:"rgba(255,255,255,.6)"}}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
       {room.players.map(p=>{
         const entry=room.roundScores?.[p.id];const done=entry!==undefined;const mine=canControl(p.id);
         const isShaking=shakePid===p.id;
@@ -2088,6 +2201,12 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                   {/* nombre con color del jugador */}
                   <span style={{color:p.color,textShadow:"0 0 8px "+p.color+"55"}}>{p.name}</span>
                   {myPlayerId===p.id&&<span className="me-tag">tú</span>}
+                  {room.hostPlayerId===p.id&&(
+                    <span style={{display:"inline-flex",alignItems:"center",gap:2,
+                      background:"rgba(245,200,0,.18)",border:"1px solid rgba(245,200,0,.4)",
+                      borderRadius:20,padding:"1px 7px",fontFamily:"'Righteous',sans-serif",
+                      fontSize:".55rem",color:"var(--y)",letterSpacing:1,fontWeight:900}}>👑 HOST</span>
+                  )}
                 </div>
                 <div style={{display:"flex",alignItems:"baseline",gap:4,flexShrink:0}}>
                   <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:p.color,lineHeight:1,textShadow:"2px 2px 0 rgba(0,0,0,.4)"}}>{p.total}</span>
