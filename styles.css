@@ -124,7 +124,9 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
   box-shadow:0 3px 12px rgba(123,45,139,.2)}
 .btn2-on{border-color:rgba(245,200,0,.6);background:rgba(245,200,0,.15);
   box-shadow:0 3px 14px rgba(245,200,0,.25)}
-.btn2-off{border-color:rgba(255,255,255,.1);color:rgba(255,255,255,.4);background:rgba(255,255,255,.03)}
+.btn2-off{border-color:rgba(255,255,255,.18);color:rgba(255,255,255,.55);
+  background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
+.btn2-off:hover{border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.8)}
 
 /* ── 6. ALERTS ───────────────────────────────────────────────── */
 .alert{border-radius:12px;padding:10px 14px;display:flex;align-items:flex-start;

@@ -1717,11 +1717,11 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         }
         return(
         <div className="create-body" style={{paddingTop:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-            <button className="btn2 btn2-off" onClick={()=>{snd('tap');setCreateStep("mode");}}
-              style={{padding:"6px 12px",fontSize:".72rem",flexShrink:0}}>← Tipo de juego</button>
-            <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"var(--y)",letterSpacing:2}}>JUGADORES</div>
-          </div>
+          <button className="btn2 btn2-off" onClick={()=>{snd('tap');setCreateStep("mode");}}
+            style={{padding:"6px 12px",fontSize:".72rem",width:"auto"}}>← Tipo de juego</button>
+          <div style={{textAlign:"center",fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",
+            color:"var(--y)",letterSpacing:3,margin:"14px 0 16px",
+            textShadow:"0 0 20px rgba(245,200,0,.3)"}}>JUGADORES</div>
 
           {/* Selector de modo para llenar jugadores */}
           <div style={{display:"flex",gap:6,marginBottom:14}}>
@@ -1942,11 +1942,6 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
           <button className="btn btn-t" onClick={()=>{snd('tap');tryJoin(true);}} disabled={busy||jcode.length<4}>
             {busy?"⏳":"👁 ENTRAR COMO ESPECTADOR"}
           </button>
-          <button className="btn2" onClick={()=>setJoinIntent("play")} style={{
-            width:"100%",marginTop:10,padding:"8px",fontSize:".65rem",
-            border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.4)"}}>
-            Mejor quiero jugar
-          </button>
         </>):(<>
           <p className="sec" style={{marginTop:12}}>TU NOMBRE</p>
           <input className="inp" placeholder="Tu nombre en el juego" value={jname}
@@ -2127,46 +2122,47 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       </div>
       <button className="btn btn-y" onClick={()=>go("create")}>{T.createGame}</button>
       <button className="btn btn-t" onClick={()=>{setJoinIntent("play");go("join");}}>🎮 {T.joinGame}</button>
-      <button className="btn2" onClick={()=>{snd('tap');setJoinIntent("spectate");go("join");}} style={{
-        width:"100%",marginBottom:10,padding:"9px",fontSize:".78rem",
-        border:"1.5px solid rgba(255,255,255,.12)",color:"rgba(255,255,255,.5)",
-        background:"rgba(255,255,255,.02)"}}>
-        👁 Ver partida como espectador
-      </button>
 
-      {/* Accesos primarios: Estadísticas · Amigos · Grupos */}
-      <div style={{display:"flex",gap:8,marginBottom:10}}>
+      {/* Accesos secundarios en grid 2x2: Estadísticas · Amigos · Mis grupos · Espectador */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
         {[
-          {key:"stats",tab:"me",label:"Estadísticas",icon:"📊",cls:"btn2-y",locked:false},
-          {key:"friends",tab:"friends",label:"Amigos",icon:"👥",cls:"btn2-t",locked:isAnonHome},
+          {key:"stats",label:"Estadísticas",icon:"📊",cls:"btn2-y",locked:false,onClick:()=>goDashboard("me")},
+          {key:"friends",label:"Amigos",icon:"👥",cls:"btn2-t",locked:isAnonHome,onClick:()=>goDashboard("friends")},
         ].map(b=>(
-          <button key={b.key} className={"btn2 "+b.cls} onClick={()=>goDashboard(b.tab)} style={{
-            flex:1,position:"relative",padding:"11px 4px",fontSize:".8rem",
+          <button key={b.key} className={"btn2 "+b.cls} onClick={b.onClick} style={{
+            position:"relative",padding:"12px 4px",fontSize:".8rem",
             opacity:b.locked?.55:1}}>
             {b.locked&&<span style={{position:"absolute",top:4,right:6,fontSize:".7rem"}}>🔒</span>}
             {b.icon} {b.label}
           </button>
         ))}
-      </div>
 
-      <button className="btn2 btn2-pu" onClick={()=>go("grupos")} style={{
-        width:"100%",position:"relative",padding:"13px",marginBottom:10,fontSize:".8rem",
-        borderRadius:14,opacity:isAnonHome?.55:1
-      }}>
-        {isAnonHome&&<span style={{position:"absolute",top:8,right:12,fontSize:".85rem"}}>🔒</span>}
-        👥 Mis grupos
-        {!isAnonHome&&myGroupsHome.length>0&&(()=>{
-          const onlineCount=myGroupsHome.reduce((acc,g)=>{
-            const members=g.members||{};
-            return acc+Object.keys(members).filter(muid=>muid!==authUser.uid&&presenceHome[muid]&&presenceHome[muid].online).length;
-          },0);
-          return onlineCount>0
-            ? <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
-                background:"var(--gr)",color:"#fff",borderRadius:20,padding:"2px 8px",
-                letterSpacing:1}}>{onlineCount} online</span>
-            : null;
-        })()}
-      </button>
+        <button className="btn2 btn2-pu" onClick={()=>go("grupos")} style={{
+          position:"relative",padding:"12px 4px",fontSize:".8rem",
+          opacity:isAnonHome?.55:1
+        }}>
+          {isAnonHome&&<span style={{position:"absolute",top:4,right:6,fontSize:".7rem"}}>🔒</span>}
+          👥 Mis grupos
+          {!isAnonHome&&myGroupsHome.length>0&&(()=>{
+            const onlineCount=myGroupsHome.reduce((acc,g)=>{
+              const members=g.members||{};
+              return acc+Object.keys(members).filter(muid=>muid!==authUser.uid&&presenceHome[muid]&&presenceHome[muid].online).length;
+            },0);
+            return onlineCount>0
+              ? <span style={{position:"absolute",bottom:-6,right:6,fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                  background:"var(--gr)",color:"#fff",borderRadius:20,padding:"1px 6px",
+                  letterSpacing:1}}>{onlineCount}●</span>
+              : null;
+          })()}
+        </button>
+
+        <button className="btn2" onClick={()=>{snd('tap');setJoinIntent("spectate");go("join");}} style={{
+          padding:"12px 4px",fontSize:".8rem",
+          border:"1.5px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.55)",
+          background:"rgba(255,255,255,.03)"}}>
+          👁 Espectador
+        </button>
+      </div>
       {upgradeModal&&(
         <UpgradeAccountModal featureLabel={upgradeModal.label}
           onClose={()=>setUpgradeModal(null)}
