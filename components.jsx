@@ -4461,6 +4461,116 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
 }
 
 // ── PERSONALDASHBOARD — stats del jugador + amigos ────────────
+// Comparativa cabeza a cabeza — cruza TUS partidas con las del amigo por
+// gameId compartido (si ambos tienen un registro con el mismo gameId,
+// jugaron juntos). No hace falta leer stats/games completo para esto.
+function HeadToHead({myUid,friendUid,friendName}){
+  const[data,setData]=React.useState(null); // null=cargando
+  React.useEffect(()=>{
+    if(!myUid||!friendUid)return;
+    let cancelled=false;
+    Promise.all([
+      _db.ref("stats/players/"+myUid+"/games").once("value"),
+      _db.ref("stats/players/"+friendUid+"/games").once("value")
+    ]).then(([mySnap,fSnap])=>{
+      if(cancelled)return;
+      const myGamesData=mySnap.val()||{};
+      const fGamesData=fSnap.val()||{};
+      const commonIds=Object.keys(myGamesData).filter(gid=>fGamesData[gid]);
+      const rows=commonIds.map(gid=>({
+        gameId:gid,date:myGamesData[gid].date,
+        myScore:myGamesData[gid].total,myPos:myGamesData[gid].position,
+        theirScore:fGamesData[gid].total,theirPos:fGamesData[gid].position
+      })).sort((a,b)=>b.date-a.date);
+      setData(rows);
+    }).catch(()=>{if(!cancelled)setData([]);});
+    return()=>{cancelled=true;};
+  },[myUid,friendUid]);
+
+  if(data===null)return(
+    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+      color:"rgba(255,255,255,.25)",padding:"10px 14px"}}>Comparando…</div>
+  );
+  if(data.length===0)return(
+    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+      color:"rgba(255,255,255,.3)",padding:"10px 14px",background:"rgba(255,255,255,.02)",
+      borderRadius:"0 0 13px 13px",marginTop:-8}}>
+      Aún no han jugado juntos en la misma partida
+    </div>
+  );
+
+  const myWins=data.filter(r=>r.myPos<r.theirPos).length;
+  const theirWins=data.filter(r=>r.theirPos<r.myPos).length;
+
+  return(
+    <div style={{background:"rgba(46,196,182,.05)",border:"1px solid rgba(46,196,182,.15)",
+      borderTop:"none",borderRadius:"0 0 13px 13px",padding:"10px 14px",marginTop:-8}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginBottom:8}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--t)"}}>{myWins}</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,255,255,.35)"}}>TÚ</div>
+        </div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.25)"}}>vs</div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)"}}>{theirWins}</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,255,255,.35)"}}>{(friendName||"").toUpperCase().slice(0,10)}</div>
+        </div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.25)",marginLeft:6}}>
+          {data.length} partida{data.length!==1?"s":""} juntos
+        </div>
+      </div>
+      {data.slice(0,5).map(r=>(
+        <div key={r.gameId} style={{display:"flex",alignItems:"center",gap:8,padding:"3px 0",fontSize:".68rem"}}>
+          <span style={{flex:1,color:"rgba(255,255,255,.4)"}}>{fmtAgo(r.date)}</span>
+          <span style={{color:r.myPos<r.theirPos?"var(--gr)":"rgba(255,255,255,.4)",fontWeight:900}}>#{r.myPos}</span>
+          <span style={{color:"rgba(255,255,255,.2)"}}>–</span>
+          <span style={{color:r.theirPos<r.myPos?"var(--y)":"rgba(255,255,255,.4)",fontWeight:900}}>#{r.theirPos}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Carga bajo demanda el resto de jugadores de una partida (solo cuando se
+// expande la tarjeta) — el historial individual solo guarda tu propia
+// fila, así que para ver a los demás hay que consultar stats/games/{id}.
+function GameOtherPlayers({gameId,myPosition}){
+  const[others,setOthers]=React.useState(null); // null=cargando, []=ninguno más
+  React.useEffect(()=>{
+    if(!gameId)return;
+    let cancelled=false;
+    _db.ref("stats/games/"+gameId).once("value").then(snap=>{
+      if(cancelled)return;
+      const data=snap.val();
+      const players=(data&&data.players)||[];
+      setOthers(players.filter(p=>p.position!==myPosition).sort((a,b)=>a.position-b.position));
+    }).catch(()=>{if(!cancelled)setOthers([]);});
+    return()=>{cancelled=true;};
+  },[gameId]);
+
+  if(others===null)return(
+    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+      color:"rgba(255,255,255,.25)",marginTop:10}}>Cargando jugadores…</div>
+  );
+  if(others.length===0)return null;
+
+  return(
+    <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
+      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+        color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>TAMBIÉN JUGARON</div>
+      {others.map((p,i)=>(
+        <div key={p.id||i} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
+          <span style={{width:16,textAlign:"center"}}>{p.emoji}</span>
+          <span style={{flex:1,fontSize:".78rem",color:"rgba(255,255,255,.7)",fontWeight:700}}>{p.name}</span>
+          <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+            color:"rgba(255,255,255,.3)",marginRight:6}}>#{p.position}</span>
+          <span style={{fontFamily:"'Anton',sans-serif",fontSize:".82rem",color:"rgba(255,255,255,.6)"}}>{p.total}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
   const dashMode=mode||(initialTab==="friends"?"friends":"stats");
   const[tab,setTab]=React.useState(dashMode==="friends"?"friends":(initialTab||"me"));
@@ -4475,6 +4585,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
   const[suggestions,setSuggestions]=React.useState([]);
   const[searching,setSearching]=React.useState(false);
   const[confirmRemove,setConfirmRemove]=React.useState(null); // uid pendiente de confirmar
+  const[h2hOpen,setH2hOpen]=React.useState(null); // uid de amigo con comparativa abierta
   const[expandedGame,setExpandedGame]=React.useState(null); // gameId de la partida desplegada
   const[friendPresence,setFriendPresence]=React.useState({}); // {uid:{online,lastSeen}}
 
@@ -4637,6 +4748,17 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
     // Comeback: partidas donde tu ronda 1 fue un bust (0 pts) y aun así ganaste
     const comebacks=chron.filter(g=>g.won&&g.rounds&&g.rounds[0]&&g.rounds[0].score===0).length;
 
+    // Peor racha de busts SEGUIDOS dentro de una misma partida (mala suerte
+    // concentrada, no repartida en varias partidas distintas)
+    let worstBustStreak=0;
+    chron.forEach(g=>{
+      let run=0;
+      (g.rounds||[]).forEach(r=>{
+        if(r.score===0){run++;worstBustStreak=Math.max(worstBustStreak,run);}
+        else run=0;
+      });
+    });
+
     // Clásico vs Venganza — solo cuenta partidas que ya tienen el campo
     // (partidas jugadas antes de este cambio no lo tienen, se ignoran)
     const withMode=chron.filter(g=>g.gameMode);
@@ -4650,7 +4772,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
       currentStreak,currentType,bestStreak,
       aggressiveness:aggressiveness.toFixed(1),
       luckyCard,luckyCount,
-      comebacks,
+      comebacks,worstBustStreak,
       classic:modeStats(classicG),
       venganza:modeStats(vengG)
     };
@@ -4821,18 +4943,35 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
               </div>
             </div>
 
-            {/* Comebacks */}
-            {kpis.comebacks>0&&(
-              <div style={{background:"rgba(123,45,139,.08)",border:"1px solid rgba(123,45,139,.25)",
-                borderRadius:12,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
-                <div style={{fontSize:"1.4rem"}}>🎬</div>
-                <div>
-                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"#cc88ff"}}>
-                    {kpis.comebacks} {kpis.comebacks===1?"remontada":"remontadas"}
+            {/* Comebacks + peor racha de busts */}
+            {(kpis.comebacks>0||kpis.worstBustStreak>=2)&&(
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                {kpis.comebacks>0&&(
+                  <div style={{flex:1,background:"rgba(123,45,139,.08)",border:"1px solid rgba(123,45,139,.25)",
+                    borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{fontSize:"1.3rem"}}>🎬</div>
+                    <div>
+                      <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",color:"#cc88ff"}}>
+                        {kpis.comebacks}
+                      </div>
+                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",
+                        color:"rgba(255,255,255,.35)"}}>remontada{kpis.comebacks!==1?"s":""}</div>
+                    </div>
                   </div>
-                  <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                    color:"rgba(255,255,255,.35)"}}>bust en la ronda 1 y aún así ganaste</div>
-                </div>
+                )}
+                {kpis.worstBustStreak>=2&&(
+                  <div style={{flex:1,background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.25)",
+                    borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{fontSize:"1.3rem"}}>☠️</div>
+                    <div>
+                      <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",color:"var(--r)"}}>
+                        {kpis.worstBustStreak}
+                      </div>
+                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",
+                        color:"rgba(255,255,255,.35)"}}>busts seguidos (1 partida)</div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -4954,9 +5093,10 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                 const pres=friendPresence[f.uid]||{};
                 const isOnline=pres.online;
                 return(
-                  <div key={f.uid} style={{background:"rgba(255,255,255,.04)",
+                  <div key={f.uid} style={{marginBottom:8}}>
+                  <div style={{background:"rgba(255,255,255,.04)",
                     border:"1px solid rgba(255,255,255,.07)",borderRadius:13,
-                    padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+                    padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
                     <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(245,200,0,.15)",
                       border:"2px solid "+(isOnline?"var(--gr)":"rgba(245,200,0,.3)"),display:"flex",alignItems:"center",
                       justifyContent:"center",fontFamily:"'Anton',sans-serif",
@@ -4983,6 +5123,13 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                     {fs&&<div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",
                       color:"rgba(255,255,255,.4)"}}>{fs.wins||0}<div style={{fontFamily:"'Righteous',sans-serif",
                         fontSize:".52rem",color:"rgba(255,255,255,.25)",letterSpacing:1}}>WINS</div></div>}
+                    <button onClick={()=>{snd("tap");setH2hOpen(h2hOpen===f.uid?null:f.uid);}}
+                      title="Comparar cabeza a cabeza"
+                      style={{background:h2hOpen===f.uid?"rgba(46,196,182,.15)":"rgba(255,255,255,.06)",
+                        border:"1px solid "+(h2hOpen===f.uid?"rgba(46,196,182,.4)":"rgba(255,255,255,.1)"),
+                        borderRadius:8,width:30,height:30,cursor:"pointer",flexShrink:0,
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        color:h2hOpen===f.uid?"var(--t)":"rgba(255,255,255,.4)",fontSize:".8rem"}}>⚔️</button>
                     {confirmRemove===f.uid ? (
                       <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
                         <button onClick={()=>{snd("tap");removeFriend(f.uid);}}
@@ -5002,6 +5149,8 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                           display:"flex",alignItems:"center",justifyContent:"center",
                           color:"rgba(255,255,255,.4)",fontSize:".9rem"}}>🗑</button>
                     )}
+                  </div>
+                  {h2hOpen===f.uid&&<HeadToHead myUid={uid} friendUid={f.uid} friendName={f.name}/>}
                   </div>
                 );
               })
@@ -5056,33 +5205,25 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   </span>
                 ))}
               </div>
-              {/* Detalle expandido — cartas jugadas por ronda */}
+              {/* Detalle expandido — puntos por ronda (simple) + otros jugadores */}
               {isOpen&&(
                 <div onClick={e=>e.stopPropagation()} style={{marginTop:10,paddingTop:10,
                   borderTop:"1px solid rgba(255,255,255,.08)"}}>
                   <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                    color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>DETALLE POR RONDA</div>
+                    color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>PUNTOS POR RONDA</div>
                   {(g.rounds||[]).map((r,ri)=>(
                     <div key={ri} style={{display:"flex",alignItems:"center",gap:8,
-                      padding:"6px 0",borderBottom:ri<(g.rounds.length-1)?"1px solid rgba(255,255,255,.05)":"none"}}>
+                      padding:"5px 0",borderBottom:ri<(g.rounds.length-1)?"1px solid rgba(255,255,255,.05)":"none"}}>
                       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
                         color:"rgba(255,255,255,.35)",width:26,flexShrink:0}}>R{ri+1}</div>
-                      <div style={{flex:1,fontSize:".72rem",color:"rgba(255,255,255,.6)"}}>
-                        {r.score===0
-                          ? "💀 Bust"
-                          : r.breakdown&&Array.isArray(r.breakdown.cards)&&r.breakdown.cards.length>0
-                          ? "🃏 "+r.breakdown.cards.join(", ")+
-                            (r.breakdown.multiplier?" ×"+r.breakdown.multiplier:"")+
-                            (r.breakdown.plusCards&&r.breakdown.plusCards.length>0?" +"+r.breakdown.plusCards.join("+"):"")
-                          : r.method==="manual"?"🧮 Manual":"—"
-                        }
-                      </div>
-                      <div style={{fontFamily:"'Anton',sans-serif",fontSize:".85rem",
+                      <div style={{flex:1}}/>
+                      <div style={{fontFamily:"'Anton',sans-serif",fontSize:".9rem",
                         color:r.score===0?"var(--r)":r.breakdown&&r.breakdown.flip7?"var(--y)":"rgba(255,255,255,.7)"}}>
-                        {r.score===0?"0":(r.score>0?"+":"")+r.score}
+                        {r.score===0?"💀":(r.score>0?"+":"")+r.score}
                       </div>
                     </div>
                   ))}
+                  <GameOtherPlayers gameId={g.gameId} myPosition={g.position}/>
                 </div>
               )}
             </div>
