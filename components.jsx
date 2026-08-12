@@ -402,11 +402,16 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
   }
 
   return(
-    <div className="player-setup-row" style={{borderColor:color+"44"}}>
+    <div className="player-setup-row" style={{borderColor:color+"55",
+      background:color+"0a",boxShadow:"0 2px 10px "+color+"14"}}>
       <div className="psr-top">
         <div style={{position:"relative",flexShrink:0}}>
           <button ref={emojiBtnRef} className="emoji-big-btn" onClick={openEmoji}
-            style={{background:color+"18",borderColor:color+"66"}}>{emoji}</button>
+            style={{background:color+"22",borderColor:color+"88"}}>{emoji}</button>
+          <div style={{position:"absolute",top:-5,left:-5,width:15,height:15,borderRadius:"50%",
+            background:color,border:"2px solid var(--dark,#0F0F1A)",display:"flex",
+            alignItems:"center",justifyContent:"center",fontFamily:"'Anton',sans-serif",
+            fontSize:".55rem",color:"#000",pointerEvents:"none"}}>{idx+1}</div>
           {emojiOpen&&(
             <div ref={emojiDdRef} className="emoji-dd" style={{top:emojiPos.top,left:emojiPos.left}}>
               {allEmojis.map((e,ei)=>(
@@ -416,7 +421,9 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
             </div>
           )}
         </div>
-        <input className="inp" style={{margin:0,flex:1,borderColor:color+"55",padding:"7px 10px",fontSize:".9rem"}}
+        <input className="inp" style={{margin:0,flex:1,borderColor:color+"66",
+          background:color+"14",fontFamily:"'Nunito',sans-serif",fontWeight:900,
+          letterSpacing:".3px",padding:"7px 10px",fontSize:".9rem"}}
           placeholder={(T?T.players:"Jugador")+" "+(idx+1)} value={name}
           onChange={e=>{snd('num');onName(e.target.value);}} onFocus={()=>snd('tap')}/>
         <div style={{position:"relative",flexShrink:0}}>
@@ -1519,8 +1526,9 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         <div className="create-title">{T.createRoom}</div>
         <div className="create-sub">{T.newGame}</div>
       </div>
+      {createStep==="mode"&&(
       <div className="create-body">
-      {createStep==="mode"&&(<>
+      {(<>
         {/* ── SELECTOR DE MODO ── */}
         <p className="sec" style={{marginBottom:8}}>MODO DE JUEGO</p>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
@@ -1614,6 +1622,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         )}
       </>)}
       </div>
+      )}
       {createStep==="mode"&&(
         <div className="create-footer">
           <button className="btn btn-y" style={{marginBottom:8}}
@@ -1624,9 +1633,17 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         </div>
       )}
       {createStep==="players"&&(()=>{
-        // Sincroniza names/emojis/colores a partir de una lista de nombres elegidos
+        // Sincroniza names/emojis/colores a partir de una lista de nombres
+        // elegidos. Deduplica por nombre (sin mayúsculas/espacios) — evita
+        // que aparezcas dos veces si algún dato de grupo quedó con un
+        // rastro duplicado de tu propio nombre.
         function applyPicked(pickedNames){
-          const list=[myDisplayName,...pickedNames].filter(Boolean);
+          const seen=new Set();
+          const list=[];
+          [myDisplayName,...pickedNames].filter(Boolean).forEach(n=>{
+            const k=n.trim().toLowerCase();
+            if(k&&!seen.has(k)){seen.add(k);list.push(n);}
+          });
           const finalList=list.length>=2?list:[...list,""];
           setNames(finalList);
           setPlayerEmojis(EMOJIS.slice(0,finalList.length));
@@ -1665,6 +1682,17 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                     Aún no tienes amigos agregados
                   </div>
                 : <>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)"}}>
+                        {Object.values(pickedFriends).filter(Boolean).length} seleccionados
+                      </span>
+                      <span style={{display:"flex",gap:10}}>
+                        <span onClick={()=>{const all={};friendsHome.forEach(f=>all[f.uid]=true);setPickedFriends(all);}}
+                          style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",cursor:"pointer"}}>Todos</span>
+                        <span onClick={()=>setPickedFriends({})}
+                          style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",cursor:"pointer"}}>Ninguno</span>
+                      </span>
+                    </div>
                     {friendsHome.map(f=>{
                       const sel=pickedFriends[f.uid]||false;
                       return(
@@ -1712,7 +1740,17 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                 : <>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
                       {myGroupsHome.map(g=>(
-                        <button key={g.id} onClick={()=>{snd('tap');setPickedGroupForPlayers(g);setSelectedGroup(g);setPickedGroupMembers({});}}
+                        <button key={g.id} onClick={()=>{
+                          snd('tap');setPickedGroupForPlayers(g);setSelectedGroup(g);
+                          // Auto-seleccionar a todos los miembros — un grupo normalmente
+                          // significa "todos van a jugar", así que empezamos ahí y el
+                          // usuario desmarca si alguien no va esta vez.
+                          const allSelected={};
+                          Object.keys(g.members||{}).forEach(muid=>{
+                            if(muid!==authUser.uid)allSelected[muid]=true;
+                          });
+                          setPickedGroupMembers(allSelected);
+                        }}
                           style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",
                             fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1,
                             background:pickedGroupForPlayers&&pickedGroupForPlayers.id===g.id?"rgba(123,45,139,.3)":"rgba(255,255,255,.04)",
@@ -1722,8 +1760,25 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                         </button>
                       ))}
                     </div>
+                    {pickedGroupForPlayers&&(
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)"}}>
+                          {Object.values(pickedGroupMembers).filter(Boolean).length} seleccionados
+                        </span>
+                        <span style={{display:"flex",gap:10}}>
+                          <span onClick={()=>{
+                            const all={};
+                            Object.keys(pickedGroupForPlayers.members||{}).forEach(muid=>{if(muid!==authUser.uid)all[muid]=true;});
+                            setPickedGroupMembers(all);
+                          }} style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",cursor:"pointer"}}>Todos</span>
+                          <span onClick={()=>setPickedGroupMembers({})}
+                            style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",cursor:"pointer"}}>Ninguno</span>
+                        </span>
+                      </div>
+                    )}
                     {pickedGroupForPlayers&&Object.entries(pickedGroupForPlayers.members||{}).map(([muid,m])=>{
                       if(muid===authUser.uid)return null; // el host ya va incluido siempre
+                      if((m.name||"").trim().toLowerCase()===(myDisplayName||"").trim().toLowerCase())return null;
                       const sel=pickedGroupMembers[muid]||false;
                       return(
                         <div key={muid} onClick={()=>{snd('tap');setPickedGroupMembers(p=>({...p,[muid]:!p[muid]}));}}
