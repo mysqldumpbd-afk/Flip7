@@ -2128,10 +2128,10 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       {/* Accesos secundarios en grid 2x2: Estadísticas · Amigos · Mis grupos · Espectador */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
         {[
-          {key:"stats",label:"Estadísticas",icon:"📊",cls:"btn2-y",locked:false,onClick:()=>goDashboard("me")},
-          {key:"friends",label:"Amigos",icon:"👥",cls:"btn2-t",locked:isAnonHome,onClick:()=>goDashboard("friends")},
+          {key:"stats",label:"Estadísticas",icon:"📊",cls:"btn3-y",locked:false,onClick:()=>goDashboard("me")},
+          {key:"friends",label:"Amigos",icon:"👥",cls:"btn3-t",locked:isAnonHome,onClick:()=>goDashboard("friends")},
         ].map(b=>(
-          <button key={b.key} className={"btn2 "+b.cls} onClick={b.onClick} style={{
+          <button key={b.key} className={"btn3 "+b.cls} onClick={b.onClick} style={{
             position:"relative",padding:"12px 4px",fontSize:".8rem",
             opacity:b.locked?.55:1}}>
             {b.locked&&<span style={{position:"absolute",top:4,right:6,fontSize:".7rem"}}>🔒</span>}
@@ -2139,7 +2139,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
           </button>
         ))}
 
-        <button className="btn2 btn2-pu" onClick={()=>go("grupos")} style={{
+        <button className="btn3 btn3-pu" onClick={()=>go("grupos")} style={{
           position:"relative",padding:"12px 4px",fontSize:".8rem",
           opacity:isAnonHome?.55:1
         }}>
