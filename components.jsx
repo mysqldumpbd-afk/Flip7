@@ -475,6 +475,29 @@ function App(){
   // Reconexión automática: guardar último código activo en localStorage
   const[lastKnownCode,setLastKnownCode]=useState(()=>localStorage.getItem("f7lastCode")||"");
   const[reconnectReady,setReconnectReady]=useState(false);
+  const[authRedirectError,setAuthRedirectError]=useState("");
+
+  // ── Captura el resultado al VOLVER de Google (ya no usamos popup) ──
+  // signInWithRedirect/linkWithRedirect navegan fuera de la página; esto
+  // corre una sola vez al recargar y confirma que el login/vínculo cerró
+  // bien, guarda el perfil, y muestra un error claro si algo falló (ej.
+  // esa cuenta de Google ya está vinculada a otro usuario).
+  React.useEffect(()=>{
+    _auth.getRedirectResult().then(async result=>{
+      if(result&&result.user){
+        await saveUserProfile(result.user).catch(()=>{});
+      }
+    }).catch(e=>{
+      console.log("Redirect result error:",e.code,e.message);
+      if(e.code==="auth/credential-already-in-use"){
+        setAuthRedirectError("Esa cuenta de Google ya está vinculada a otro usuario del juego.");
+      }else if(e.code==="auth/account-exists-with-different-credential"){
+        setAuthRedirectError("Ya existe una cuenta con ese email usando otro método (email/contraseña). Inicia sesión con ese método.");
+      }else if(e.code!=="auth/no-auth-event"){
+        setAuthRedirectError("Error al completar el login: "+(e.message||e.code));
+      }
+    });
+  },[]);
 
   useEffect(()=>{
     async function loadAiConfig(){
@@ -830,7 +853,8 @@ function App(){
       </div>
     </div>
   );
-  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}/>;
+  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}
+    redirectError={authRedirectError} onDismissRedirectError={()=>setAuthRedirectError("")}/>;
   if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
 
@@ -911,7 +935,7 @@ function App(){
 
 
 // ── AUTHSCREEN — Google / Email / Anónimo ──────────────────────
-function AuthScreen({onAuth}){
+function AuthScreen({onAuth,redirectError,onDismissRedirectError}){
   const[mode,setMode]=React.useState("main"); // main | email-login | email-signup
   const[email,setEmail]=React.useState("");
   const[password,setPassword]=React.useState("");
@@ -919,14 +943,19 @@ function AuthScreen({onAuth}){
   const[busy,setBusy]=React.useState(false);
   const[err,setErr]=React.useState("");
 
+  // Si venimos de un redirect de Google que falló, mostrar el error aquí
+  React.useEffect(()=>{
+    if(redirectError){setErr(redirectError);if(onDismissRedirectError)onDismissRedirectError();}
+  },[redirectError]);
+
   async function handleGoogle(){
     setBusy(true);setErr("");
     try{
-      const r=await signInGoogle();
-      await saveUserProfile(r.user);
-      onAuth(r.user);
-    }catch(e){setErr(e.message||"Error con Google");}
-    setBusy(false);
+      // Con redirect, esta llamada navega fuera de la página — no hay
+      // resultado que esperar aquí. onAuth se dispara solo al volver,
+      // vía el listener de auth en App() (ver checkRedirectResult).
+      await signInGoogle();
+    }catch(e){setErr(e.message||"Error con Google");setBusy(false);}
   }
 
   async function handleEmailLogin(){
@@ -937,8 +966,17 @@ function AuthScreen({onAuth}){
       await saveUserProfile(r.user);
       onAuth(r.user);
     }catch(e){
-      if(e.code==="auth/user-not-found"||e.code==="auth/wrong-password")
-        setErr("Email o contraseña incorrectos");
+      if(e.code==="auth/user-not-found"||e.code==="auth/wrong-password"||e.code==="auth/invalid-login-credentials"||e.code==="auth/invalid-credential"){
+        // Averiguar si ese email ya está registrado con otro método (típicamente Google)
+        try{
+          const methods=await _auth.fetchSignInMethodsForEmail(email);
+          if(methods.includes("google.com")&&!methods.includes("password")){
+            setErr("Esta cuenta se registró con Google, no con contraseña — usa \"Continuar con Google\" arriba.");
+          }else{
+            setErr("Email o contraseña incorrectos");
+          }
+        }catch{setErr("Email o contraseña incorrectos");}
+      }
       else setErr(e.message||"Error al iniciar sesión");
     }
     setBusy(false);
@@ -1110,11 +1148,10 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
   async function handleGoogle(){
     setBusy(true);setErr("");
     try{
-      const r=await linkAnonToGoogle();
-      await saveUserProfile(r.user);
-      onDone(r.user);
-    }catch(e){setErr(e.message||"Error con Google");}
-    setBusy(false);
+      // Redirect — la página navega fuera. Al volver, checkRedirectResult
+      // en App() completa el perfil y cierra este modal automáticamente.
+      await linkAnonToGoogle();
+    }catch(e){setErr(e.message||"Error con Google");setBusy(false);}
   }
   async function handleEmail(){
     if(!name.trim()){setErr("Ingresa tu nombre");return;}
@@ -1663,22 +1700,17 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         return(
         <div className="create-body" style={{paddingTop:0}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-            <button onClick={()=>{snd('tap');setCreateStep("mode");}}
-              style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
-                color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
-                fontFamily:"'Righteous',sans-serif",fontSize:".72rem",flexShrink:0}}>← Tipo de juego</button>
+            <button className="btn2 btn2-off" onClick={()=>{snd('tap');setCreateStep("mode");}}
+              style={{padding:"6px 12px",fontSize:".72rem",flexShrink:0}}>← Tipo de juego</button>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"var(--y)",letterSpacing:2}}>JUGADORES</div>
           </div>
 
           {/* Selector de modo para llenar jugadores */}
           <div style={{display:"flex",gap:6,marginBottom:14}}>
             {[["manual","✍️ Manual"],["amigos","👥 Amigos"],["grupo","🎭 Grupo"]].map(([id,lbl])=>(
-              <button key={id} onClick={()=>{snd('tap');setPlayerMode(id);}}
-                style={{flex:1,padding:"9px 4px",borderRadius:10,cursor:"pointer",
-                  fontFamily:"'Righteous',sans-serif",fontSize:".68rem",letterSpacing:1,
-                  background:playerMode===id?"rgba(245,200,0,.15)":"rgba(255,255,255,.04)",
-                  border:"1px solid "+(playerMode===id?"rgba(245,200,0,.4)":"rgba(255,255,255,.1)"),
-                  color:playerMode===id?"var(--y)":"rgba(255,255,255,.4)"}}>
+              <button key={id} className={"btn2 "+(playerMode===id?"btn2-on":"btn2-off")}
+                onClick={()=>{snd('tap');setPlayerMode(id);}}
+                style={{flex:1,padding:"9px 4px",fontSize:".68rem"}}>
                 {lbl}
               </button>
             ))}
@@ -2068,27 +2100,21 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       {/* Accesos primarios: Estadísticas · Amigos · Grupos */}
       <div style={{display:"flex",gap:8,marginBottom:10}}>
         {[
-          {key:"stats",tab:"me",label:"Stats",icon:"📊",color:"var(--y)",bg:"rgba(245,200,0,.1)",border:"rgba(245,200,0,.3)",locked:false},
-          {key:"friends",tab:"friends",label:"Amigos",icon:"👥",color:"#7dd3c8",bg:"rgba(46,196,182,.1)",border:"rgba(46,196,182,.3)",locked:isAnonHome},
+          {key:"stats",tab:"me",label:"Stats",icon:"📊",cls:"btn2-y",locked:false},
+          {key:"friends",tab:"friends",label:"Amigos",icon:"👥",cls:"btn2-t",locked:isAnonHome},
         ].map(b=>(
-          <button key={b.key} onClick={()=>goDashboard(b.tab)} style={{
-            flex:1,position:"relative",padding:"11px 6px",
-            background:b.bg,border:"1px solid "+b.border,borderRadius:12,cursor:"pointer",
-            fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:b.color,
-            letterSpacing:1,opacity:b.locked?.55:1}}>
+          <button key={b.key} className={"btn2 "+b.cls} onClick={()=>goDashboard(b.tab)} style={{
+            flex:1,position:"relative",padding:"11px 6px",fontSize:".82rem",
+            opacity:b.locked?.55:1}}>
             {b.locked&&<span style={{position:"absolute",top:4,right:6,fontSize:".7rem"}}>🔒</span>}
             {b.icon} {b.label}
           </button>
         ))}
       </div>
 
-      <button onClick={()=>go("grupos")} style={{
-        width:"100%",position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:8,
-        padding:"13px",marginBottom:10,
-        background:"rgba(123,45,139,.15)",border:"2px solid rgba(123,45,139,.35)",
-        borderRadius:14,cursor:"pointer",
-        fontFamily:"'Lilita One',sans-serif",fontSize:"1rem",color:"#cc88ff",
-        transition:"all .15s",opacity:isAnonHome?.55:1
+      <button className="btn2 btn2-pu" onClick={()=>go("grupos")} style={{
+        width:"100%",position:"relative",padding:"13px",marginBottom:10,fontSize:"1rem",
+        borderRadius:14,opacity:isAnonHome?.55:1
       }}>
         {isAnonHome&&<span style={{position:"absolute",top:8,right:12,fontSize:".85rem"}}>🔒</span>}
         👥 Mis grupos

@@ -77,8 +77,8 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .inp::placeholder{color:rgba(255,255,255,.25)}
 .code-inp{text-align:center;font-family:'Anton',sans-serif;font-size:3rem;letter-spacing:10px;
   color:var(--y);text-transform:uppercase;padding:20px 14px}
-.btn{width:100%;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-weight:900;
-  font-size:1.05rem;letter-spacing:.3px;padding:14px;cursor:pointer;transition:all .15s;
+.btn{width:100%;border:none;border-radius:14px;font-family:'Anton',sans-serif;
+  font-size:1.15rem;letter-spacing:1.5px;padding:14px;cursor:pointer;transition:all .15s;
   display:flex;align-items:center;justify-content:center;gap:9px;user-select:none;
   margin-bottom:10px}
 .btn:last-child{margin-bottom:0}
@@ -105,6 +105,26 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
   color:rgba(255,255,255,.38);border-radius:11px;padding:9px;cursor:pointer;
   font-weight:800;margin-bottom:8px;font-family:'Nunito',sans-serif;font-size:.88rem}
 .btn-add:hover{border-color:var(--t);color:var(--t)}
+
+/* Botones SECUNDARIOS — misma familia tipográfica que .btn (Anton, como el
+   logo), pero más chicos y con glow discreto. Para acciones que acompañan
+   a la principal, no que compiten con ella: Stats/Amigos/Grupos en Home,
+   chips de modo en Crear Sala, etc. */
+.btn2{border:1.5px solid;border-radius:12px;font-family:'Anton',sans-serif;
+  letter-spacing:.8px;cursor:pointer;transition:all .15s;user-select:none;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  background:rgba(255,255,255,.04)}
+.btn2:hover{filter:brightness(1.15)}
+.btn2:active{transform:scale(.97)}
+.btn2-y{border-color:rgba(245,200,0,.4);color:var(--y);background:rgba(245,200,0,.08);
+  box-shadow:0 3px 12px rgba(245,200,0,.15)}
+.btn2-t{border-color:rgba(46,196,182,.4);color:var(--t);background:rgba(46,196,182,.08);
+  box-shadow:0 3px 12px rgba(46,196,182,.15)}
+.btn2-pu{border-color:rgba(123,45,139,.5);color:#cc88ff;background:rgba(123,45,139,.12);
+  box-shadow:0 3px 12px rgba(123,45,139,.2)}
+.btn2-on{border-color:rgba(245,200,0,.6);background:rgba(245,200,0,.15);
+  box-shadow:0 3px 14px rgba(245,200,0,.25)}
+.btn2-off{border-color:rgba(255,255,255,.1);color:rgba(255,255,255,.4);background:rgba(255,255,255,.03)}
 
 /* ── 6. ALERTS ───────────────────────────────────────────────── */
 .alert{border-radius:12px;padding:10px 14px;display:flex;align-items:flex-start;
