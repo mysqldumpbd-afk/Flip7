@@ -1031,12 +1031,10 @@ function AuthScreen({onAuth}){
 
       {mode==="main"&&(<>
         {/* Google */}
-        <button onClick={handleGoogle} disabled={busy} style={{
-          width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:12,
-          padding:"14px",marginBottom:10,
-          background:"#fff",border:"none",borderRadius:14,cursor:"pointer",
-          fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:"1rem",color:"#222",
-          boxShadow:"0 4px 20px rgba(0,0,0,.3)",transition:"all .15s",
+        <button className="btn" onClick={handleGoogle} disabled={busy} style={{
+          gap:12,marginBottom:10,
+          background:"#fff",border:"none",color:"#222",
+          boxShadow:"0 4px 20px rgba(0,0,0,.3)",fontSize:"1.05rem",
           opacity:busy?.6:1
         }}>
           {/* Google icon */}
