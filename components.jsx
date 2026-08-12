@@ -166,7 +166,8 @@ async function saveGameStats(session, roomData){
       date: session.date, gameId, code: session.code, title,
       name: p.name, emoji: p.emoji, color: p.color,
       total: p.total, position, rounds: p.rounds||[],
-      playerCount: roomData.players.length, won
+      playerCount: roomData.players.length, won,
+      gameMode: roomData.gameMode||"classic"
     });
 
     const pRounds = p.rounds||[];
@@ -4474,6 +4475,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
   const[suggestions,setSuggestions]=React.useState([]);
   const[searching,setSearching]=React.useState(false);
   const[confirmRemove,setConfirmRemove]=React.useState(null); // uid pendiente de confirmar
+  const[expandedGame,setExpandedGame]=React.useState(null); // gameId de la partida desplegada
   const[friendPresence,setFriendPresence]=React.useState({}); // {uid:{online,lastSeen}}
 
   const isAnon=authUser&&authUser.isAnonymous;
@@ -4597,6 +4599,63 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
   const winRate=myStats&&myStats.games>0?Math.round((myStats.wins/myStats.games)*100):0;
   const avgScore=myStats&&myStats.games>0?Math.round((myStats.totalScore||0)/myStats.games):0;
 
+  // ── KPIs nuevos — todos derivados de myGames, ya guardado, sin pedir
+  // nada extra a Firebase. Se recalculan solo cuando cambian tus partidas.
+  const kpis=React.useMemo(()=>{
+    if(!myGames||myGames.length===0)return null;
+    // Orden cronológico (más antigua primero) para calcular rachas bien
+    const chron=[...myGames].sort((a,b)=>a.date-b.date);
+
+    // Racha actual: cuenta desde la partida MÁS RECIENTE hacia atrás,
+    // mientras el resultado (victoria/derrota) se mantenga igual
+    let currentStreak=0,currentType=null;
+    for(let i=chron.length-1;i>=0;i--){
+      const isWin=chron[i].won;
+      if(currentType===null){currentType=isWin;currentStreak=1;}
+      else if(isWin===currentType)currentStreak++;
+      else break;
+    }
+    // Racha récord: la corrida de victorias consecutivas más larga de tu historia
+    let bestStreak=0,run=0;
+    chron.forEach(g=>{ if(g.won){run++;bestStreak=Math.max(bestStreak,run);} else run=0; });
+
+    // Agresividad: promedio de cartas que arriesgas por ronda (solo rondas
+    // capturadas con cartas — scan o selección manual, no "cero" directo)
+    let totalCards=0,roundsWithCards=0,totalRoundsPlayed=0;
+    const cardFreq={}; // qué tan seguido juegas cada número
+    chron.forEach(g=>(g.rounds||[]).forEach(r=>{
+      totalRoundsPlayed++;
+      if(r.breakdown&&Array.isArray(r.breakdown.cards)&&r.breakdown.cards.length>0){
+        totalCards+=r.breakdown.cards.length;roundsWithCards++;
+        r.breakdown.cards.forEach(c=>{cardFreq[c]=(cardFreq[c]||0)+1;});
+      }
+    }));
+    const aggressiveness=roundsWithCards>0?(totalCards/roundsWithCards):0;
+    let luckyCard=null,luckyCount=0;
+    Object.entries(cardFreq).forEach(([c,n])=>{if(n>luckyCount){luckyCard=c;luckyCount=n;}});
+
+    // Comeback: partidas donde tu ronda 1 fue un bust (0 pts) y aun así ganaste
+    const comebacks=chron.filter(g=>g.won&&g.rounds&&g.rounds[0]&&g.rounds[0].score===0).length;
+
+    // Clásico vs Venganza — solo cuenta partidas que ya tienen el campo
+    // (partidas jugadas antes de este cambio no lo tienen, se ignoran)
+    const withMode=chron.filter(g=>g.gameMode);
+    const classicG=withMode.filter(g=>g.gameMode==="classic");
+    const vengG=withMode.filter(g=>g.gameMode!=="classic");
+    const modeStats=(list)=>list.length===0?null:{
+      games:list.length,winRate:Math.round((list.filter(g=>g.won).length/list.length)*100)
+    };
+
+    return{
+      currentStreak,currentType,bestStreak,
+      aggressiveness:aggressiveness.toFixed(1),
+      luckyCard,luckyCount,
+      comebacks,
+      classic:modeStats(classicG),
+      venganza:modeStats(vengG)
+    };
+  },[myGames]);
+
   return(
     <div className="wrap"><div className="page" style={{paddingTop:16}}>
       {/* Header */}
@@ -4717,6 +4776,90 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
               </div>
             </div>
           </div>
+
+          {/* ── KPIs nuevos ── */}
+          {kpis&&(<>
+            {/* Racha actual + récord */}
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              <div style={{flex:1,background:kpis.currentType?"rgba(59,178,115,.1)":"rgba(230,57,70,.08)",
+                border:"1px solid "+(kpis.currentType?"rgba(59,178,115,.3)":"rgba(230,57,70,.25)"),
+                borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+                <div style={{fontSize:"1.3rem"}}>{kpis.currentType?"🔥":"🧊"}</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",
+                  color:kpis.currentType?"var(--gr)":"var(--r)"}}>{kpis.currentStreak}</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>
+                  {kpis.currentType?"VICTORIAS SEGUIDAS":"DERROTAS SEGUIDAS"}
+                </div>
+              </div>
+              <div style={{flex:1,background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",
+                borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+                <div style={{fontSize:"1.3rem"}}>👑</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)"}}>{kpis.bestStreak}</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>RACHA RÉCORD</div>
+              </div>
+            </div>
+
+            {/* Agresividad + carta de la suerte */}
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              <div style={{flex:1,background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",
+                borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+                <div style={{fontSize:"1.3rem"}}>⚡</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--t)"}}>{kpis.aggressiveness}</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>CARTAS POR RONDA</div>
+              </div>
+              <div style={{flex:1,background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",
+                borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+                <div style={{fontSize:"1.3rem"}}>🍀</div>
+                <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)"}}>
+                  {kpis.luckyCard!==null?kpis.luckyCard:"—"}
+                </div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>CARTA DE LA SUERTE</div>
+              </div>
+            </div>
+
+            {/* Comebacks */}
+            {kpis.comebacks>0&&(
+              <div style={{background:"rgba(123,45,139,.08)",border:"1px solid rgba(123,45,139,.25)",
+                borderRadius:12,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{fontSize:"1.4rem"}}>🎬</div>
+                <div>
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"#cc88ff"}}>
+                    {kpis.comebacks} {kpis.comebacks===1?"remontada":"remontadas"}
+                  </div>
+                  <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                    color:"rgba(255,255,255,.35)"}}>bust en la ronda 1 y aún así ganaste</div>
+                </div>
+              </div>
+            )}
+
+            {/* Clásico vs Venganza */}
+            {(kpis.classic||kpis.venganza)&&(
+              <div style={{marginBottom:14}}>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                  color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6}}>POR MODO DE JUEGO</div>
+                <div style={{display:"flex",gap:8}}>
+                  <div style={{flex:1,background:"rgba(245,200,0,.06)",border:"1px solid rgba(245,200,0,.18)",
+                    borderRadius:12,padding:"9px 11px"}}>
+                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--y)",fontWeight:900}}>🃏 Clásico</div>
+                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.4)",marginTop:2}}>
+                      {kpis.classic?kpis.classic.games+" partidas · "+kpis.classic.winRate+"% wins":"sin datos aún"}
+                    </div>
+                  </div>
+                  <div style={{flex:1,background:"rgba(230,57,70,.06)",border:"1px solid rgba(230,57,70,.18)",
+                    borderRadius:12,padding:"9px 11px"}}>
+                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--r)",fontWeight:900}}>💀 Venganza</div>
+                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.4)",marginTop:2}}>
+                      {kpis.venganza?kpis.venganza.games+" partidas · "+kpis.venganza.winRate+"% wins":"sin datos aún"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>)}
         </>
       )}
 
@@ -4873,15 +5016,21 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
             fontFamily:"'Righteous',sans-serif",fontSize:".75rem"}}>
             Sin partidas registradas aún
           </div>
-        : myGames.map((g,i)=>(
-            <div key={g.gameId||i} style={{background:g.won?"rgba(59,178,115,.08)":"rgba(255,255,255,.03)",
+        : myGames.map((g,i)=>{
+            const isOpen=expandedGame===(g.gameId||i);
+            return(
+            <div key={g.gameId||i} onClick={()=>setExpandedGame(isOpen?null:(g.gameId||i))}
+              style={{background:g.won?"rgba(59,178,115,.08)":"rgba(255,255,255,.03)",
               border:"2px solid "+(g.won?"rgba(59,178,115,.35)":"rgba(255,255,255,.07)"),
-              borderRadius:13,padding:"11px 13px",marginBottom:8}}>
+              borderRadius:13,padding:"11px 13px",marginBottom:8,cursor:"pointer"}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
                 <div style={{fontSize:"1.5rem"}}>{g.won?"🏆":g.position===2?"🥈":g.position===3?"🥉":"💀"}</div>
                 <div style={{flex:1}}>
                   <div style={{fontWeight:900,fontSize:".88rem",
-                    color:g.won?"var(--gr)":"rgba(255,255,255,.8)"}}>{g.title||"Partida"}</div>
+                    color:g.won?"var(--gr)":"rgba(255,255,255,.8)"}}>{g.title||"Partida"}
+                    {g.gameMode&&g.gameMode!=="classic"&&<span style={{fontFamily:"'Righteous',sans-serif",
+                      fontSize:".55rem",color:"var(--r)",marginLeft:6}}>💀 VENGANZA</span>}
+                  </div>
                   <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
                     color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
                     {fmtD(g.date)} · {g.playerCount} jugadores · pos #{g.position}
@@ -4893,6 +5042,8 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
                     color:"rgba(255,255,255,.3)",letterSpacing:1}}>pts totales</div>
                 </div>
+                <span style={{fontSize:"1rem",color:"rgba(255,255,255,.3)",
+                  transform:isOpen?"rotate(180deg)":"none",transition:"transform .2s"}}>▾</span>
               </div>
               {/* Round chips */}
               <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
@@ -4905,8 +5056,38 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   </span>
                 ))}
               </div>
+              {/* Detalle expandido — cartas jugadas por ronda */}
+              {isOpen&&(
+                <div onClick={e=>e.stopPropagation()} style={{marginTop:10,paddingTop:10,
+                  borderTop:"1px solid rgba(255,255,255,.08)"}}>
+                  <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                    color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>DETALLE POR RONDA</div>
+                  {(g.rounds||[]).map((r,ri)=>(
+                    <div key={ri} style={{display:"flex",alignItems:"center",gap:8,
+                      padding:"6px 0",borderBottom:ri<(g.rounds.length-1)?"1px solid rgba(255,255,255,.05)":"none"}}>
+                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+                        color:"rgba(255,255,255,.35)",width:26,flexShrink:0}}>R{ri+1}</div>
+                      <div style={{flex:1,fontSize:".72rem",color:"rgba(255,255,255,.6)"}}>
+                        {r.score===0
+                          ? "💀 Bust"
+                          : r.breakdown&&Array.isArray(r.breakdown.cards)&&r.breakdown.cards.length>0
+                          ? "🃏 "+r.breakdown.cards.join(", ")+
+                            (r.breakdown.multiplier?" ×"+r.breakdown.multiplier:"")+
+                            (r.breakdown.plusCards&&r.breakdown.plusCards.length>0?" +"+r.breakdown.plusCards.join("+"):"")
+                          : r.method==="manual"?"🧮 Manual":"—"
+                        }
+                      </div>
+                      <div style={{fontFamily:"'Anton',sans-serif",fontSize:".85rem",
+                        color:r.score===0?"var(--r)":r.breakdown&&r.breakdown.flip7?"var(--y)":"rgba(255,255,255,.7)"}}>
+                        {r.score===0?"0":(r.score>0?"+":"")+r.score}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))
+            );
+          })
       )}
 
       <div style={{height:8}}/>
