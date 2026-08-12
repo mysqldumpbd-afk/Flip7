@@ -1015,6 +1015,16 @@ function AuthScreen({onAuth}){
   );
 }
 
+// Formatea "hace cuánto" para últimas conexiones — global, la usan tanto
+// GroupsScreen como PersonalDashboard (Amigos).
+function fmtAgo(ts){
+  const diff=Date.now()-ts;
+  if(diff<60000)return"hace un momento";
+  if(diff<3600000)return"hace "+Math.floor(diff/60000)+"min";
+  if(diff<86400000)return"hace "+Math.floor(diff/3600000)+"h";
+  return"hace "+Math.floor(diff/86400000)+"d";
+}
+
 // ── UPGRADE ACCOUNT MODAL — se dispara al tocar algo bloqueado en modo
 // anónimo. Vincula la sesión actual en vez de crear una cuenta nueva.
 function UpgradeAccountModal({onClose,onDone,featureLabel}){
@@ -1157,31 +1167,56 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     return()=>{if(presUnsubRef.current){presUnsubRef.current();presUnsubRef.current=null;}};
   },[pickingPlayer,jcode]);
 
-  // Load groups for presence banner
+  // Load groups for presence banner — EN VIVO (antes era .once, por eso un
+  // grupo recién creado/editado no aparecía sin recargar la página)
   React.useEffect(()=>{
     if(!authUser||authUser.isAnonymous)return;
     const uid=authUser.uid;
-    async function loadGroups(){
-      try{
-        const snap=await _db.ref("users/"+uid+"/groups").once("value");
-        const gids=snap.val()||{};
-        const groups=[];
-        for(const gid of Object.keys(gids)){
-          const g=await _db.ref("groups/"+gid).once("value");
-          if(g.val())groups.push({id:gid,...g.val()});
-        }
-        setMyGroupsHome(groups);
-        // Listen presence for all groups
-        groups.forEach(g=>{
-          _db.ref("presence/"+g.id).on("value",snap=>{
-            const data=snap.val()||{};
-            setPresenceHome(prev=>({...prev,...data}));
-          });
+    const idxRef=_db.ref("users/"+uid+"/groups");
+    const groupUnsubs={};
+    const presUnsubs={};
+
+    function attachGroup(gid){
+      if(groupUnsubs[gid])return;
+      const gRef=_db.ref("groups/"+gid);
+      const h=snap=>{
+        const val=snap.val();
+        setMyGroupsHome(prev=>{
+          if(!val)return prev.filter(g=>g.id!==gid);
+          const next={id:gid,...val};
+          const idx=prev.findIndex(g=>g.id===gid);
+          if(idx===-1)return[...prev,next];
+          const copy=[...prev];copy[idx]=next;return copy;
         });
-      }catch(e){}
+      };
+      gRef.on("value",h);
+      groupUnsubs[gid]=()=>gRef.off("value",h);
+      if(!presUnsubs[gid]){
+        const pRef=_db.ref("presence/"+gid);
+        const ph=snap=>setPresenceHome(prev=>({...prev,...(snap.val()||{})}));
+        pRef.on("value",ph);
+        presUnsubs[gid]=()=>pRef.off("value",ph);
+      }
     }
-    loadGroups();
-    return()=>{};
+    function detachGroup(gid){
+      if(groupUnsubs[gid]){groupUnsubs[gid]();delete groupUnsubs[gid];}
+      if(presUnsubs[gid]){presUnsubs[gid]();delete presUnsubs[gid];}
+    }
+
+    const idxHandler=snap=>{
+      const gids=Object.keys(snap.val()||{});
+      gids.forEach(attachGroup);
+      Object.keys(groupUnsubs).forEach(gid=>{
+        if(!gids.includes(gid)){detachGroup(gid);setMyGroupsHome(prev=>prev.filter(g=>g.id!==gid));}
+      });
+    };
+    idxRef.on("value",idxHandler);
+
+    return()=>{
+      idxRef.off("value",idxHandler);
+      Object.values(groupUnsubs).forEach(u=>u());
+      Object.values(presUnsubs).forEach(u=>u());
+    };
   },[authUser]);
 
   React.useEffect(()=>{
@@ -3391,31 +3426,73 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
   const uid=authUser&&authUser.uid;
   const isAnon=authUser&&authUser.isAnonymous;
 
-  // Load my groups
+  // Load my groups — EN VIVO. Antes era .once, por eso crear/agregar/quitar
+  // se veía bien en el momento (parchábamos el estado a mano) pero al salir
+  // y volver, o si otra persona hacía el cambio, no se reflejaba solo.
   React.useEffect(()=>{
     if(!uid||isAnon)return;
-    async function load(){
-      setLoading(true);
-      try{
-        const snap=await _db.ref("users/"+uid+"/groups").once("value");
-        const gids=snap.val()||{};
-        const groups=[];
-        for(const gid of Object.keys(gids)){
-          const gSnap=await _db.ref("groups/"+gid).once("value");
-          if(gSnap.val())groups.push({id:gid,...gSnap.val()});
-        }
-        setMyGroups(groups);
-        if(groups.length>0)listenPresence(groups);
-        // Load friends for quick-add
-        const fSnap=await _db.ref("users/"+uid+"/friends").once("value");
-        const fData=fSnap.val()||{};
-        setFriends(Object.values(fData));
-      }catch(e){console.log("Groups load error:",e);}
-      setLoading(false);
+    setLoading(true);
+    const idxRef=_db.ref("users/"+uid+"/groups");
+    const groupUnsubs={};
+
+    function attachGroup(gid){
+      if(groupUnsubs[gid])return;
+      const gRef=_db.ref("groups/"+gid);
+      const h=snap=>{
+        const val=snap.val();
+        setMyGroups(prev=>{
+          if(!val)return prev.filter(g=>g.id!==gid);
+          const next={id:gid,...val};
+          const idx=prev.findIndex(g=>g.id===gid);
+          if(idx===-1)return[...prev,next];
+          const copy=[...prev];copy[idx]=next;return copy;
+        });
+      };
+      gRef.on("value",h);
+      groupUnsubs[gid]=()=>gRef.off("value",h);
     }
-    load();
-    return()=>presUnsubRef.current.forEach(u=>u());
+    function detachGroup(gid){
+      if(groupUnsubs[gid]){groupUnsubs[gid]();delete groupUnsubs[gid];}
+    }
+    const idxHandler=snap=>{
+      const gids=Object.keys(snap.val()||{});
+      gids.forEach(attachGroup);
+      Object.keys(groupUnsubs).forEach(gid=>{
+        if(!gids.includes(gid)){detachGroup(gid);setMyGroups(prev=>prev.filter(g=>g.id!==gid));}
+      });
+      setLoading(false);
+    };
+    idxRef.on("value",idxHandler);
+
+    // Load friends live too (para que la lista de "agregar amigos" se actualice sola)
+    const fRef=_db.ref("users/"+uid+"/friends");
+    const fHandler=snap=>setFriends(Object.values(snap.val()||{}));
+    fRef.on("value",fHandler);
+
+    return()=>{
+      idxRef.off("value",idxHandler);
+      Object.values(groupUnsubs).forEach(u=>u());
+      fRef.off("value",fHandler);
+      presUnsubRef.current.forEach(u=>u());
+    };
   },[uid]);
+
+  // Reactivar la suscripción de presencia cuando cambia el SET de grupos
+  // (no en cada cambio de contenido, para no resuscribir de más)
+  const groupIdsKey=myGroups.map(g=>g.id).sort().join(",");
+  React.useEffect(()=>{
+    if(myGroups.length>0)listenPresence(myGroups);
+  },[groupIdsKey]);
+
+  // Mantener activeGroup sincronizado en vivo con myGroups — así ya no hace
+  // falta parchar activeGroup a mano en cada acción (crear/agregar/quitar);
+  // el listener de arriba actualiza myGroups y esto lo refleja en el detalle.
+  React.useEffect(()=>{
+    if(!activeGroup)return;
+    const updated=myGroups.find(g=>g.id===activeGroup.id);
+    if(updated&&updated!==activeGroup)setActiveGroup(updated);
+    else if(!updated)setActiveGroup(null); // el grupo fue eliminado
+  },[myGroups]);
 
   function listenPresence(groups){
     presUnsubRef.current.forEach(u=>u());
@@ -3516,13 +3593,8 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
     }
   }
 
-  const fmtAgo=ts=>{
-    const diff=Date.now()-ts;
-    if(diff<60000)return"hace un momento";
-    if(diff<3600000)return"hace "+Math.floor(diff/60000)+"min";
-    if(diff<86400000)return"hace "+Math.floor(diff/3600000)+"h";
-    return"hace "+Math.floor(diff/86400000)+"d";
-  };
+  // fmtAgo ahora es una función global (ver arriba de HomeScreen) — se
+  // reutiliza también en PersonalDashboard para el estatus de Amigos.
 
   if(isAnon)return(
     <div className="wrap"><div className="page" style={{paddingTop:32}}>
@@ -4002,6 +4074,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
   const[suggestions,setSuggestions]=React.useState([]);
   const[searching,setSearching]=React.useState(false);
   const[confirmRemove,setConfirmRemove]=React.useState(null); // uid pendiente de confirmar
+  const[friendPresence,setFriendPresence]=React.useState({}); // {uid:{online,lastSeen}}
 
   const isAnon=authUser&&authUser.isAnonymous;
   const uid=authUser&&authUser.uid;
@@ -4041,6 +4114,16 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
       setLoading(false);
     }
     load();
+  },[uid]);
+
+  // Presencia global de amigos (en línea/offline) — independiente de si
+  // comparten grupo. Se suscribe en vivo al nodo /presence/_global.
+  React.useEffect(()=>{
+    if(!uid)return;
+    const ref=_db.ref("presence/_global");
+    const handler=snap=>setFriendPresence(snap.val()||{});
+    ref.on("value",handler);
+    return()=>ref.off("value",handler);
   },[uid]);
 
   // Búsqueda en vivo por prefijo mientras escribes — consulta un rango de
@@ -4321,18 +4404,26 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
             : friends.map(f=>{
                 const fs=friendsStats[f.uid];
                 const fWinRate=fs&&fs.games>0?Math.round((fs.wins/fs.games)*100):0;
+                const pres=friendPresence[f.uid]||{};
+                const isOnline=pres.online;
                 return(
                   <div key={f.uid} style={{background:"rgba(255,255,255,.04)",
                     border:"1px solid rgba(255,255,255,.07)",borderRadius:13,
                     padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
                     <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(245,200,0,.15)",
-                      border:"2px solid rgba(245,200,0,.3)",display:"flex",alignItems:"center",
+                      border:"2px solid "+(isOnline?"var(--gr)":"rgba(245,200,0,.3)"),display:"flex",alignItems:"center",
                       justifyContent:"center",fontFamily:"'Anton',sans-serif",
-                      fontSize:"1.1rem",color:"var(--y)",flexShrink:0}}>
+                      fontSize:"1.1rem",color:"var(--y)",flexShrink:0,position:"relative"}}>
                       {(f.name||"?")[0].toUpperCase()}
+                      {isOnline&&<div style={{position:"absolute",bottom:-1,right:-1,width:12,height:12,
+                        borderRadius:"50%",background:"var(--gr)",border:"2px solid var(--dark,#14141f)"}}/>}
                     </div>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:900,fontSize:".9rem",color:"rgba(255,255,255,.85)"}}>{f.name}</div>
+                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",letterSpacing:1,marginTop:2,
+                        color:isOnline?"var(--gr)":"rgba(255,255,255,.25)"}}>
+                        {isOnline?"🟢 Online":(pres.lastSeen?"⚫ "+fmtAgo(pres.lastSeen):"⚫ Offline")}
+                      </div>
                       {fs
                         ? <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
                             color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>

@@ -117,6 +117,11 @@ function startPresenceHeartbeat(uid){
 
   function applyPresence(){
     if(!isConnected) return;
+    // Global — para mostrar "en línea" en Amigos sin depender de grupo compartido
+    const gRef=_db.ref('presence/_global/'+uid);
+    gRef.onDisconnect().update({online:false,lastSeen:{'.sv':'timestamp'}});
+    gRef.update({online:true,lastSeen:Date.now()});
+    // Por grupo — para la pantalla de Grupos
     currentGids.forEach(gid=>{
       const ref=_db.ref('presence/'+gid+'/'+uid);
       ref.onDisconnect().update({online:false,lastSeen:{'.sv':'timestamp'}});
