@@ -1363,6 +1363,16 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     return()=>ref.off("value",h);
   },[authUser]);
 
+  // Solicitudes de amistad pendientes — para la bolita roja en "Amigos"
+  const[pendingFriendReqCount,setPendingFriendReqCount]=React.useState(0);
+  React.useEffect(()=>{
+    if(!authUser||authUser.isAnonymous)return;
+    const ref=_db.ref("users/"+authUser.uid+"/friendRequests");
+    const h=snap=>setPendingFriendReqCount(Object.keys(snap.val()||{}).length);
+    ref.on("value",h);
+    return()=>ref.off("value",h);
+  },[authUser]);
+
   // Load groups for presence banner — EN VIVO (antes era .once, por eso un
   // grupo recién creado/editado no aparecía sin recargar la página)
   React.useEffect(()=>{
@@ -2186,6 +2196,15 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
             position:"relative",padding:"12px 4px",fontSize:".8rem",
             opacity:b.locked?.55:1}}>
             {b.locked&&<span style={{position:"absolute",top:4,right:6,fontSize:".7rem"}}>🔒</span>}
+            {b.key==="friends"&&!b.locked&&pendingFriendReqCount>0&&(
+              <span style={{position:"absolute",top:-5,right:-5,width:20,height:20,
+                borderRadius:"50%",background:"var(--r)",border:"2px solid var(--dark,#0F0F1A)",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontFamily:"'Anton',sans-serif",fontSize:".65rem",color:"#fff",
+                boxShadow:"0 0 10px rgba(230,57,70,.6)"}}>
+                {pendingFriendReqCount}
+              </span>
+            )}
             {b.icon} {b.label}
           </button>
         ))}
@@ -4768,6 +4787,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
   const[myGames,setMyGames]=React.useState([]);
   const[friends,setFriends]=React.useState([]);
   const[friendsStats,setFriendsStats]=React.useState({});
+  const[friendRequests,setFriendRequests]=React.useState([]); // solicitudes entrantes pendientes
   const[loading,setLoading]=React.useState(true);
   const[addInput,setAddInput]=React.useState("");
   const[addErr,setAddErr]=React.useState("");
@@ -4833,6 +4853,18 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
     return()=>ref.off("value",handler);
   },[uid]);
 
+  // Solicitudes de amistad entrantes — en vivo
+  React.useEffect(()=>{
+    if(!uid)return;
+    const ref=_db.ref("users/"+uid+"/friendRequests");
+    const handler=snap=>{
+      const data=snap.val()||{};
+      setFriendRequests(Object.entries(data).map(([fromUid,d])=>({fromUid,...d})));
+    };
+    ref.on("value",handler);
+    return()=>ref.off("value",handler);
+  },[uid]);
+
   // Búsqueda en vivo por prefijo mientras escribes — consulta un rango de
   // claves en /userIndex (no todo /users) y arma la lista de sugerencias.
   React.useEffect(()=>{
@@ -4864,23 +4896,45 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
     return()=>{cancelled=true;clearTimeout(t);};
   },[addInput,uid,friends]);
 
-  async function addFriendCandidate(found){
+  async function sendFriendRequest(found){
     setAddErr("");setAddOk("");
     try{
-      // Traer perfil completo del candidato (pKey/photoURL) antes de agregar
-      const foundSnap=await _db.ref("users/"+found.uid).once("value");
-      const full=foundSnap.val()||found;
-      const myRef=_db.ref("users/"+uid+"/friends/"+found.uid);
-      const theirRef=_db.ref("users/"+found.uid+"/friends/"+uid);
+      // Ya son amigos — no hace falta nada
+      if(friends.some(f=>f.uid===found.uid)){setAddErr("Ya son amigos");return;}
+      // Ya le enviaste una solicitud — evita spam de solicitudes repetidas
+      const sentCheck=await _db.ref("users/"+uid+"/sentRequests/"+found.uid).once("value");
+      if(sentCheck.exists()){setAddErr("Ya le enviaste una solicitud — espera a que responda");return;}
       const meSnap=await _db.ref("users/"+uid).once("value");
       const me=meSnap.val()||{};
-      await myRef.set({uid:found.uid,name:full.displayName||found.name||found.email,email:full.email||found.email||"",addedAt:Date.now()});
-      await theirRef.set({uid:uid,name:me.displayName||me.email||"?",email:me.email||"",addedAt:Date.now()});
-      setAddOk("✅ "+(full.displayName||found.name||found.email)+" agregado como amigo");
+      const myName=me.displayName||me.email||"?";
+      await _db.ref().update({
+        ["users/"+found.uid+"/friendRequests/"+uid]:{uid,name:myName,email:me.email||"",at:Date.now()},
+        ["users/"+uid+"/sentRequests/"+found.uid]:{uid:found.uid,name:found.name,at:Date.now()}
+      });
+      setAddOk("✅ Solicitud enviada a "+found.name);
       setAddInput("");
       setSuggestions([]);
-      setFriends(prev=>[...prev,{uid:found.uid,name:full.displayName||found.name||found.email,email:full.email||found.email}]);
     }catch(e){setAddErr("Error: "+e.message);}
+  }
+
+  // Aceptar una solicitud entrante — recién ahí se crea la amistad
+  // bidireccional (antes era instantáneo al agregar).
+  async function acceptFriendRequest(fromUid,fromData){
+    try{
+      const meSnap=await _db.ref("users/"+uid).once("value");
+      const me=meSnap.val()||{};
+      await _db.ref().update({
+        ["users/"+uid+"/friends/"+fromUid]:{uid:fromUid,name:fromData.name,email:fromData.email||"",addedAt:Date.now()},
+        ["users/"+fromUid+"/friends/"+uid]:{uid,name:me.displayName||me.email||"?",email:me.email||"",addedAt:Date.now()},
+        ["users/"+uid+"/friendRequests/"+fromUid]:null
+      });
+      setFriends(prev=>[...prev,{uid:fromUid,name:fromData.name,email:fromData.email||""}]);
+      snd("join");
+    }catch(e){console.log("Error al aceptar:",e.message);}
+  }
+  async function declineFriendRequest(fromUid){
+    try{ await _db.ref("users/"+uid+"/friendRequests/"+fromUid).remove(); snd("tap"); }
+    catch(e){}
   }
 
   // Eliminar amistad (bidireccional). NO toca /stats — el historial de
@@ -5243,7 +5297,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                 <div style={{marginTop:8,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",
                   borderRadius:10,overflow:"hidden"}}>
                   {suggestions.map(s=>(
-                    <div key={s.uid} onClick={()=>{snd("tap");addFriendCandidate(s);}}
+                    <div key={s.uid} onClick={()=>{snd("tap");sendFriendRequest(s);}}
                       style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",cursor:"pointer",
                         borderBottom:"1px solid rgba(255,255,255,.06)"}}>
                       <div style={{width:30,height:30,borderRadius:"50%",background:"rgba(245,200,0,.15)",
@@ -5257,7 +5311,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                           color:"rgba(255,255,255,.35)"}}>{s.email}</div>}
                       </div>
                       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",
-                        fontWeight:900,letterSpacing:1,flexShrink:0}}>+ AGREGAR</div>
+                        fontWeight:900,letterSpacing:1,flexShrink:0}}>+ SOLICITUD</div>
                     </div>
                   ))}
                 </div>
@@ -5270,6 +5324,40 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
             {addErr&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
               color:"var(--r)",marginTop:6}}>{addErr}</div>}
           </div>
+
+          {/* Solicitudes de amistad pendientes */}
+          {friendRequests.length>0&&(
+            <div style={{marginBottom:16}}>
+              <p className="sec" style={{color:"var(--r)"}}>
+                🔴 SOLICITUDES PENDIENTES ({friendRequests.length})
+              </p>
+              {friendRequests.map(r=>(
+                <div key={r.fromUid} style={{background:"rgba(230,57,70,.06)",
+                  border:"1px solid rgba(230,57,70,.25)",borderRadius:13,
+                  padding:"11px 13px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:36,height:36,borderRadius:"50%",background:"rgba(230,57,70,.15)",
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    fontFamily:"'Anton',sans-serif",fontSize:"1rem",color:"var(--r)",flexShrink:0}}>
+                    {(r.name||"?")[0].toUpperCase()}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:900,fontSize:".85rem",color:"#fff"}}>{r.name}</div>
+                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                      color:"rgba(255,255,255,.35)"}}>quiere ser tu amigo</div>
+                  </div>
+                  <button onClick={()=>acceptFriendRequest(r.fromUid,r)}
+                    style={{background:"var(--gr)",border:"none",borderRadius:8,padding:"7px 12px",
+                      cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+                      color:"#fff",fontWeight:900,flexShrink:0}}>✓ Aceptar</button>
+                  <button onClick={()=>declineFriendRequest(r.fromUid)}
+                    style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",
+                      borderRadius:8,width:30,height:30,cursor:"pointer",flexShrink:0,
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      color:"rgba(255,255,255,.4)",fontSize:".8rem"}}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Friends list */}
           {friends.length===0
