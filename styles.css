@@ -77,8 +77,8 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .inp::placeholder{color:rgba(255,255,255,.25)}
 .code-inp{text-align:center;font-family:'Anton',sans-serif;font-size:3rem;letter-spacing:10px;
   color:var(--y);text-transform:uppercase;padding:20px 14px}
-.btn{width:100%;border:none;border-radius:14px;font-family:'Lilita One',sans-serif;
-  font-size:1.1rem;letter-spacing:1px;padding:14px;cursor:pointer;transition:all .15s;
+.btn{width:100%;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-weight:900;
+  font-size:1.05rem;letter-spacing:.3px;padding:14px;cursor:pointer;transition:all .15s;
   display:flex;align-items:center;justify-content:center;gap:9px;user-select:none;
   margin-bottom:10px}
 .btn:last-child{margin-bottom:0}
@@ -87,7 +87,10 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
   box-shadow:0 6px 20px rgba(245,200,0,.35)}
 .btn-y:hover{box-shadow:0 8px 28px rgba(245,200,0,.55)}
 .btn-y:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
-.btn-t{background:linear-gradient(135deg,var(--t),#1A9A94);color:white}
+.btn-t{background:linear-gradient(135deg,var(--t),#1A9A94);color:white;
+  box-shadow:0 6px 20px rgba(46,196,182,.35)}
+.btn-t:hover{box-shadow:0 8px 28px rgba(46,196,182,.55)}
+.btn-t:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
 .btn-g{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
   color:rgba(255,255,255,.55);font-size:.86rem}
 .btn-g:hover{background:rgba(255,255,255,.12);color:#fff}

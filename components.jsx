@@ -1275,6 +1275,17 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     return()=>ref.off("value",h);
   },[authUser]);
 
+  // Presencia global de amigos — para mostrar en línea/offline en el
+  // selector de jugadores (modo Amigos), mismo dato que usa la pestaña Amigos
+  const[friendPresenceHome,setFriendPresenceHome]=React.useState({});
+  React.useEffect(()=>{
+    if(!authUser||authUser.isAnonymous)return;
+    const ref=_db.ref("presence/_global");
+    const h=snap=>setFriendPresenceHome(snap.val()||{});
+    ref.on("value",h);
+    return()=>ref.off("value",h);
+  },[authUser]);
+
   // Load groups for presence banner — EN VIVO (antes era .once, por eso un
   // grupo recién creado/editado no aparecía sin recargar la página)
   React.useEffect(()=>{
@@ -1695,33 +1706,42 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                     </div>
                     {friendsHome.map(f=>{
                       const sel=pickedFriends[f.uid]||false;
+                      const isOnline=friendPresenceHome[f.uid]&&friendPresenceHome[f.uid].online;
                       return(
                         <div key={f.uid} onClick={()=>{snd('tap');setPickedFriends(p=>({...p,[f.uid]:!p[f.uid]}));}}
                           style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",
                             marginBottom:6,borderRadius:11,cursor:"pointer",
                             background:sel?"rgba(59,178,115,.12)":"rgba(255,255,255,.03)",
                             border:"2px solid "+(sel?"rgba(59,178,115,.5)":"rgba(255,255,255,.08)")}}>
-                          <div style={{width:32,height:32,borderRadius:"50%",
-                            background:sel?"rgba(59,178,115,.25)":"rgba(245,200,0,.12)",
-                            display:"flex",alignItems:"center",justifyContent:"center",
-                            fontFamily:"'Anton',sans-serif",fontSize:".9rem",
-                            color:sel?"var(--gr)":"var(--y)",flexShrink:0}}>
-                            {(f.name||"?")[0].toUpperCase()}
+                          <div style={{position:"relative",flexShrink:0}}>
+                            <div style={{width:32,height:32,borderRadius:"50%",
+                              background:sel?"rgba(59,178,115,.25)":"rgba(245,200,0,.12)",
+                              display:"flex",alignItems:"center",justifyContent:"center",
+                              fontFamily:"'Anton',sans-serif",fontSize:".9rem",
+                              color:sel?"var(--gr)":"var(--y)"}}>
+                              {(f.name||"?")[0].toUpperCase()}
+                            </div>
+                            {isOnline&&<div style={{position:"absolute",bottom:-1,right:-1,width:10,height:10,
+                              borderRadius:"50%",background:"var(--gr)",border:"2px solid var(--dark,#0F0F1A)"}}/>}
                           </div>
-                          <div style={{flex:1,fontWeight:900,fontSize:".85rem",
-                            color:sel?"var(--gr)":"rgba(255,255,255,.75)"}}>{f.name}</div>
+                          <div style={{flex:1}}>
+                            <div style={{fontWeight:900,fontSize:".85rem",
+                              color:sel?"var(--gr)":"rgba(255,255,255,.75)"}}>{f.name}</div>
+                            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                              letterSpacing:1,color:isOnline?"var(--gr)":"rgba(255,255,255,.25)"}}>
+                              {isOnline?"● en línea":"○ offline"}
+                            </div>
+                          </div>
                           {sel&&<span style={{color:"var(--gr)",fontSize:"1rem"}}>✓</span>}
                         </div>
                       );
                     })}
-                    <button onClick={()=>{
+                    <button className="btn btn-t" onClick={()=>{
                       const chosen=friendsHome.filter(f=>pickedFriends[f.uid]).map(f=>f.name);
                       applyPicked(chosen);snd('join');
                     }} disabled={!Object.values(pickedFriends).some(Boolean)}
-                      style={{width:"100%",marginTop:6,padding:"10px",borderRadius:11,
-                        background:"var(--gr)",border:"none",cursor:"pointer",
-                        opacity:Object.values(pickedFriends).some(Boolean)?1:.4,
-                        fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".82rem",color:"#fff"}}>
+                      style={{marginTop:6,fontSize:".82rem",padding:"10px",
+                        opacity:Object.values(pickedFriends).some(Boolean)?1:.4}}>
                       ✅ Usar seleccionados
                     </button>
                   </>
@@ -1800,15 +1820,13 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                       );
                     })}
                     {pickedGroupForPlayers&&(
-                      <button onClick={()=>{
+                      <button className="btn btn-t" onClick={()=>{
                         const chosen=Object.entries(pickedGroupForPlayers.members||{})
                           .filter(([muid])=>pickedGroupMembers[muid]).map(([,m])=>m.name);
                         applyPicked(chosen);snd('join');
                       }} disabled={!Object.values(pickedGroupMembers).some(Boolean)}
-                        style={{width:"100%",marginTop:6,padding:"10px",borderRadius:11,
-                          background:"var(--gr)",border:"none",cursor:"pointer",
-                          opacity:Object.values(pickedGroupMembers).some(Boolean)?1:.4,
-                          fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".82rem",color:"#fff"}}>
+                        style={{marginTop:6,fontSize:".82rem",padding:"10px",
+                          opacity:Object.values(pickedGroupMembers).some(Boolean)?1:.4}}>
                         ✅ Usar seleccionados
                       </button>
                     )}
