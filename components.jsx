@@ -115,63 +115,78 @@ const GAME_MODES={
 
 // ── ESTADÍSTICAS — guardar por jugador en Firebase ────────────
 async function saveGameStats(session, roomData){
-  // Evitar guardar si ya se guardó esta partida exacta
   const gameId = session.code + "_" + session.date;
-  const existCheck = await _db.ref("stats/games/"+gameId+"/saved").once("value");
-  if(existCheck.val()===true){ console.log("Stats: partida ya guardada, skip"); return; }
+
+  // Reclamar el guardado de forma ATÓMICA — antes se leía "saved" y luego
+  // se escribía por separado, dejando una ventana donde dos dispositivos
+  // conectados a la vez podían pasar el chequeo y duplicar la partida.
+  // Con transaction(), Firebase garantiza que solo UNO gane la carrera.
+  const gameRef = _db.ref("stats/games/"+gameId);
+  const claim = await gameRef.transaction(cur=>{
+    if(cur&&cur.saved)return; // ya lo guardó otro dispositivo — abortar
+    const sorted2=[...roomData.players].sort((a,b)=>b.total-a.total);
+    const realWinnerId2 = roomData.winner?.tied ? null : (roomData.winner?.id || sorted2[0]?.id);
+    const title2 = "Partida " + new Date(session.date).toLocaleDateString("es-MX",{month:"short",day:"numeric"});
+    return{
+      gameId, date: session.date, code: session.code,
+      rounds: roomData.round, playerCount: roomData.players.length,
+      winner: roomData.winner?.name||"", winnerId: realWinnerId2||"",
+      title: title2, saved: true,
+      players: sorted2.map((p,i)=>({
+        id:p.id, name:p.name, emoji:p.emoji, color:p.color,
+        total:p.total, position:i+1, rounds:p.rounds||[]
+      }))
+    };
+  });
+  if(!claim.committed){ console.log("Stats: partida ya guardada por otro dispositivo, skip"); return; }
 
   const sorted = [...roomData.players].sort((a,b)=>b.total-a.total);
-  // El ganador es SOLO el primero en el ranking (un único winner)
   const realWinnerId = roomData.winner?.tied ? null : (roomData.winner?.id || sorted[0]?.id);
   const title = "Partida " + new Date(session.date).toLocaleDateString("es-MX",{month:"short",day:"numeric"});
 
-  // Guardar registro global del juego (marcado como saved para evitar duplicados)
-  await _db.ref("stats/games/"+gameId).set({
-    gameId, date: session.date, code: session.code,
-    rounds: roomData.round, playerCount: roomData.players.length,
-    winner: roomData.winner?.name||"", winnerId: realWinnerId||"",
-    title, saved: true,
-    players: sorted.map((p,i)=>({
-      id:p.id, name:p.name, emoji:p.emoji, color:p.color,
-      total:p.total, position:i+1, rounds:p.rounds||[]
-    }))
-  });
-
-  // Guardar por jugador
-  const callerUid = currentUser()&&!currentUser().isAnonymous ? currentUser().uid : null;
+  // Guardar por jugador — la CLAVE de almacenamiento ahora es el uid de
+  // cuenta cuando existe (resuelto vía /userIndex, igual que en amigos).
+  // Solo se usa el nombre como clave de respaldo para jugadores sin cuenta
+  // (anónimos) — antes SIEMPRE se usaba el nombre, lo que mezclaba a dos
+  // personas distintas si compartían el mismo nombre de jugador.
   for(const p of roomData.players){
-    const pKey = p.name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_").slice(0,30);
+    const nameKey = p.name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_").slice(0,30);
     const position = sorted.findIndex(s=>s.id===p.id)+1;
-    // Victoria = solo el jugador con el id del winner real
     const won = !!(realWinnerId && p.id===realWinnerId);
 
-    await _db.ref("stats/players/"+pKey+"/games/"+gameId).set({
+    let resolvedUid=null;
+    try{
+      const idxSnap=await _db.ref("userIndex/"+fbKey(p.name)).once("value");
+      const idxVal=idxSnap.val();
+      if(idxVal&&idxVal.uid)resolvedUid=idxVal.uid;
+    }catch(e){}
+    const key = resolvedUid || nameKey; // clave real de almacenamiento
+
+    await _db.ref("stats/players/"+key+"/games/"+gameId).set({
       date: session.date, gameId, code: session.code, title,
       name: p.name, emoji: p.emoji, color: p.color,
       total: p.total, position, rounds: p.rounds||[],
       playerCount: roomData.players.length, won
     });
 
-    // Resumen del jugador — leer y actualizar atómicamente
-    const summaryRef = _db.ref("stats/players/"+pKey+"/summary");
-    const snap = await summaryRef.once("value");
-    const prev = snap.val()||{games:0,wins:0,totalScore:0,bestScore:0};
-    // Calcular flip7s y busts de esta partida
     const pRounds = p.rounds||[];
     const partFlip7s = pRounds.filter(r=>r.breakdown&&r.breakdown.flip7).length;
     const partBusts  = pRounds.filter(r=>r.score===0).length;
     const partBestRound = pRounds.reduce((mx,r)=>Math.max(mx,r.score||0),0);
-    await summaryRef.set({
-      name: p.name, emoji: p.emoji, color: p.color, pKey,
-      uid: callerUid||prev.uid||null,
-      games: (prev.games||0)+1,
-      wins: (prev.wins||0)+(won?1:0),
-      totalScore: (prev.totalScore||0)+p.total,
-      bestScore: Math.max(prev.bestScore||0, p.total),
-      bestRound: Math.max(prev.bestRound||0, partBestRound),
-      flip7Count: (prev.flip7Count||0)+partFlip7s,
-      bustCount:  (prev.bustCount||0)+partBusts,
-      lastPlayed: session.date
+    await _db.ref("stats/players/"+key+"/summary").transaction(prev=>{
+      prev=prev||{games:0,wins:0,totalScore:0,bestScore:0};
+      return{
+        name: p.name, emoji: p.emoji, color: p.color, pKey: key,
+        uid: resolvedUid||prev.uid||null,
+        games: (prev.games||0)+1,
+        wins: (prev.wins||0)+(won?1:0),
+        totalScore: (prev.totalScore||0)+p.total,
+        bestScore: Math.max(prev.bestScore||0, p.total),
+        bestRound: Math.max(prev.bestRound||0, partBestRound),
+        flip7Count: (prev.flip7Count||0)+partFlip7s,
+        bustCount:  (prev.bustCount||0)+partBusts,
+        lastPlayed: session.date
+      };
     });
   }
   console.log("Stats: guardadas correctamente para gameId",gameId);
@@ -505,9 +520,9 @@ function App(){
               const alreadyFriend=(await myKey.once("value")).val();
               if(!alreadyFriend){
                 await myKey.set({uid:inviterUid,name:inviter.displayName||inviter.email||"?",
-                  email:inviter.email||"",addedAt:Date.now(),pKey:inviter.pKey||""});
+                  email:inviter.email||"",addedAt:Date.now()});
                 await theirKey.set({uid:user.uid,name:me.displayName||me.email||"?",
-                  email:me.email||"",addedAt:Date.now(),pKey:me.pKey||""});
+                  email:me.email||"",addedAt:Date.now()});
               }
             }
           }catch(e){console.log("Invite error:",e);}
@@ -4469,14 +4484,13 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
     async function load(){
       setLoading(true);
       try{
-        // Load personal stats by uid
-        const snap=await _db.ref("stats/players").orderByChild("summary/uid").equalTo(uid).once("value");
-        const data=snap.val()||{};
-        const entries=Object.values(data);
-        if(entries.length>0){
-          const p=entries[0];
-          setMyStats(p.summary||null);
-          const gSnap=await _db.ref("stats/players/"+Object.keys(data)[0]+"/games")
+        // Load personal stats — ahora la clave ES tu uid directamente,
+        // ya no hace falta la consulta indexada por summary/uid
+        const pSnap=await _db.ref("stats/players/"+uid).once("value");
+        const pData=pSnap.val();
+        if(pData){
+          setMyStats(pData.summary||null);
+          const gSnap=await _db.ref("stats/players/"+uid+"/games")
             .orderByChild("date").limitToLast(20).once("value");
           const gData=gSnap.val()||{};
           setMyGames(Object.values(gData).sort((a,b)=>b.date-a.date));
@@ -4486,11 +4500,16 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
         const fData=fSnap.val()||{};
         const fList=Object.values(fData);
         setFriends(fList);
-        // Load friends stats
+        // Load friends stats — antes usaba f.pKey, que en realidad NUNCA
+        // se guardaba en el perfil (users/{uid}.pKey no existía en ningún
+        // lado), así que esto siempre fallaba en silencio y mostraba "sin
+        // partidas aún" incluso a amigos que sí habían jugado. Ahora la
+        // clave de stats ES el uid, así que se lee directo, sin depender
+        // de ese campo roto.
         const fStats={};
         for(const f of fList){
-          if(f.pKey){
-            const fs=await _db.ref("stats/players/"+f.pKey+"/summary").once("value");
+          if(f.uid){
+            const fs=await _db.ref("stats/players/"+f.uid+"/summary").once("value");
             if(fs.val())fStats[f.uid]=fs.val();
           }
         }
@@ -4552,8 +4571,8 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
       const theirRef=_db.ref("users/"+found.uid+"/friends/"+uid);
       const meSnap=await _db.ref("users/"+uid).once("value");
       const me=meSnap.val()||{};
-      await myRef.set({uid:found.uid,name:full.displayName||found.name||found.email,email:full.email||found.email||"",addedAt:Date.now(),pKey:full.pKey||""});
-      await theirRef.set({uid:uid,name:me.displayName||me.email||"?",email:me.email||"",addedAt:Date.now(),pKey:me.pKey||""});
+      await myRef.set({uid:found.uid,name:full.displayName||found.name||found.email,email:full.email||found.email||"",addedAt:Date.now()});
+      await theirRef.set({uid:uid,name:me.displayName||me.email||"?",email:me.email||"",addedAt:Date.now()});
       setAddOk("✅ "+(full.displayName||found.name||found.email)+" agregado como amigo");
       setAddInput("");
       setSuggestions([]);
