@@ -20,7 +20,12 @@ const _auth = firebase.auth();
 async function signInGoogle(){
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({prompt:'select_account'});
-  return _auth.signInWithPopup(provider);
+  // Redirect — confirmado: el popup se cuelga para siempre esperando a
+  // detectar que se cerró (pollUserCancellation → window.closed), y
+  // accounts.google.com ahora manda Cross-Origin-Opener-Policy que
+  // bloquea esa revisión. No es arreglable desde nuestro lado; redirect
+  // no necesita saber si una ventana se cerró, así que evita el problema.
+  return _auth.signInWithRedirect(provider);
 }
 // Email / Password
 async function signInEmail(email, password){
@@ -42,7 +47,7 @@ async function linkAnonToGoogle(){
   if(!user||!user.isAnonymous) throw new Error("No hay sesión anónima activa");
   const provider=new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({prompt:'select_account'});
-  return user.linkWithPopup(provider);
+  return user.linkWithRedirect(provider);
 }
 async function linkAnonToEmail(email,password,displayName){
   const user=_auth.currentUser;

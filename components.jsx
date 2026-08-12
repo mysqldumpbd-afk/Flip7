@@ -475,6 +475,37 @@ function App(){
   // Reconexión automática: guardar último código activo en localStorage
   const[lastKnownCode,setLastKnownCode]=useState(()=>localStorage.getItem("f7lastCode")||"");
   const[reconnectReady,setReconnectReady]=useState(false);
+  const[stuckLoading,setStuckLoading]=useState(false);
+  const[authRedirectError,setAuthRedirectError]=useState("");
+  React.useEffect(()=>{
+    const t=setTimeout(()=>setStuckLoading(true),6000);
+    return()=>clearTimeout(t);
+  },[]);
+
+  // ── Captura el resultado al VOLVER de Google (ya no usamos popup —
+  // confirmado que se cuelga por Cross-Origin-Opener-Policy en Chrome
+  // moderno, sin arreglo posible de nuestro lado). Con logs detallados
+  // por si hace falta depurar de nuevo.
+  React.useEffect(()=>{
+    console.log("[Auth] Revisando resultado de redirect…");
+    _auth.getRedirectResult().then(async result=>{
+      if(result&&result.user){
+        console.log("[Auth] Redirect completado, usuario:",result.user.uid);
+        await saveUserProfile(result.user).catch(e=>console.log("[Auth] saveUserProfile falló:",e.message));
+      }else{
+        console.log("[Auth] Sin resultado de redirect pendiente (normal si no vienes de Google).");
+      }
+    }).catch(e=>{
+      console.log("[Auth] Error en getRedirectResult:",e.code,e.message);
+      if(e.code==="auth/credential-already-in-use"){
+        setAuthRedirectError("Esa cuenta de Google ya está vinculada a otro usuario del juego.");
+      }else if(e.code==="auth/account-exists-with-different-credential"){
+        setAuthRedirectError("Ya existe una cuenta con ese email usando otro método (email/contraseña). Inicia sesión con ese método.");
+      }else if(e.code!=="auth/no-auth-event"){
+        setAuthRedirectError("Error al completar el login: "+(e.message||e.code));
+      }
+    });
+  },[]);
 
   useEffect(()=>{
     async function loadAiConfig(){
@@ -827,10 +858,25 @@ function App(){
         <div style={{fontSize:"3rem",marginBottom:12,animation:"fl 1.5s infinite"}}>🎴</div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".75rem",
           color:"rgba(255,255,255,.3)",letterSpacing:3}}>CARGANDO...</div>
+        {stuckLoading&&(
+          <div style={{marginTop:20}}>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+              color:"rgba(230,57,70,.7)",marginBottom:10,maxWidth:260}}>
+              Esto está tardando más de lo normal
+            </div>
+            <button onClick={()=>window.location.reload()} style={{
+              background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.2)",
+              color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",
+              fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".8rem"}}>
+              🔄 Recargar página
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
-  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}/>;
+  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}
+    redirectError={authRedirectError} onDismissRedirectError={()=>setAuthRedirectError("")}/>;
   if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
 
@@ -911,7 +957,7 @@ function App(){
 
 
 // ── AUTHSCREEN — Google / Email / Anónimo ──────────────────────
-function AuthScreen({onAuth}){
+function AuthScreen({onAuth,redirectError,onDismissRedirectError}){
   const[mode,setMode]=React.useState("main"); // main | email-login | email-signup
   const[email,setEmail]=React.useState("");
   const[password,setPassword]=React.useState("");
@@ -919,34 +965,22 @@ function AuthScreen({onAuth}){
   const[busy,setBusy]=React.useState(false);
   const[err,setErr]=React.useState("");
 
+  React.useEffect(()=>{
+    if(redirectError){setErr(redirectError);if(onDismissRedirectError)onDismissRedirectError();}
+  },[redirectError]);
+
   async function handleGoogle(){
     setBusy(true);setErr("");
     try{
-      const r=await signInGoogle();
-      await saveUserProfile(r.user);
-      onAuth(r.user);
+      console.log("[Auth] Iniciando redirect a Google…");
+      // Con redirect, esta llamada navega fuera de la página — no hay
+      // resultado que esperar aquí. onAuth se dispara solo al volver,
+      // vía el listener de auth en App() (ver checkRedirectResult).
+      await signInGoogle();
     }catch(e){
-      if(e.code==="auth/account-exists-with-different-credential"){
-        // Ya existe una cuenta con este email registrada con contraseña —
-        // Firebase bloquea el login con Google hasta que inicies sesión
-        // con el método original y (opcionalmente) los vincules.
-        try{
-          const methods=await _auth.fetchSignInMethodsForEmail(e.customData?.email||email);
-          if(methods.includes("password")){
-            setErr("Ya existe una cuenta con este email usando contraseña. Inicia sesión con \"Continuar con Email\" en vez de Google.");
-          }else{
-            setErr("Ya existe una cuenta con este email usando otro método de acceso.");
-          }
-        }catch{
-          setErr("Ya existe una cuenta con este email usando otro método — intenta con Email/contraseña.");
-        }
-      }else if(e.code==="auth/popup-closed-by-user"){
-        setErr(""); // el usuario cerró la ventana a propósito, no es error real
-      }else{
-        setErr(e.message||"Error con Google");
-      }
+      console.log("[Auth] Error al iniciar redirect:",e.code,e.message);
+      setErr(e.message||"Error con Google");setBusy(false);
     }
-    setBusy(false);
   }
 
   async function handleEmailLogin(){
@@ -1139,11 +1173,8 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
   async function handleGoogle(){
     setBusy(true);setErr("");
     try{
-      const r=await linkAnonToGoogle();
-      await saveUserProfile(r.user);
-      onDone(r.user);
-    }catch(e){setErr(e.message||"Error con Google");}
-    setBusy(false);
+      await linkAnonToGoogle();
+    }catch(e){setErr(e.message||"Error con Google");setBusy(false);}
   }
   async function handleEmail(){
     if(!name.trim()){setErr("Ingresa tu nombre");return;}
