@@ -475,29 +475,6 @@ function App(){
   // Reconexión automática: guardar último código activo en localStorage
   const[lastKnownCode,setLastKnownCode]=useState(()=>localStorage.getItem("f7lastCode")||"");
   const[reconnectReady,setReconnectReady]=useState(false);
-  const[authRedirectError,setAuthRedirectError]=useState("");
-
-  // ── Captura el resultado al VOLVER de Google (ya no usamos popup) ──
-  // signInWithRedirect/linkWithRedirect navegan fuera de la página; esto
-  // corre una sola vez al recargar y confirma que el login/vínculo cerró
-  // bien, guarda el perfil, y muestra un error claro si algo falló (ej.
-  // esa cuenta de Google ya está vinculada a otro usuario).
-  React.useEffect(()=>{
-    _auth.getRedirectResult().then(async result=>{
-      if(result&&result.user){
-        await saveUserProfile(result.user).catch(()=>{});
-      }
-    }).catch(e=>{
-      console.log("Redirect result error:",e.code,e.message);
-      if(e.code==="auth/credential-already-in-use"){
-        setAuthRedirectError("Esa cuenta de Google ya está vinculada a otro usuario del juego.");
-      }else if(e.code==="auth/account-exists-with-different-credential"){
-        setAuthRedirectError("Ya existe una cuenta con ese email usando otro método (email/contraseña). Inicia sesión con ese método.");
-      }else if(e.code!=="auth/no-auth-event"){
-        setAuthRedirectError("Error al completar el login: "+(e.message||e.code));
-      }
-    });
-  },[]);
 
   useEffect(()=>{
     async function loadAiConfig(){
@@ -853,8 +830,7 @@ function App(){
       </div>
     </div>
   );
-  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}
-    redirectError={authRedirectError} onDismissRedirectError={()=>setAuthRedirectError("")}/>;
+  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}/>;
   if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
 
@@ -935,7 +911,7 @@ function App(){
 
 
 // ── AUTHSCREEN — Google / Email / Anónimo ──────────────────────
-function AuthScreen({onAuth,redirectError,onDismissRedirectError}){
+function AuthScreen({onAuth}){
   const[mode,setMode]=React.useState("main"); // main | email-login | email-signup
   const[email,setEmail]=React.useState("");
   const[password,setPassword]=React.useState("");
@@ -943,19 +919,14 @@ function AuthScreen({onAuth,redirectError,onDismissRedirectError}){
   const[busy,setBusy]=React.useState(false);
   const[err,setErr]=React.useState("");
 
-  // Si venimos de un redirect de Google que falló, mostrar el error aquí
-  React.useEffect(()=>{
-    if(redirectError){setErr(redirectError);if(onDismissRedirectError)onDismissRedirectError();}
-  },[redirectError]);
-
   async function handleGoogle(){
     setBusy(true);setErr("");
     try{
-      // Con redirect, esta llamada navega fuera de la página — no hay
-      // resultado que esperar aquí. onAuth se dispara solo al volver,
-      // vía el listener de auth en App() (ver checkRedirectResult).
-      await signInGoogle();
-    }catch(e){setErr(e.message||"Error con Google");setBusy(false);}
+      const r=await signInGoogle();
+      await saveUserProfile(r.user);
+      onAuth(r.user);
+    }catch(e){setErr(e.message||"Error con Google");}
+    setBusy(false);
   }
 
   async function handleEmailLogin(){
@@ -1148,10 +1119,11 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
   async function handleGoogle(){
     setBusy(true);setErr("");
     try{
-      // Redirect — la página navega fuera. Al volver, checkRedirectResult
-      // en App() completa el perfil y cierra este modal automáticamente.
-      await linkAnonToGoogle();
-    }catch(e){setErr(e.message||"Error con Google");setBusy(false);}
+      const r=await linkAnonToGoogle();
+      await saveUserProfile(r.user);
+      onDone(r.user);
+    }catch(e){setErr(e.message||"Error con Google");}
+    setBusy(false);
   }
   async function handleEmail(){
     if(!name.trim()){setErr("Ingresa tu nombre");return;}

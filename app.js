@@ -20,12 +20,7 @@ const _auth = firebase.auth();
 async function signInGoogle(){
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({prompt:'select_account'});
-  // Redirect en vez de popup — el popup depende de que el navegador deje
-  // comunicar la ventana emergente con la página, y las políticas
-  // Cross-Origin-Opener-Policy de Chrome moderno lo bloquean en sitios
-  // estáticos como GitHub Pages (no se pueden configurar esos headers ahí).
-  // Con redirect no hay ventana emergente que bloquear.
-  return _auth.signInWithRedirect(provider);
+  return _auth.signInWithPopup(provider);
 }
 // Email / Password
 async function signInEmail(email, password){
@@ -47,7 +42,7 @@ async function linkAnonToGoogle(){
   if(!user||!user.isAnonymous) throw new Error("No hay sesión anónima activa");
   const provider=new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({prompt:'select_account'});
-  return user.linkWithRedirect(provider);
+  return user.linkWithPopup(provider);
 }
 async function linkAnonToEmail(email,password,displayName){
   const user=_auth.currentUser;
