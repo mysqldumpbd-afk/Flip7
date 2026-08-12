@@ -624,6 +624,16 @@ function App(){
     if(isHost&&roomCode&&!demoMode){
       _db.ref("rooms/"+roomCode+"/hostOnline").set(false).catch(()=>{});
     }
+    // Si la partida YA terminó (hay ganador) y te vas sin dar revancha,
+    // liberamos la sala del grupo — si no, el banner "partida en curso"
+    // se queda pegado para siempre aunque el juego ya haya acabado solo.
+    if(room&&room.finished&&room.groupId&&!demoMode){
+      _db.ref("groups/"+room.groupId+"/currentRoom").once("value").then(snap=>{
+        if(snap.val()===roomCode){
+          _db.ref("groups/"+room.groupId+"/currentRoom").set(null).catch(()=>{});
+        }
+      }).catch(()=>{});
+    }
     if(unsubRef.current){unsubRef.current();unsubRef.current=null;}
     try{localStorage.removeItem("f7lastCode");}catch(e){}
     winnerShown.current=false;prevSortedRef.current=[];
@@ -1212,6 +1222,27 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     return()=>{if(presUnsubRef.current){presUnsubRef.current();presUnsubRef.current=null;}};
   },[pickingPlayer,jcode]);
 
+  // Auto-reparación: si el "currentRoom" de un grupo apunta a una sala que
+  // ya terminó (o ya no existe), la liberamos solas — así el banner
+  // "partida en curso" no se queda pegado indefinidamente por sesiones
+  // viejas donde nadie usó el botón explícito de terminar/salir.
+  const checkedRoomsRef=React.useRef(new Set());
+  React.useEffect(()=>{
+    if(!authUser||authUser.isAnonymous)return;
+    myGroupsHome.forEach(g=>{
+      if(!g.currentRoom)return;
+      const key=g.id+":"+g.currentRoom;
+      if(checkedRoomsRef.current.has(key))return; // ya la revisamos esta sesión
+      checkedRoomsRef.current.add(key);
+      _db.ref("rooms/"+g.currentRoom).once("value").then(snap=>{
+        const r=snap.val();
+        if(!r||r.finished||r.forceEnded){
+          _db.ref("groups/"+g.id+"/currentRoom").set(null).catch(()=>{});
+        }
+      }).catch(()=>{});
+    });
+  },[myGroupsHome,authUser]);
+
   // Amigos en vivo — para el selector "Amigos" al crear partida
   React.useEffect(()=>{
     if(!authUser||authUser.isAnonymous)return;
@@ -1400,7 +1431,16 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     setBusy(true);setErr(null);
     try{
       const db=makeDB(false);const r=await db.get("rooms/"+code.toUpperCase());
-      if(!r){setErr({msg:"Esa sala ya no existe.",steps:[]});setBusy(false);return;}
+      if(!r){
+        setErr({msg:"Esa sala ya no existe.",steps:[]});
+        _db.ref("groups/"+g.id+"/currentRoom").set(null).catch(()=>{});
+        setBusy(false);return;
+      }
+      if(r.finished||r.forceEnded){
+        setErr({msg:"Esa partida ya terminó.",steps:["El grupo quedó libre — pueden crear una nueva"]});
+        _db.ref("groups/"+g.id+"/currentRoom").set(null).catch(()=>{});
+        setBusy(false);return;
+      }
       const inputName=myName.trim().toLowerCase();
       const existing=r.players.find(p=>p.name.toLowerCase()===inputName);
       if(existing){
