@@ -3383,6 +3383,9 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
   const[ok,setOk]=React.useState("");
   const[friends,setFriends]=React.useState([]);
   const[selectedPlayers,setSelectedPlayers]=React.useState({}); // uid→true
+  const[confirmRemoveMember,setConfirmRemoveMember]=React.useState(null); // uid pendiente
+  const[confirmDeleteGroup,setConfirmDeleteGroup]=React.useState(false);
+  const[busyAction,setBusyAction]=React.useState(false);
   const presUnsubRef=React.useRef([]);
 
   const uid=authUser&&authUser.uid;
@@ -3428,27 +3431,12 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
     });
   }
 
-  // Set my presence
-  React.useEffect(()=>{
-    if(!uid||isAnon||myGroups.length===0)return;
-    const updates={};
-    myGroups.forEach(g=>{
-      updates["presence/"+g.id+"/"+uid]={online:true,status:"idle",lastSeen:Date.now()};
-    });
-    _db.ref().update(updates);
-    // On disconnect, mark offline
-    myGroups.forEach(g=>{
-      _db.ref("presence/"+g.id+"/"+uid+"/online").onDisconnect().set(false);
-      _db.ref("presence/"+g.id+"/"+uid+"/lastSeen").onDisconnect().set(Date.now());
-    });
-    return()=>{
-      const offUpdates={};
-      myGroups.forEach(g=>{
-        offUpdates["presence/"+g.id+"/"+uid+"/online"]=false;
-      });
-      _db.ref().update(offUpdates);
-    };
-  },[myGroups,uid]);
+  // NOTA: la presencia ya NO se escribe aquí. Antes este efecto marcaba
+  // online:true al entrar a Grupos y offline:false al salir de esta
+  // pantalla — eso deshacía el heartbeat global (app.js) apenas
+  // navegabas a otra vista, aunque siguieras conectado. Ahora la
+  // presencia vive solo en startPresenceHeartbeat() (app.js), que se
+  // mantiene activo en toda la app, no solo aquí.
 
   async function createGroup(){
     if(!newGroupName.trim()){setErr("Ponle nombre al grupo");return;}
@@ -3551,12 +3539,59 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
     </div></div>
   );
 
+  // Eliminar un miembro del grupo (solo admin). Borra AMBOS lados del dato
+  // — esto también sirve para reparar una membresía mal referenciada
+  // (ej. alguien agregado antes del fix del índice inverso): sácalo y
+  // vuelve a agregarlo con "+ Agregar", que ya guarda ambos lados.
+  async function removeMember(targetUid){
+    if(!activeGroup)return;
+    setBusyAction(true);
+    try{
+      await _db.ref("groups/"+activeGroup.id+"/members/"+targetUid).remove();
+      await _db.ref("users/"+targetUid+"/groups/"+activeGroup.id).remove();
+      await _db.ref("presence/"+activeGroup.id+"/"+targetUid).remove();
+      setActiveGroup(g=>{
+        const nm={...g.members};delete nm[targetUid];
+        return{...g,members:nm};
+      });
+      setMyGroups(prev=>prev.map(g=>g.id===activeGroup.id
+        ?{...g,members:Object.fromEntries(Object.entries(g.members||{}).filter(([k])=>k!==targetUid))}
+        :g));
+      setConfirmRemoveMember(null);
+      setOk("✅ Miembro eliminado del grupo");
+    }catch(e){setOk("❌ Error: "+e.message);}
+    setBusyAction(false);
+  }
+
+  // Eliminar el grupo completo (solo admin). Primero limpia el índice
+  // inverso de cada miembro (mientras el grupo aún existe, para que la
+  // regla de Firebase pueda validar la membresía), y al final borra el
+  // grupo en sí.
+  async function deleteGroup(){
+    if(!activeGroup)return;
+    setBusyAction(true);
+    try{
+      const memberUids=Object.keys(activeGroup.members||{});
+      const idxUpdates={};
+      memberUids.forEach(muid=>{idxUpdates["users/"+muid+"/groups/"+activeGroup.id]=null;});
+      if(Object.keys(idxUpdates).length) await _db.ref().update(idxUpdates);
+      await _db.ref("presence/"+activeGroup.id).remove();
+      await _db.ref("groups/"+activeGroup.id).remove();
+      setMyGroups(prev=>prev.filter(g=>g.id!==activeGroup.id));
+      setActiveGroup(null);
+      setConfirmDeleteGroup(false);
+      setOk("✅ Grupo eliminado");
+    }catch(e){setOk("❌ Error: "+e.message);}
+    setBusyAction(false);
+  }
+
   // Group detail view
   if(activeGroup){
     const members=activeGroup.members||{};
     const memberList=Object.entries(members).map(([muid,m])=>({uid:muid,...m}));
     const onlineCount=memberList.filter(m=>presence[m.uid]&&presence[m.uid].online).length;
     const hasActiveRoom=activeGroup.currentRoom;
+    const isAdmin=members[uid]&&members[uid].role==="admin";
     return(
       <div className="wrap"><div className="page" style={{paddingTop:16}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
@@ -3580,6 +3615,28 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
             fontFamily:"'Righteous',sans-serif",fontSize:".62rem",flexShrink:0}}>
             🔗 Invitar
           </button>
+          {isAdmin&&(
+            confirmDeleteGroup ? (
+              <div style={{display:"flex",gap:4,flexShrink:0,marginLeft:6}}>
+                <button disabled={busyAction} onClick={()=>{snd("tap");deleteGroup();}}
+                  style={{background:"var(--r)",border:"none",borderRadius:8,padding:"6px 9px",
+                    cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                    color:"#fff",fontWeight:900,whiteSpace:"nowrap"}}>Confirmar</button>
+                <button onClick={()=>setConfirmDeleteGroup(false)}
+                  style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:8,padding:"6px 9px",
+                    cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                    color:"rgba(255,255,255,.5)"}}>Cancelar</button>
+              </div>
+            ) : (
+              <button onClick={()=>{snd("tap");setConfirmDeleteGroup(true);}}
+                title="Eliminar grupo"
+                style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.3)",
+                  color:"var(--r)",borderRadius:9,width:34,height:32,cursor:"pointer",flexShrink:0,
+                  marginLeft:6,fontSize:".85rem"}}>
+                🗑
+              </button>
+            )
+          )}
         </div>
 
         {/* Active room banner */}
@@ -3666,6 +3723,27 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
               {/* Tap hint for offline */}
               {!isOnline&&!isSel&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
                 color:"rgba(255,255,255,.15)",letterSpacing:1}}>tap para incluir</span>}
+              {/* Eliminar miembro — solo admin, no sobre uno mismo */}
+              {isAdmin&&!isMe&&(
+                confirmRemoveMember===m.uid ? (
+                  <div onClick={e=>e.stopPropagation()} style={{display:"flex",gap:3,flexShrink:0}}>
+                    <button disabled={busyAction} onClick={()=>{snd("tap");removeMember(m.uid);}}
+                      style={{background:"var(--r)",border:"none",borderRadius:7,padding:"4px 7px",
+                        cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                        color:"#fff",fontWeight:900,whiteSpace:"nowrap"}}>Sí</button>
+                    <button onClick={()=>setConfirmRemoveMember(null)}
+                      style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:7,padding:"4px 7px",
+                        cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                        color:"rgba(255,255,255,.5)"}}>No</button>
+                  </div>
+                ) : (
+                  <button onClick={e=>{e.stopPropagation();snd("tap");setConfirmRemoveMember(m.uid);}}
+                    title="Eliminar del grupo"
+                    style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
+                      color:"rgba(255,255,255,.35)",borderRadius:7,width:26,height:26,cursor:"pointer",
+                      flexShrink:0,fontSize:".72rem"}}>🗑</button>
+                )
+              )}
             </div>
           );
         })}
