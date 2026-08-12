@@ -925,7 +925,27 @@ function AuthScreen({onAuth}){
       const r=await signInGoogle();
       await saveUserProfile(r.user);
       onAuth(r.user);
-    }catch(e){setErr(e.message||"Error con Google");}
+    }catch(e){
+      if(e.code==="auth/account-exists-with-different-credential"){
+        // Ya existe una cuenta con este email registrada con contraseña —
+        // Firebase bloquea el login con Google hasta que inicies sesión
+        // con el método original y (opcionalmente) los vincules.
+        try{
+          const methods=await _auth.fetchSignInMethodsForEmail(e.customData?.email||email);
+          if(methods.includes("password")){
+            setErr("Ya existe una cuenta con este email usando contraseña. Inicia sesión con \"Continuar con Email\" en vez de Google.");
+          }else{
+            setErr("Ya existe una cuenta con este email usando otro método de acceso.");
+          }
+        }catch{
+          setErr("Ya existe una cuenta con este email usando otro método — intenta con Email/contraseña.");
+        }
+      }else if(e.code==="auth/popup-closed-by-user"){
+        setErr(""); // el usuario cerró la ventana a propósito, no es error real
+      }else{
+        setErr(e.message||"Error con Google");
+      }
+    }
     setBusy(false);
   }
 
