@@ -127,6 +127,22 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
   box-shadow:0 4px 12px rgba(0,0,0,.3)}
 .btn2-off:hover{background:linear-gradient(135deg,#565670,#3d3d58)}
 
+/* Botones TERCIARIOS — estilo con borde/traslúcido (el que tenía btn2
+   antes de pasar a relleno sólido). Para acciones de menor peso que aun
+   así quieres que tengan un color propio: Espectador, etc. */
+.btn3{border:1.5px solid;border-radius:12px;font-family:'Anton',sans-serif;
+  letter-spacing:.8px;cursor:pointer;transition:all .15s;user-select:none;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  background:rgba(255,255,255,.04)}
+.btn3:hover{filter:brightness(1.15)}
+.btn3:active{transform:scale(.97)}
+.btn3-y{border-color:rgba(245,200,0,.4);color:var(--y);background:rgba(245,200,0,.08)}
+.btn3-t{border-color:rgba(46,196,182,.4);color:var(--t);background:rgba(46,196,182,.08)}
+.btn3-pu{border-color:rgba(123,45,139,.5);color:#cc88ff;background:rgba(123,45,139,.12)}
+.btn3-r{border-color:rgba(230,57,70,.4);color:var(--r);background:rgba(230,57,70,.08)}
+.btn3-off{border-color:rgba(255,255,255,.18);color:rgba(255,255,255,.55);background:rgba(255,255,255,.03)}
+.btn3-off:hover{border-color:rgba(255,255,255,.3);color:#fff}
+
 /* ── 6. ALERTS ───────────────────────────────────────────────── */
 .alert{border-radius:12px;padding:10px 14px;display:flex;align-items:flex-start;
   gap:9px;margin-bottom:11px;font-weight:800;font-size:.84rem}

@@ -2158,10 +2158,8 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
           })()}
         </button>
 
-        <button className="btn2" onClick={()=>{snd('tap');setJoinIntent("spectate");go("join");}} style={{
-          padding:"12px 4px",fontSize:".8rem",
-          border:"1.5px solid rgba(255,255,255,.15)",color:"rgba(255,255,255,.55)",
-          background:"rgba(255,255,255,.03)"}}>
+        <button className="btn3 btn3-t" onClick={()=>{snd('tap');setJoinIntent("spectate");go("join");}} style={{
+          padding:"12px 4px",fontSize:".8rem"}}>
           👁 Espectador
         </button>
       </div>
