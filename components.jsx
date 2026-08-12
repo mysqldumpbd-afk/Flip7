@@ -799,6 +799,27 @@ function App(){
         if(u2&&u2.uid)await _db.ref("presence/"+groupId+"/"+u2.uid+"/status").set("in-lobby");
       }catch(e){console.log("Group presence error:",e);}
     }
+    // Notificar a cada jugador de la lista que tenga cuenta registrada —
+    // antes esto SOLO pasaba si la partida estaba asociada a un grupo; si
+    // elegías jugadores por "Amigos" directo (sin grupo), nunca les llegaba
+    // aviso aunque literalmente fueran parte de la sala.
+    if(!demo&&!code&&names&&names.length>0){
+      const myName=(hostName||firstPlayerName||"").trim().toLowerCase();
+      names.forEach(async n=>{
+        const nm=(n||"").trim();
+        if(!nm||nm.toLowerCase()===myName)return; // no te notificas a ti mismo
+        try{
+          const idxSnap=await _db.ref("userIndex/"+fbKey(nm)).once("value");
+          const idxVal=idxSnap.val();
+          if(idxVal&&idxVal.uid){
+            await _db.ref("users/"+idxVal.uid+"/pendingInvite").set({
+              code:roomCode2,hostName:hostName||firstPlayerName||"",
+              gameMode:gameMode||"classic",at:Date.now()
+            });
+          }
+        }catch(e){}
+      });
+    }
     setDemoMode(demo);setRoomCode(roomCode2);setIsSpectator(spectator||false);
     setMyPlayerId(playerId||null);
     subscribe(roomCode2,db);
@@ -1427,13 +1448,30 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
           const hostName=(snap.val()||"").toLowerCase();
           if(hostName&&hostName!==myName){ // no notificarte tu propia partida
             snd('spec_join');
-            setRoomInvite({group:g});
+            setRoomInvite({source:"group",group:g});
           }
         }).catch(()=>{});
       }
       prevRoomsRef.current[g.id]=g.currentRoom||null;
     });
   },[myGroupsHome,authUser]);
+
+  // Invitación directa por amistad (sin necesidad de compartir grupo) —
+  // se activa cuando alguien te agrega como jugador en una sala nueva y
+  // tu nombre coincide con una cuenta registrada (ver enterGame).
+  React.useEffect(()=>{
+    if(!authUser||authUser.isAnonymous)return;
+    const ref=_db.ref("users/"+authUser.uid+"/pendingInvite");
+    const h=snap=>{
+      const inv=snap.val();
+      if(inv&&inv.code){
+        snd('spec_join');
+        setRoomInvite({source:"friend",code:inv.code,hostName:inv.hostName||"Un amigo"});
+      }
+    };
+    ref.on("value",h);
+    return()=>ref.off("value",h);
+  },[authUser]);
   const[dashboardMode,setDashboardMode]=React.useState("stats");
   const goDashboard=tab=>{
     if(isAnonHome&&tab==="friends"){snd('tap');setUpgradeModal({label:"Amigos"});return;}
@@ -1513,9 +1551,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   // formulario manual de código+nombre (ya sabemos ambos: el código lo
   // tiene el grupo, el nombre lo tiene tu cuenta). Reutiliza la misma
   // lógica de reconexión/selección que tryJoin.
-  async function quickJoinGroup(g){
-    if(!g||!g.currentRoom)return;
-    const code=g.currentRoom;
+  async function quickJoinByCode(code,onMissing){
     const myName=(authUser&&(authUser.displayName||(authUser.email||"").split("@")[0]))||"";
     go("join");
     setJcode(code);setJname(myName);
@@ -1524,12 +1560,12 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       const db=makeDB(false);const r=await db.get("rooms/"+code.toUpperCase());
       if(!r){
         setErr({msg:"Esa sala ya no existe.",steps:[]});
-        _db.ref("groups/"+g.id+"/currentRoom").set(null).catch(()=>{});
+        if(onMissing)onMissing();
         setBusy(false);return;
       }
       if(r.finished||r.forceEnded){
-        setErr({msg:"Esa partida ya terminó.",steps:["El grupo quedó libre — pueden crear una nueva"]});
-        _db.ref("groups/"+g.id+"/currentRoom").set(null).catch(()=>{});
+        setErr({msg:"Esa partida ya terminó.",steps:[]});
+        if(onMissing)onMissing();
         setBusy(false);return;
       }
       const inputName=myName.trim().toLowerCase();
@@ -1552,32 +1588,47 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     }catch(e){setErr(classifyError(e));}
     setBusy(false);
   }
+  async function quickJoinGroup(g){
+    if(!g||!g.currentRoom)return;
+    await quickJoinByCode(g.currentRoom,()=>_db.ref("groups/"+g.id+"/currentRoom").set(null).catch(()=>{}));
+  }
 
   // Modal de invitación — se inserta en cada rama de "view" para que
   // interrumpa sin importar en qué pantalla estés (no solo en Home).
   const roomInviteModal=roomInvite&&(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:250,
       display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-      onClick={()=>setRoomInvite(null)}>
+      onClick={()=>{if(roomInvite.source==="friend")_db.ref("users/"+authUser.uid+"/pendingInvite").set(null).catch(()=>{});setRoomInvite(null);}}>
       <div onClick={e=>e.stopPropagation()} style={{background:"var(--dark,#14141f)",
         border:"2px solid rgba(59,178,115,.5)",borderRadius:18,padding:22,
         maxWidth:340,width:"100%",textAlign:"center"}}>
         <div style={{fontSize:"2.2rem",marginBottom:8}}>🎮</div>
         <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:"1.1rem",color:"#fff",marginBottom:4}}>
-          ¡Partida en {roomInvite.group.name}!
+          {roomInvite.source==="friend"
+            ? "¡"+roomInvite.hostName+" te invitó a jugar!"
+            : "¡Partida en "+roomInvite.group.name+"!"}
         </div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
           color:"rgba(255,255,255,.4)",marginBottom:18}}>
           Alguien ya empezó a jugar — únete ahora
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{const g=roomInvite.group;setRoomInvite(null);quickJoinGroup(g);}}
-            style={{flex:1,background:"var(--gr)",border:"none",borderRadius:12,padding:"11px",
+          <button onClick={()=>{
+            const inv=roomInvite;setRoomInvite(null);
+            if(inv.source==="friend"){
+              _db.ref("users/"+authUser.uid+"/pendingInvite").set(null).catch(()=>{});
+              quickJoinByCode(inv.code);
+            }else{
+              quickJoinGroup(inv.group);
+            }
+          }} style={{flex:1,background:"var(--gr)",border:"none",borderRadius:12,padding:"11px",
               cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".85rem",color:"#fff"}}>
             ✅ Unirme
           </button>
-          <button onClick={()=>setRoomInvite(null)}
-            style={{flex:1,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
+          <button onClick={()=>{
+            if(roomInvite.source==="friend")_db.ref("users/"+authUser.uid+"/pendingInvite").set(null).catch(()=>{});
+            setRoomInvite(null);
+          }} style={{flex:1,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
               borderRadius:12,padding:"11px",cursor:"pointer",fontFamily:"'Nunito',sans-serif",
               fontWeight:900,fontSize:".85rem",color:"rgba(255,255,255,.6)"}}>
             Ahora no
