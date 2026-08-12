@@ -1028,10 +1028,10 @@ function AuthScreen({onAuth}){
         {/* Anónimo */}
         <button onClick={handleAnon} disabled={busy} style={{
           width:"100%",padding:"12px",
-          background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",
+          background:"rgba(46,196,182,.08)",border:"2px solid rgba(46,196,182,.3)",
           borderRadius:14,cursor:"pointer",
           fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".9rem",
-          color:"rgba(255,255,255,.45)",transition:"all .15s"
+          color:"var(--t)",transition:"all .15s",opacity:busy?.6:1
         }}>
           👤 Jugar sin cuenta
         </button>
@@ -4768,7 +4768,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
     }catch(e){setAddErr("Error al eliminar: "+e.message);}
   }
 
-  const fmtD=ts=>new Date(ts).toLocaleDateString("es-MX",{day:"numeric",month:"short"});
+  const fmtD=ts=>new Date(ts).toLocaleDateString("es-MX",{day:"numeric",month:"short"})+" · "+new Date(ts).toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
   const winRate=myStats&&myStats.games>0?Math.round((myStats.wins/myStats.games)*100):0;
   const avgScore=myStats&&myStats.games>0?Math.round((myStats.totalScore||0)/myStats.games):0;
 
