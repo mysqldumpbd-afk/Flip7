@@ -1137,6 +1137,12 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   const[presenceHome,setPresenceHome]=React.useState({});  // uid → {online,status}
   const[selectedGroup,setSelectedGroup]=React.useState(null); // for create-with-group
   const[gameMode,setGameMode]=useState("classic");
+  const[createStep,setCreateStep]=React.useState("mode"); // mode | players
+  const[playerMode,setPlayerMode]=React.useState("manual"); // manual | amigos | grupo
+  const[friendsHome,setFriendsHome]=React.useState([]);
+  const[pickedFriends,setPickedFriends]=React.useState({}); // uid→true
+  const[pickedGroupForPlayers,setPickedGroupForPlayers]=React.useState(null);
+  const[pickedGroupMembers,setPickedGroupMembers]=React.useState({}); // uid→true
   // Pre-fill player 1 with logged user's name
   const myDisplayName=authUser&&!authUser.isAnonymous
     ?(authUser.displayName||(authUser.email||"").split("@")[0]||""):"";
@@ -1166,6 +1172,15 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     }
     return()=>{if(presUnsubRef.current){presUnsubRef.current();presUnsubRef.current=null;}};
   },[pickingPlayer,jcode]);
+
+  // Amigos en vivo — para el selector "Amigos" al crear partida
+  React.useEffect(()=>{
+    if(!authUser||authUser.isAnonymous)return;
+    const ref=_db.ref("users/"+authUser.uid+"/friends");
+    const h=snap=>setFriendsHome(Object.values(snap.val()||{}));
+    ref.on("value",h);
+    return()=>ref.off("value",h);
+  },[authUser]);
 
   // Load groups for presence banner — EN VIVO (antes era .once, por eso un
   // grupo recién creado/editado no aparecía sin recargar la página)
@@ -1231,8 +1246,33 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       snd('tap');setUpgradeModal({label:LOCKED_VIEWS[v]});return;
     }
     snd('tap');setErr(null);setView(v);setRoomPlayers(null);setPickingPlayer(false);
+    if(v==="create")setCreateStep("mode"); // siempre entra por el paso de modo de juego
   };
   const[dashboardTab,setDashboardTab]=React.useState("me");
+  const[roomInvite,setRoomInvite]=React.useState(null); // {group} pendiente de aceptar/declinar
+  const prevRoomsRef=React.useRef({}); // gid -> currentRoom anterior, para detectar SOLO partidas nuevas
+
+  // Detecta cuando un grupo tuyo arranca una partida nueva (transición
+  // null → código) y muestra un popup con Aceptar/Declinar — a diferencia
+  // del banner pasivo (que solo se ve si estás en Home), esto interrumpe
+  // sin importar en qué pantalla estés.
+  React.useEffect(()=>{
+    if(!authUser||authUser.isAnonymous)return;
+    const myName=(authUser.displayName||(authUser.email||"").split("@")[0]||"").toLowerCase();
+    myGroupsHome.forEach(g=>{
+      const prev=prevRoomsRef.current[g.id];
+      if(g.currentRoom&&g.currentRoom!==prev){
+        _db.ref("rooms/"+g.currentRoom+"/hostName").once("value").then(snap=>{
+          const hostName=(snap.val()||"").toLowerCase();
+          if(hostName&&hostName!==myName){ // no notificarte tu propia partida
+            snd('spec_join');
+            setRoomInvite({group:g});
+          }
+        }).catch(()=>{});
+      }
+      prevRoomsRef.current[g.id]=g.currentRoom||null;
+    });
+  },[myGroupsHome,authUser]);
   const[dashboardMode,setDashboardMode]=React.useState("stats");
   const goDashboard=tab=>{
     if(isAnonHome&&tab==="friends"){snd('tap');setUpgradeModal({label:"Amigos"});return;}
@@ -1302,13 +1342,81 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     setBusy(false);
   }
 
+  // Unirse directo a la sala activa de un grupo — sin pasar por el
+  // formulario manual de código+nombre (ya sabemos ambos: el código lo
+  // tiene el grupo, el nombre lo tiene tu cuenta). Reutiliza la misma
+  // lógica de reconexión/selección que tryJoin.
+  async function quickJoinGroup(g){
+    if(!g||!g.currentRoom)return;
+    const code=g.currentRoom;
+    const myName=(authUser&&(authUser.displayName||(authUser.email||"").split("@")[0]))||"";
+    go("join");
+    setJcode(code);setJname(myName);
+    setBusy(true);setErr(null);
+    try{
+      const db=makeDB(false);const r=await db.get("rooms/"+code.toUpperCase());
+      if(!r){setErr({msg:"Esa sala ya no existe.",steps:[]});setBusy(false);return;}
+      const inputName=myName.trim().toLowerCase();
+      const existing=r.players.find(p=>p.name.toLowerCase()===inputName);
+      if(existing){
+        snd('join');
+        await onEnter({demo:false,spectator:false,code:code.toUpperCase(),playerId:existing.id});
+      }else{
+        const isHostName=r.hostName&&r.hostName.toLowerCase()===inputName;
+        if(isHostName||r.lobbyMode){
+          snd('join');
+          await onEnter({demo:false,spectator:false,code:code.toUpperCase(),playerId:null,asHost:true});
+        }else{
+          setRoomPlayers(r.players);setPickingPlayer(true);
+        }
+      }
+    }catch(e){setErr(classifyError(e));}
+    setBusy(false);
+  }
+
+  // Modal de invitación — se inserta en cada rama de "view" para que
+  // interrumpa sin importar en qué pantalla estés (no solo en Home).
+  const roomInviteModal=roomInvite&&(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:250,
+      display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
+      onClick={()=>setRoomInvite(null)}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--dark,#14141f)",
+        border:"2px solid rgba(59,178,115,.5)",borderRadius:18,padding:22,
+        maxWidth:340,width:"100%",textAlign:"center"}}>
+        <div style={{fontSize:"2.2rem",marginBottom:8}}>🎮</div>
+        <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:"1.1rem",color:"#fff",marginBottom:4}}>
+          ¡Partida en {roomInvite.group.name}!
+        </div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
+          color:"rgba(255,255,255,.4)",marginBottom:18}}>
+          Alguien ya empezó a jugar — únete ahora
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{const g=roomInvite.group;setRoomInvite(null);quickJoinGroup(g);}}
+            style={{flex:1,background:"var(--gr)",border:"none",borderRadius:12,padding:"11px",
+              cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".85rem",color:"#fff"}}>
+            ✅ Unirme
+          </button>
+          <button onClick={()=>setRoomInvite(null)}
+            style={{flex:1,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
+              borderRadius:12,padding:"11px",cursor:"pointer",fontFamily:"'Nunito',sans-serif",
+              fontWeight:900,fontSize:".85rem",color:"rgba(255,255,255,.6)"}}>
+            Ahora no
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if(view==="create")return(
     <div className="create-wrap">
+      {roomInviteModal}
       <div className="create-header">
         <div className="create-title">{T.createRoom}</div>
         <div className="create-sub">{T.newGame}</div>
       </div>
       <div className="create-body">
+      {createStep==="mode"&&(<>
         {/* ── SELECTOR DE MODO ── */}
         <p className="sec" style={{marginBottom:8}}>MODO DE JUEGO</p>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
@@ -1400,58 +1508,187 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
             </div>
           </div>
         )}
-        {/* Group association selector */}
-        {myGroupsHome.length>0&&(
-          <div style={{marginBottom:12}}>
-            <p className="sec" style={{marginBottom:8}}>ASOCIAR A GRUPO (opcional)</p>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              <button onClick={()=>setSelectedGroup(null)}
-                style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",
-                  fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1,
-                  background:!selectedGroup?"rgba(255,255,255,.15)":"rgba(255,255,255,.04)",
-                  border:"1px solid "+(!selectedGroup?"rgba(255,255,255,.3)":"rgba(255,255,255,.1)"),
-                  color:!selectedGroup?"#fff":"rgba(255,255,255,.4)"}}>
-                Sin grupo
-              </button>
-              {myGroupsHome.map(g=>(
-                <button key={g.id} onClick={()=>setSelectedGroup(g)}
-                  style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",
-                    fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1,
-                    background:selectedGroup&&selectedGroup.id===g.id?"rgba(123,45,139,.3)":"rgba(255,255,255,.04)",
-                    border:"1px solid "+(selectedGroup&&selectedGroup.id===g.id?"rgba(123,45,139,.6)":"rgba(255,255,255,.1)"),
-                    color:selectedGroup&&selectedGroup.id===g.id?"#cc88ff":"rgba(255,255,255,.4)"}}>
-                  👥 {g.name}
-                </button>
-              ))}
-            </div>
+      </>)}
+      </div>
+      {createStep==="mode"&&(
+        <div className="create-footer">
+          <button className="btn btn-y" style={{marginBottom:8}}
+            onClick={()=>{snd('tap');setCreateStep("players");}}>
+            Siguiente →
+          </button>
+          <button className="btn btn-g" onClick={()=>go("main")}>{T.back}</button>
+        </div>
+      )}
+      {createStep==="players"&&(()=>{
+        // Sincroniza names/emojis/colores a partir de una lista de nombres elegidos
+        function applyPicked(pickedNames){
+          const list=[myDisplayName,...pickedNames].filter(Boolean);
+          const finalList=list.length>=2?list:[...list,""];
+          setNames(finalList);
+          setPlayerEmojis(EMOJIS.slice(0,finalList.length));
+          setPlayerColors(COLORS.slice(0,finalList.length));
+        }
+        return(
+        <div className="create-body" style={{paddingTop:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+            <button onClick={()=>{snd('tap');setCreateStep("mode");}}
+              style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
+                color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
+                fontFamily:"'Righteous',sans-serif",fontSize:".72rem",flexShrink:0}}>← Tipo de juego</button>
+            <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"var(--y)",letterSpacing:2}}>JUGADORES</div>
           </div>
-        )}
-        <p className="sec" style={{marginTop:4}}>{T.players} (min. 2)</p>
-        {names.map((n,i)=>(
-          <PlayerRow key={i} idx={i} T={T}
-            name={n} emoji={playerEmojis[i]||EMOJIS[i%EMOJIS.length]} color={playerColors[i]||COLORS[i%COLORS.length]}
-            allEmojis={EMOJIS} allColors={COLORS} usedColors={playerColors.filter((_,j)=>j!==i)}
-            canRemove={names.length>2}
-            onName={v=>setNames(p=>p.map((x,j)=>j===i?v:x))}
-            onEmoji={v=>setPlayerEmojis(p=>p.map((x,j)=>j===i?v:x))}
-            onColor={v=>setPlayerColors(p=>p.map((x,j)=>j===i?v:x))}
-            onRemove={()=>{snd('tap');setNames(p=>p.filter((_,j)=>j!==i));setPlayerEmojis(p=>p.filter((_,j)=>j!==i));setPlayerColors(p=>p.filter((_,j)=>j!==i));}}
-          />
-        ))}
-        {names.length<18&&<button className="btn-add" onClick={()=>{snd('tap');setNames(p=>[...p,""]);}}>+ {T.addPlayer}</button>}
-        {err&&<ErrBox err={err}/>}
-      </div>
-      <div className="create-footer">
-        <button className="btn btn-y" style={{marginBottom:8}} onClick={()=>{snd('tap');createReal();}} disabled={busy||names.filter(n=>n.trim()).length<2}>
-          {busy?T.creating:T.create}
-        </button>
-        <button className="btn btn-g" onClick={()=>go("main")}>{T.back}</button>
-      </div>
+
+          {/* Selector de modo para llenar jugadores */}
+          <div style={{display:"flex",gap:6,marginBottom:14}}>
+            {[["manual","✍️ Manual"],["amigos","👥 Amigos"],["grupo","🎭 Grupo"]].map(([id,lbl])=>(
+              <button key={id} onClick={()=>{snd('tap');setPlayerMode(id);}}
+                style={{flex:1,padding:"9px 4px",borderRadius:10,cursor:"pointer",
+                  fontFamily:"'Righteous',sans-serif",fontSize:".68rem",letterSpacing:1,
+                  background:playerMode===id?"rgba(245,200,0,.15)":"rgba(255,255,255,.04)",
+                  border:"1px solid "+(playerMode===id?"rgba(245,200,0,.4)":"rgba(255,255,255,.1)"),
+                  color:playerMode===id?"var(--y)":"rgba(255,255,255,.4)"}}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+
+          {/* MODO AMIGOS */}
+          {playerMode==="amigos"&&(
+            <div style={{marginBottom:14}}>
+              {friendsHome.length===0
+                ? <div style={{textAlign:"center",padding:"14px",color:"rgba(255,255,255,.3)",
+                    fontFamily:"'Righteous',sans-serif",fontSize:".7rem"}}>
+                    Aún no tienes amigos agregados
+                  </div>
+                : <>
+                    {friendsHome.map(f=>{
+                      const sel=pickedFriends[f.uid]||false;
+                      return(
+                        <div key={f.uid} onClick={()=>{snd('tap');setPickedFriends(p=>({...p,[f.uid]:!p[f.uid]}));}}
+                          style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",
+                            marginBottom:6,borderRadius:11,cursor:"pointer",
+                            background:sel?"rgba(59,178,115,.12)":"rgba(255,255,255,.03)",
+                            border:"2px solid "+(sel?"rgba(59,178,115,.5)":"rgba(255,255,255,.08)")}}>
+                          <div style={{width:32,height:32,borderRadius:"50%",
+                            background:sel?"rgba(59,178,115,.25)":"rgba(245,200,0,.12)",
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            fontFamily:"'Anton',sans-serif",fontSize:".9rem",
+                            color:sel?"var(--gr)":"var(--y)",flexShrink:0}}>
+                            {(f.name||"?")[0].toUpperCase()}
+                          </div>
+                          <div style={{flex:1,fontWeight:900,fontSize:".85rem",
+                            color:sel?"var(--gr)":"rgba(255,255,255,.75)"}}>{f.name}</div>
+                          {sel&&<span style={{color:"var(--gr)",fontSize:"1rem"}}>✓</span>}
+                        </div>
+                      );
+                    })}
+                    <button onClick={()=>{
+                      const chosen=friendsHome.filter(f=>pickedFriends[f.uid]).map(f=>f.name);
+                      applyPicked(chosen);snd('join');
+                    }} disabled={!Object.values(pickedFriends).some(Boolean)}
+                      style={{width:"100%",marginTop:6,padding:"10px",borderRadius:11,
+                        background:"var(--gr)",border:"none",cursor:"pointer",
+                        opacity:Object.values(pickedFriends).some(Boolean)?1:.4,
+                        fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".82rem",color:"#fff"}}>
+                      ✅ Usar seleccionados
+                    </button>
+                  </>
+              }
+            </div>
+          )}
+
+          {/* MODO GRUPO */}
+          {playerMode==="grupo"&&(
+            <div style={{marginBottom:14}}>
+              {myGroupsHome.length===0
+                ? <div style={{textAlign:"center",padding:"14px",color:"rgba(255,255,255,.3)",
+                    fontFamily:"'Righteous',sans-serif",fontSize:".7rem"}}>
+                    Aún no tienes grupos
+                  </div>
+                : <>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+                      {myGroupsHome.map(g=>(
+                        <button key={g.id} onClick={()=>{snd('tap');setPickedGroupForPlayers(g);setSelectedGroup(g);setPickedGroupMembers({});}}
+                          style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",
+                            fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1,
+                            background:pickedGroupForPlayers&&pickedGroupForPlayers.id===g.id?"rgba(123,45,139,.3)":"rgba(255,255,255,.04)",
+                            border:"1px solid "+(pickedGroupForPlayers&&pickedGroupForPlayers.id===g.id?"rgba(123,45,139,.6)":"rgba(255,255,255,.1)"),
+                            color:pickedGroupForPlayers&&pickedGroupForPlayers.id===g.id?"#cc88ff":"rgba(255,255,255,.4)"}}>
+                          👥 {g.name}
+                        </button>
+                      ))}
+                    </div>
+                    {pickedGroupForPlayers&&Object.entries(pickedGroupForPlayers.members||{}).map(([muid,m])=>{
+                      if(muid===authUser.uid)return null; // el host ya va incluido siempre
+                      const sel=pickedGroupMembers[muid]||false;
+                      return(
+                        <div key={muid} onClick={()=>{snd('tap');setPickedGroupMembers(p=>({...p,[muid]:!p[muid]}));}}
+                          style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",
+                            marginBottom:6,borderRadius:11,cursor:"pointer",
+                            background:sel?"rgba(59,178,115,.12)":"rgba(255,255,255,.03)",
+                            border:"2px solid "+(sel?"rgba(59,178,115,.5)":"rgba(255,255,255,.08)")}}>
+                          <div style={{width:32,height:32,borderRadius:"50%",
+                            background:sel?"rgba(59,178,115,.25)":"rgba(245,200,0,.12)",
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            fontFamily:"'Anton',sans-serif",fontSize:".9rem",
+                            color:sel?"var(--gr)":"var(--y)",flexShrink:0}}>
+                            {(m.name||"?")[0].toUpperCase()}
+                          </div>
+                          <div style={{flex:1,fontWeight:900,fontSize:".85rem",
+                            color:sel?"var(--gr)":"rgba(255,255,255,.75)"}}>{m.name}</div>
+                          {sel&&<span style={{color:"var(--gr)",fontSize:"1rem"}}>✓</span>}
+                        </div>
+                      );
+                    })}
+                    {pickedGroupForPlayers&&(
+                      <button onClick={()=>{
+                        const chosen=Object.entries(pickedGroupForPlayers.members||{})
+                          .filter(([muid])=>pickedGroupMembers[muid]).map(([,m])=>m.name);
+                        applyPicked(chosen);snd('join');
+                      }} disabled={!Object.values(pickedGroupMembers).some(Boolean)}
+                        style={{width:"100%",marginTop:6,padding:"10px",borderRadius:11,
+                          background:"var(--gr)",border:"none",cursor:"pointer",
+                          opacity:Object.values(pickedGroupMembers).some(Boolean)?1:.4,
+                          fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".82rem",color:"#fff"}}>
+                        ✅ Usar seleccionados
+                      </button>
+                    )}
+                  </>
+              }
+            </div>
+          )}
+
+          <p className="sec" style={{marginTop:4}}>{T.players} (min. 2)</p>
+          {names.map((n,i)=>(
+            <PlayerRow key={i} idx={i} T={T}
+              name={n} emoji={playerEmojis[i]||EMOJIS[i%EMOJIS.length]} color={playerColors[i]||COLORS[i%COLORS.length]}
+              allEmojis={EMOJIS} allColors={COLORS} usedColors={playerColors.filter((_,j)=>j!==i)}
+              canRemove={names.length>2}
+              onName={v=>setNames(p=>p.map((x,j)=>j===i?v:x))}
+              onEmoji={v=>setPlayerEmojis(p=>p.map((x,j)=>j===i?v:x))}
+              onColor={v=>setPlayerColors(p=>p.map((x,j)=>j===i?v:x))}
+              onRemove={()=>{snd('tap');setNames(p=>p.filter((_,j)=>j!==i));setPlayerEmojis(p=>p.filter((_,j)=>j!==i));setPlayerColors(p=>p.filter((_,j)=>j!==i));}}
+            />
+          ))}
+          {names.length<18&&<button className="btn-add" onClick={()=>{snd('tap');setNames(p=>[...p,""]);}}>+ {T.addPlayer}</button>}
+          {err&&<ErrBox err={err}/>}
+        </div>
+        );
+      })()}
+      {createStep==="players"&&(
+        <div className="create-footer">
+          <button className="btn btn-y" style={{marginBottom:8}} onClick={()=>{snd('tap');createReal();}} disabled={busy||names.filter(n=>n.trim()).length<2}>
+            {busy?T.creating:T.create}
+          </button>
+          <button className="btn btn-g" onClick={()=>go("main")}>{T.back}</button>
+        </div>
+      )}
     </div>
   );
 
   if(view==="join")return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
+      {roomInviteModal}
       {/* Banner de reconexión rápida */}
       {reconnectReady&&lastKnownCode&&(
         <div style={{background:"linear-gradient(135deg,rgba(46,196,182,.18),rgba(46,196,182,.08))",border:"2px solid rgba(46,196,182,.5)",borderRadius:16,padding:"14px 16px",marginBottom:14,position:"relative"}}>
@@ -1526,11 +1763,16 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
 
   if(view==="stats"){
     if(authUser&&!authUser.isAnonymous)
-      return<PersonalDashboard authUser={authUser} onBack={()=>go("main")} T={T} initialTab={dashboardTab} mode={dashboardMode}/>;
-    return<StatsScreen onBack={()=>go("main")} T={T}/>;
+      return<>{roomInviteModal}<PersonalDashboard authUser={authUser} onBack={()=>go("main")} T={T} initialTab={dashboardTab} mode={dashboardMode}/></>;
+    return<>{roomInviteModal}<StatsScreen onBack={()=>go("main")} T={T}/></>;
   }
-  if(view==="grupos")return<GroupsScreen authUser={authUser} onBack={()=>go("main")}
-    onJoinRoom={code=>{setJcode(code);go("join");}}
+  if(view==="grupos")return<>{roomInviteModal}<GroupsScreen authUser={authUser} onBack={()=>go("main")}
+    onJoinRoom={code=>{
+      // Mismo arreglo que en el banner de Home: unirse directo, sin
+      // formulario manual — reconstituimos el objeto grupo a partir del código.
+      const g=myGroupsHome.find(x=>x.currentRoom===code)||{currentRoom:code,name:"tu grupo"};
+      quickJoinGroup(g);
+    }}
     onPlay={({names,groupId,groupName})=>{
       snd("round");
       // Pre-fill names with selected players + empty slots for others to join
@@ -1544,10 +1786,11 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       setSelectedGroup(myGroupsHome.find(g=>g.id===groupId)||{id:groupId,name:groupName,code:""});
       go("create");
     }}
-    T={T}/>;
+    T={T}/></>;
 
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
+      {roomInviteModal}
       {/* Banner de reconexión rápida */}
       {reconnectReady&&lastKnownCode&&(
         <div style={{background:"linear-gradient(135deg,rgba(46,196,182,.18),rgba(46,196,182,.08))",border:"2px solid rgba(46,196,182,.5)",borderRadius:16,padding:"14px 16px",marginBottom:14,position:"relative"}}>
@@ -1707,10 +1950,8 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
                 color:"rgba(255,255,255,.4)",letterSpacing:1}}>Partida en curso · sala {g.currentRoom}</div>
             </div>
-            <button onClick={()=>{
-              go("join");
-              // Pre-fill the room code - handled via URL or state
-            }} style={{background:"var(--gr)",border:"none",borderRadius:9,
+            <button onClick={()=>{snd('tap');quickJoinGroup(g);}}
+              style={{background:"var(--gr)",border:"none",borderRadius:9,
               padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",
               fontSize:".65rem",color:"#fff",fontWeight:900,flexShrink:0}}>
               Unirme →
