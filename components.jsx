@@ -195,9 +195,10 @@ async function setupFirebaseConfig(geminiKey, claudeKey){
 }
 
 function makeDB(demo){
-  if(demo)return{set:(p,d)=>demoSet(p,d),get:(p)=>demoGet(p),listen:(p,cb)=>demoListen(p,cb)};
+  if(demo)return{set:(p,d)=>demoSet(p,d),update:(p,d)=>demoUpdate(p,d),get:(p)=>demoGet(p),listen:(p,cb)=>demoListen(p,cb)};
   return{
     set:(p,d)=>_db.ref(p).set(d),
+    update:(p,d)=>_db.ref(p).update(d),
     get:(p)=>_db.ref(p).once("value").then(s=>s.val()),
     listen:(p,cb)=>{const r=_db.ref(p);r.on("value",s=>cb(s.val()));return()=>r.off("value");},
   };
@@ -635,7 +636,7 @@ function App(){
   async function transferHost(newPlayerId){
     if(!isHost||!room||!roomCode||demoMode)return;
     snd('tap');
-    await dbRef.current.set("rooms/"+roomCode,{...room,hostPlayerId:newPlayerId});
+    await dbRef.current.update("rooms/"+roomCode,{hostPlayerId:newPlayerId});
     await _db.ref("rooms/"+roomCode+"/hostOnline").set(true);
   }
 
@@ -643,7 +644,7 @@ function App(){
   // reiniciar), pero saca a todos a Home y libera el grupo asociado.
   async function endGameForAll(){
     if(!isHost||!room||!roomCode||demoMode)return;
-    await dbRef.current.set("rooms/"+roomCode,{...room,forceEnded:true,forceEndedAt:Date.now()});
+    await dbRef.current.update("rooms/"+roomCode,{forceEnded:true,forceEndedAt:Date.now()});
     if(room.groupId){
       _db.ref("groups/"+room.groupId+"/currentRoom").set(null).catch(()=>{});
     }
@@ -682,15 +683,16 @@ function App(){
     winnerShown.current=false;prevSortedRef.current=[];
     setWinner(null);
     // 1. Marcar rematchPending → todos (host incluido) ven el overlay via Firebase listener
-    await dbRef.current.set("rooms/"+roomCode+"/rematchPending",true);
+    await dbRef.current.update("rooms/"+roomCode,{rematchPending:true});
     // 2. Esperar 4s para que la animación se vea en todos los dispositivos
     await new Promise(r=>setTimeout(r,4000));
-    // 3. Resetear la sala con los mismos jugadores
+    // 3. Resetear SOLO lo que debe reiniciar — antes esto era un .set()
+    // completo que borraba gameMode, groupId, hostName, hostPlayerId,
+    // presence y hostOnline sin querer (quedaban huérfanos tras la revancha).
     const freshPlayers=prevPlayers.map(p=>({...p,total:0,rounds:[]}));
-    await dbRef.current.set("rooms/"+roomCode,{
-      code:roomCode,round:1,roundScores:{},finished:false,
-      winner:null,createdAt:Date.now(),players:freshPlayers,
-      rematchPending:false
+    await dbRef.current.update("rooms/"+roomCode,{
+      round:1,roundScores:{},finished:false,winner:null,
+      players:freshPlayers,rematchPending:false,forceEnded:false
     });
     setRematchPending(false);setTab("round");
     subscribe(roomCode,dbRef.current);
@@ -708,12 +710,12 @@ function App(){
     if(breakdown)entry.breakdown=breakdown;
     var newRoundScores=Object.assign({},cur);
     newRoundScores[pid]=entry;
-    await dbRef.current.set("rooms/"+roomCode,Object.assign({},room,{roundScores:newRoundScores}));
+    await dbRef.current.update("rooms/"+roomCode,{roundScores:newRoundScores});
   }
   async function undoScore(pid){
     snd('tap');
     const ns={...room?.roundScores};delete ns[pid];
-    await dbRef.current.set("rooms/"+roomCode,{...room,roundScores:ns});
+    await dbRef.current.update("rooms/"+roomCode,{roundScores:ns});
   }
   async function finalizeRound(){
     snd('round');
@@ -726,7 +728,7 @@ function App(){
     const champs=newPlayers.filter(p=>p.total>=WIN&&p.total===maxScore);
     const isFinished=champs.length>0;
     const winner=champs.length===1?champs[0]:{tied:true,players:champs,total:maxScore,name:champs.map(p=>p.name).join(" & "),emoji:""};
-    await dbRef.current.set("rooms/"+roomCode,{...room,players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
+    await dbRef.current.update("rooms/"+roomCode,{players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
   }
 
   async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode,groupId}){
@@ -2760,32 +2762,23 @@ function ResultEditor({res,onResult,onRetake}){
   const[cards,setCards]=React.useState(dedupCards);
   const[multiplier,setMultiplier]=React.useState(res.multiplier||null);
   const[plusCards,setPlusCards]=React.useState((res.plus_cards||[]).map(Number).filter(n=>n>0));
-  // Flip 7 bonus: auto-marcado si IA detectó 7 cartas, editable manualmente
-  const[flip7,setFlip7]=React.useState(dedupCards.length===MAX_CARDS);
+  // Flip 7 bonus: se deriva ÚNICAMENTE de tener las 7 cartas — no es algo
+  // que se pueda activar/desactivar a mano, solo se gana completando el Flip 7.
+  const flip7=cards.length===MAX_CARDS;
   const baseTotal=cards.reduce((a,b)=>Number(a)+Number(b),0);
   const afterMult=multiplier?baseTotal*multiplier:baseTotal;
   const total=afterMult+plusCards.reduce((a,b)=>Number(a)+Number(b),0)+(flip7?FLIP7_BONUS:0);
 
   function removeCard(idx){
     snd("del");
-    setCards(c=>{
-      const next=c.filter((_,i)=>i!==idx);
-      // Si baja de 7, desmarcar flip7 automáticamente
-      if(next.length<MAX_CARDS)setFlip7(false);
-      return next;
-    });
+    setCards(c=>c.filter((_,i)=>i!==idx));
   }
   // Solo agregar si el número no existe y no supera el máximo de 7
   function addCard(n){
     if(cards.includes(n)){snd("zero");return;}
     if(cards.length>=MAX_CARDS){snd("zero");return;} // regla: máx 7 cartas
     snd("score");
-    setCards(c=>{
-      const next=[...c,n];
-      // Si llega a 7, marcar flip7 automáticamente
-      if(next.length===MAX_CARDS)setFlip7(true);
-      return next;
-    });
+    setCards(c=>[...c,n]);
   }
 
   // Disponibles = los que NO están ya en cards (máx 1 por número, regla del juego)
@@ -2848,8 +2841,8 @@ function ResultEditor({res,onResult,onRetake}){
         background:flip7?"linear-gradient(135deg,rgba(245,200,0,.18),rgba(255,107,53,.1))":"rgba(255,255,255,.03)",
         border:"2px solid "+(flip7?"rgba(245,200,0,.6)":"rgba(255,255,255,.1)"),
         borderRadius:12,padding:"10px 14px",marginBottom:10,
-        display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"all .2s"
-      },onClick:()=>{snd("op");setFlip7(f=>!f);}},
+        display:"flex",alignItems:"center",gap:12,transition:"all .2s"
+      }},
         React.createElement("div",{style:{fontSize:"1.5rem"}},"🃏"),
         React.createElement("div",{style:{flex:1}},
           React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
@@ -2913,9 +2906,10 @@ function CardPickerModal({playerName,onSubmit,onClose}){
   var multiplier=multState[0],setMultiplier=multState[1];
   var plusState=useState([]);
   var plusCards=plusState[0],setPlusCards=plusState[1];
-  // Flip 7 bonus: se activa automáticamente al seleccionar 7 cartas
-  var f7State=useState(false);
-  var flip7=f7State[0],setFlip7=f7State[1];
+
+  // Flip 7 bonus: se deriva ÚNICAMENTE de tener las 7 cartas — no es algo
+  // que se pueda activar/desactivar a mano, solo se gana completando el Flip 7.
+  var flip7=selected.length===MAX_CARDS;
 
   // Cálculo con bonus
   var baseTotal=selected.reduce(function(a,b){return a+b;},0);
@@ -2925,19 +2919,11 @@ function CardPickerModal({playerName,onSubmit,onClose}){
   function toggleCard(n){
     if(selected.includes(n)){
       snd("del");
-      setSelected(function(p){
-        var next=p.filter(function(x){return x!==n;});
-        if(next.length<MAX_CARDS)setFlip7(false);
-        return next;
-      });
+      setSelected(function(p){return p.filter(function(x){return x!==n;});});
     } else {
       if(selected.length>=MAX_CARDS){snd("zero");return;} // límite 7 cartas
       snd("score");
-      setSelected(function(p){
-        var next=p.concat([n]);
-        if(next.length===MAX_CARDS)setFlip7(true); // auto-bonus
-        return next;
-      });
+      setSelected(function(p){return p.concat([n]);});
     }
   }
 
@@ -3105,9 +3091,8 @@ function CardPickerModal({playerName,onSubmit,onClose}){
           background:flip7?"linear-gradient(135deg,rgba(245,200,0,.18),rgba(255,107,53,.1))":"rgba(255,255,255,.03)",
           border:"2px solid "+(flip7?"rgba(245,200,0,.6)":"rgba(255,255,255,.1)"),
           borderRadius:12,padding:"10px 14px",marginBottom:10,
-          display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"all .25s"
-        },
-        onClick:function(){snd("op");setFlip7(function(f){return !f;});}
+          display:"flex",alignItems:"center",gap:12,transition:"all .25s"
+        }
       },
         React.createElement("div",{style:{fontSize:"1.5rem"}},"🃏"),
         React.createElement("div",{style:{flex:1}},

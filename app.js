@@ -149,6 +149,7 @@ function startPresenceHeartbeat(uid){
 // ── DEMO STORE (modo offline sin Firebase) ──────────────────────
 const _DS={},_DL={};
 function demoSet(p,d){_DS[p]=JSON.parse(JSON.stringify(d));(_DL[p]||[]).forEach(c=>c(_DS[p]));return Promise.resolve();}
+function demoUpdate(p,patch){_DS[p]={...(_DS[p]||{}),...JSON.parse(JSON.stringify(patch))};(_DL[p]||[]).forEach(c=>c(_DS[p]));return Promise.resolve();}
 function demoGet(p){return Promise.resolve(_DS[p]||null);}
 function demoListen(p,cb){_DL[p]=_DL[p]||[];_DL[p].push(cb);if(_DS[p])cb(_DS[p]);return()=>{_DL[p]=_DL[p].filter(f=>f!==cb);};}
 
