@@ -486,25 +486,9 @@ function App(){
       setAuthChecked(true);
       if(user&&!user.isAnonymous){
         await saveUserProfile(user).catch(()=>{});
-        // ── Set global presence (online) for all user's groups ──
-        try{
-          const gSnap=await _db.ref("users/"+user.uid+"/groups").once("value");
-          const gids=Object.keys(gSnap.val()||{});
-          if(gids.length>0){
-            const updates={};
-            gids.forEach(gid=>{
-              updates["presence/"+gid+"/"+user.uid]={
-                online:true,status:"idle",lastSeen:Date.now()
-              };
-            });
-            await _db.ref().update(updates);
-            // Auto-set offline on disconnect for each group
-            gids.forEach(gid=>{
-              _db.ref("presence/"+gid+"/"+user.uid+"/online").onDisconnect().set(false);
-              _db.ref("presence/"+gid+"/"+user.uid+"/lastSeen").onDisconnect().set({".sv":"timestamp"});
-            });
-          }
-        }catch(e){}
+        // ── Presencia robusta: se reafirma en cada reconexión (no solo al
+        // loguear) y detecta grupos nuevos sin requerir volver a entrar ──
+        try{ startPresenceHeartbeat(user.uid); }catch(e){}
         // ── Handle invite link ─────────────────────────────────
         const params=new URLSearchParams(window.location.search);
         const inviterUid=params.get("invite");
@@ -3746,6 +3730,9 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                     await _db.ref("groups/"+activeGroup.id+"/members/"+f.uid).set({
                       name:f.name,email:f.email||"",photoURL:"",role:"member",joinedAt:Date.now()
                     });
+                    // Índice inverso — sin esto, el amigo agregado nunca ve
+                    // este grupo en SU propia lista (aunque sí aparezca aquí)
+                    await _db.ref("users/"+f.uid+"/groups/"+activeGroup.id).set(true);
                     setOk("✅ "+f.name+" agregado al grupo");
                     setActiveGroup(g=>({...g,members:{...g.members,[f.uid]:{name:f.name,role:"member"}}}));
                     snd("join");

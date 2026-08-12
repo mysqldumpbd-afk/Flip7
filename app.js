@@ -103,6 +103,44 @@ async function saveUserProfile(user, extraData={}){
   }
 }
 
+// ── PRESENCIA — se reafirma en cada reconexión (bloqueo de pantalla, wifi
+// caído, app en segundo plano) y detecta grupos nuevos sin requerir volver
+// a iniciar sesión. Antes solo se escribía una vez al loguear, por eso
+// alguien podía quedarse marcado "offline" para siempre tras reconectar.
+let _presenceCleanup=null;
+function startPresenceHeartbeat(uid){
+  if(_presenceCleanup) _presenceCleanup(); // evitar listeners duplicados
+  const groupsRef=_db.ref('users/'+uid+'/groups');
+  const connectedRef=_db.ref('.info/connected');
+  let currentGids=[];
+  let isConnected=false;
+
+  function applyPresence(){
+    if(!isConnected) return;
+    currentGids.forEach(gid=>{
+      const ref=_db.ref('presence/'+gid+'/'+uid);
+      ref.onDisconnect().update({online:false,lastSeen:{'.sv':'timestamp'}});
+      ref.update({online:true,status:'idle',lastSeen:Date.now()});
+    });
+  }
+
+  const connHandler=connectedRef.on('value',snap=>{
+    isConnected=!!snap.val();
+    if(isConnected) applyPresence();
+  });
+  const groupsHandler=groupsRef.on('value',snap=>{
+    currentGids=Object.keys(snap.val()||{});
+    applyPresence();
+  });
+
+  _presenceCleanup=()=>{
+    connectedRef.off('value',connHandler);
+    groupsRef.off('value',groupsHandler);
+    _presenceCleanup=null;
+  };
+  return _presenceCleanup;
+}
+
 // ── DEMO STORE (modo offline sin Firebase) ──────────────────────
 const _DS={},_DL={};
 function demoSet(p,d){_DS[p]=JSON.parse(JSON.stringify(d));(_DL[p]||[]).forEach(c=>c(_DS[p]));return Promise.resolve();}
