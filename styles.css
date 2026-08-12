@@ -106,27 +106,26 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
   font-weight:800;margin-bottom:8px;font-family:'Nunito',sans-serif;font-size:.88rem}
 .btn-add:hover{border-color:var(--t);color:var(--t)}
 
-/* Botones SECUNDARIOS — misma familia tipográfica que .btn (Anton, como el
-   logo), pero más chicos y con glow discreto. Para acciones que acompañan
-   a la principal, no que compiten con ella: Stats/Amigos/Grupos en Home,
-   chips de modo en Crear Sala, etc. */
-.btn2{border:1.5px solid;border-radius:12px;font-family:'Anton',sans-serif;
+/* Botones SECUNDARIOS — mismo tratamiento visual que .btn (relleno sólido
+   en degradado, texto en negrita), solo más chicos. Para acciones que
+   acompañan a la principal: Stats/Amigos/Grupos en Home, chips de modo
+   en Crear Sala, etc. */
+.btn2{border:none;border-radius:12px;font-family:'Anton',sans-serif;
   letter-spacing:.8px;cursor:pointer;transition:all .15s;user-select:none;
-  display:flex;align-items:center;justify-content:center;gap:6px;
-  background:rgba(255,255,255,.04)}
-.btn2:hover{filter:brightness(1.15)}
+  display:flex;align-items:center;justify-content:center;gap:6px}
+.btn2:hover{filter:brightness(1.1)}
 .btn2:active{transform:scale(.97)}
-.btn2-y{border-color:rgba(245,200,0,.4);color:var(--y);background:rgba(245,200,0,.08);
-  box-shadow:0 3px 12px rgba(245,200,0,.15)}
-.btn2-t{border-color:rgba(46,196,182,.4);color:var(--t);background:rgba(46,196,182,.08);
-  box-shadow:0 3px 12px rgba(46,196,182,.15)}
-.btn2-pu{border-color:rgba(123,45,139,.5);color:#cc88ff;background:rgba(123,45,139,.12);
-  box-shadow:0 3px 12px rgba(123,45,139,.2)}
-.btn2-on{border-color:rgba(245,200,0,.6);background:rgba(245,200,0,.15);
-  box-shadow:0 3px 14px rgba(245,200,0,.25)}
-.btn2-off{border-color:rgba(180,180,200,.5);color:#e8e8ee;
-  background:#2a2a38}
-.btn2-off:hover{border-color:rgba(200,200,220,.7);background:#34344a}
+.btn2-y{background:linear-gradient(135deg,var(--y),var(--or));color:var(--dark);
+  box-shadow:0 4px 14px rgba(245,200,0,.35)}
+.btn2-t{background:linear-gradient(135deg,var(--t),#1A9A94);color:#fff;
+  box-shadow:0 4px 14px rgba(46,196,182,.35)}
+.btn2-pu{background:linear-gradient(135deg,#7B2D8B,#5A2070);color:#fff;
+  box-shadow:0 4px 14px rgba(123,45,139,.35)}
+.btn2-on{background:linear-gradient(135deg,var(--y),var(--or));color:var(--dark);
+  box-shadow:0 4px 16px rgba(245,200,0,.45)}
+.btn2-off{background:linear-gradient(135deg,#4a4a5e,#33334a);color:#e8e8ee;
+  box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.btn2-off:hover{background:linear-gradient(135deg,#565670,#3d3d58)}
 
 /* ── 6. ALERTS ───────────────────────────────────────────────── */
 .alert{border-radius:12px;padding:10px 14px;display:flex;align-items:flex-start;
