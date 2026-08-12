@@ -2918,11 +2918,12 @@ function ResultEditor({res,onResult,onRetake}){
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2}},"TOTAL FINAL"),
         React.createElement("div",{style:{fontFamily:"'Anton',sans-serif",fontSize:"4.5rem",color:"var(--y)",lineHeight:1,textShadow:"4px 4px 0 var(--or)"}},total),
         cards.length>0&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",marginTop:4,lineHeight:1.6}},
-          multiplier||plusCards.length>0
+          multiplier||plusCards.length>0||flip7
             ? React.createElement(React.Fragment,null,
                 React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},"Base: "+cards.join("+"+(cards.length>1?" ":""))+" = "+baseTotal),
                 multiplier&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(255,120,120,.8)"}},"x"+multiplier+" = "+(baseTotal*multiplier))),
-                plusCards.length>0&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(100,220,150,.8)"}},"+ "+plusCards.join("+")+" = "+total))
+                plusCards.length>0&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(100,220,150,.8)"}},"+ "+plusCards.join("+")+" = "+afterMult+plusCards.reduce(function(a,b){return a+Number(b);},0))),
+                flip7&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"var(--y)",fontWeight:700}},"+ 15 Flip 7 = "+total))
               )
             : React.createElement("span",null,cards.length>1?cards.join(" + ")+" = "+baseTotal:"")
         ),
@@ -3079,7 +3080,7 @@ function CardPickerModal({playerName,onSubmit,onClose}){
           fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
           color:"rgba(255,255,255,.35)",marginTop:4,lineHeight:1.7
         }},
-          multiplier||plusCards.length>0
+          multiplier||plusCards.length>0||flip7
             ? React.createElement(React.Fragment,null,
                 React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},
                   "Base: "+selected.slice().sort(function(a,b){return a-b;}).join("+")+" = "+baseTotal
@@ -3093,7 +3094,13 @@ function CardPickerModal({playerName,onSubmit,onClose}){
                 plusCards.length>0&&React.createElement(React.Fragment,null,
                   React.createElement("br"),
                   React.createElement("span",{style:{color:"rgba(100,220,150,.9)"}},
-                    "+"+plusCards.join("+")+" = "+total
+                    "+"+plusCards.join("+")+" = "+afterMult+plusCards.reduce(function(a,b){return a+Number(b);},0)
+                  )
+                ),
+                flip7&&React.createElement(React.Fragment,null,
+                  React.createElement("br"),
+                  React.createElement("span",{style:{color:"var(--y)",fontWeight:700}},
+                    "+ 15 Flip 7 = "+total
                   )
                 )
               )
