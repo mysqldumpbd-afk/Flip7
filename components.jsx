@@ -1781,7 +1781,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         return(
         <div className="create-body" style={{paddingTop:0}}>
           <button className="btn2 btn2-off" onClick={()=>{snd('tap');setCreateStep("mode");}}
-            style={{padding:"6px 12px",fontSize:".72rem",width:"auto"}}>← Tipo de juego</button>
+            style={{padding:"7px 14px",fontSize:".68rem",width:"auto"}}>← Tipo de juego</button>
           <div style={{textAlign:"center",fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",
             color:"var(--y)",letterSpacing:3,margin:"14px 0 16px",
             textShadow:"0 0 20px rgba(245,200,0,.3)"}}>JUGADORES</div>
@@ -1791,7 +1791,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
             {[["manual","✍️ Manual"],["amigos","👥 Amigos"],["grupo","🎭 Grupo"]].map(([id,lbl])=>(
               <button key={id} className={"btn2 "+(playerMode===id?"btn2-on":"btn2-off")}
                 onClick={()=>{snd('tap');setPlayerMode(id);}}
-                style={{flex:1,padding:"9px 4px",fontSize:".68rem"}}>
+                style={{flex:1,padding:"11px 4px",fontSize:".7rem"}}>
                 {lbl}
               </button>
             ))}
