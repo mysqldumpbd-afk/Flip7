@@ -908,15 +908,14 @@ function App(){
 
   return(
     <div className="wrap">
-      <div className="hdr">
-        <div>
-          <div style={{display:"flex",alignItems:"baseline",gap:4}}>
-            <span className="logo-f">FLIP</span><span className="logo-7">7</span>
+      <div className="hdr" style={{alignItems:"flex-start"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <div>
+            <div style={{display:"flex",alignItems:"baseline",gap:4}}>
+              <span className="logo-f">FLIP</span><span className="logo-7">7</span>
+            </div>
+            <span className="logo-sub">Race to 200!</span>
           </div>
-          <span className="logo-sub">Race to 200!</span>
-        </div>
-        <div style={{display:"flex",flexWrap:"wrap",justifyContent:"flex-end",
-          alignItems:"center",gap:6,rowGap:8,maxWidth:"62%"}}>
           {room&&room.gameMode&&room.gameMode!=="classic"&&GAME_MODES[room.gameMode]&&(
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:1,
               background:GAME_MODES[room.gameMode].badgeColor,
@@ -927,11 +926,29 @@ function App(){
               {GAME_MODES[room.gameMode].emoji} {room.gameMode.toUpperCase()}
             </div>
           )}
-          <div className={"badge "+(demoMode?"demo":"")} style={{margin:0}}>
-            <span className={"dot "+(demoMode?"demo":"")}/>
-            {demoMode?"DEMO":roomCode}
+        </div>
+
+        {/* Columna de controles — jerarquía: EN/Salir (chico, utilidad) arriba,
+            tu cuenta en medio, código de sala abajo (el más grande, lo más
+            consultado durante la partida) */}
+        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}}
+              style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
+                color:"rgba(255,255,255,.6)",borderRadius:9,cursor:"pointer",
+                fontFamily:"'Righteous',sans-serif",fontSize:".68rem",letterSpacing:1,
+                width:44,height:30,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {lang==="es"?"EN":"ES"}
+            </button>
+            <button onClick={()=>{snd('tap');leaveGame();}}
+              style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",
+                color:"rgba(255,255,255,.55)",borderRadius:9,cursor:"pointer",
+                fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".72rem",
+                width:58,height:30,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              Salir
+            </button>
           </div>
-          {/* User account pill */}
+
           {authUser&&!authUser.isAnonymous&&(
             <div style={{display:"flex",alignItems:"center",gap:6,
               background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",
@@ -946,21 +963,17 @@ function App(){
                   </div>
               }
               <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-                color:"rgba(255,255,255,.6)",letterSpacing:1,maxWidth:60,
+                color:"rgba(255,255,255,.6)",letterSpacing:1,maxWidth:80,
                 overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {(authUser.displayName||authUser.email||"").split(" ")[0]}
               </span>
             </div>
           )}
-          {/* Separador visual antes de los controles de sesión */}
-          <div style={{width:"100%",height:0}}/>
-          <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}}
-            style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
-              color:"rgba(255,255,255,.6)",borderRadius:9,padding:"5px 8px",cursor:"pointer",
-              fontFamily:"'Righteous',sans-serif",fontSize:".7rem",letterSpacing:1}}>
-            {lang==="es"?"EN":"ES"}
-          </button>
-          <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');leaveGame();}}>Salir</button>
+
+          <div className={"badge "+(demoMode?"demo":"")} style={{margin:0}}>
+            <span className={"dot "+(demoMode?"demo":"")}/>
+            {demoMode?"DEMO":roomCode}
+          </div>
         </div>
       </div>
       <div className="nav">
@@ -2549,7 +2562,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                   )}
                 </div>
               ):mine?(
-                <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>
+                <div style={{display:"flex",flexDirection:"column",gap:12,marginTop:6}}>
                   <div className="ar" style={{marginTop:0}}>
                     {!demoMode&&<button className="ab ab-s" style={{flex:1}} onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
                     {isVenganza
