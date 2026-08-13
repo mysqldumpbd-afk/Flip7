@@ -246,7 +246,7 @@ const LANGS={
     spectatorBtn:"👁 ENTRAR COMO ESPECTADOR",
     round:"🎴 Ronda",table:"📊 Tabla",history:"📋 Historial",
     players2:"JUGADORES",winner:"ganó",allReady:"Todos listos! Cierra la ronda.",
-    waitingHost:"Esperando al host",waitingCaps:"⏳ Esperando capturas",
+    waitingHost:"Esperando al admin",waitingCaps:"⏳ Esperando capturas",
     closeRound:"🔒 CERRAR RONDA",rematch:"🔁 REVANCHA",endGame:"🚪 Terminar",
     ranking:"CLASIFICACIÓN",rounds2:"TABLA DE RONDAS",goal:"META: 200 PUNTOS",
     noSessions:"Sin sesiones aún",noSessionsDesc:"Completa una partida para verla aquí",
@@ -286,7 +286,7 @@ const LANGS={
     spectatorBtn:"👁 ENTER AS SPECTATOR",
     round:"🎴 Round",table:"📊 Table",history:"📋 History",
     players2:"PLAYERS",winner:"won",allReady:"Everyone ready! Close the round.",
-    waitingHost:"Waiting for host",waitingCaps:"⏳ Waiting for captures",
+    waitingHost:"Waiting for admin",waitingCaps:"⏳ Waiting for captures",
     closeRound:"🔒 CLOSE ROUND",rematch:"🔁 REMATCH",endGame:"🚪 End Game",
     ranking:"RANKING",rounds2:"ROUND TABLE",goal:"GOAL: 200 POINTS",
     noSessions:"No sessions yet",noSessionsDesc:"Complete a game to see it here",
@@ -852,6 +852,25 @@ function App(){
   // El host puede ser el creador original (playerId null) O, si hubo una
   // transferencia explícita (room.hostPlayerId), quien tenga ese playerId.
   const isHost=!isSpectator&&(room&&room.hostPlayerId!=null?myPlayerId===room.hostPlayerId:!myPlayerId);
+
+  // Reafirmar hostOnline en cada reconexión real (no solo al conectar la
+  // primera vez) — mismo patrón que el heartbeat de presencia global.
+  // Antes, si el host bloqueaba el celular, hostOnline se quedaba en
+  // false para siempre aunque volviera a estar activo, mostrando el
+  // aviso de "se desconectó" a los demás aunque ya no fuera cierto.
+  React.useEffect(()=>{
+    if(!roomCode||demoMode||!isHost)return;
+    const connRef=_db.ref('.info/connected');
+    const h=snap=>{
+      if(snap.val()===true){
+        const hostRef=_db.ref('rooms/'+roomCode+'/hostOnline');
+        hostRef.onDisconnect().set(false);
+        hostRef.set(true);
+      }
+    };
+    connRef.on('value',h);
+    return()=>connRef.off('value',h);
+  },[roomCode,isHost,demoMode]);
 
   // ── AUTH GATE ──────────────────────────────────────────────
   if(!authChecked)return(
@@ -1514,7 +1533,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     setBusy(true);setErr(null);
     try{
       const db=makeDB(false);const r=await db.get("rooms/"+jcode.toUpperCase());
-      if(!r){setErr({msg:"Sala \""+jcode.toUpperCase()+"\" no encontrada.",steps:["Pide el código al host"]});setBusy(false);return;}
+      if(!r){setErr({msg:"Sala \""+jcode.toUpperCase()+"\" no encontrada.",steps:["Pide el código al admin"]});setBusy(false);return;}
       if(asSpectator){snd('join');await onEnter({demo:false,spectator:true,code:jcode.toUpperCase()});setBusy(false);return;}
       const inputName=jname.trim().toLowerCase();
       // Buscar si hay un jugador con ese nombre
@@ -2000,7 +2019,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:2,marginBottom:4}}>SALA ACTIVA ENCONTRADA</div>
           <div style={{fontWeight:900,fontSize:".96rem",marginBottom:10}}>Código: <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:3}}>{lastKnownCode}</span></div>
           <div style={{display:"flex",gap:8}}>
-            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>⚡ Reconectarme como Host</button>
+            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>⚡ Reconectarme como Admin</button>
             <button className="btn btn-g" style={{flex:1,padding:"10px",fontSize:".78rem"}} onClick={()=>{snd("tap");onDismissReconnect();}}>Ignorar</button>
           </div>
         </div>
@@ -2110,7 +2129,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:2,marginBottom:4}}>SALA ACTIVA ENCONTRADA</div>
           <div style={{fontWeight:900,fontSize:".96rem",marginBottom:10}}>Código: <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:3}}>{lastKnownCode}</span></div>
           <div style={{display:"flex",gap:8}}>
-            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>⚡ Reconectarme como Host</button>
+            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>⚡ Reconectarme como Admin</button>
             <button className="btn btn-g" style={{flex:1,padding:"10px",fontSize:".78rem"}} onClick={()=>{snd("tap");onDismissReconnect();}}>Ignorar</button>
           </div>
         </div>
@@ -2333,17 +2352,17 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
             {/* Solo el host puede iniciar revancha */}
             {isHost
               ? <button className="btn btn-y" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={()=>onRematch(room.players)}>{T.rematch}</button>
-              : <div style={{flex:1,padding:"12px",background:"rgba(255,255,255,.05)",borderRadius:14,fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:1,display:"flex",alignItems:"center",justifyContent:"center"}}>⏳ Esperando revancha del host</div>
+              : <div style={{flex:1,padding:"12px",background:"rgba(255,255,255,.05)",borderRadius:14,fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:1,display:"flex",alignItems:"center",justifyContent:"center"}}>⏳ Esperando revancha del admin</div>
             }
             <button className="btn btn-g" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={onEndGame}>{T.endGame}</button>
           </div>
         </div>
       )}
-      {/* Aviso host desconectado */}
+      {/* Aviso admin desconectado */}
       {!isHost&&room.hostOnline===false&&(
         <div className="alert al-r" style={{marginBottom:10}}>
-          <div style={{fontWeight:900}}>⚠️ El host se desconectó</div>
-          <div style={{fontSize:".78rem",opacity:.8,marginTop:3}}>La sala sigue activa — el host puede reconectarse con el código {roomCode}</div>
+          <div style={{fontWeight:900}}>⚠️ El admin se desconectó</div>
+          <div style={{fontSize:".78rem",opacity:.8,marginTop:3}}>La sala sigue activa — el admin puede reconectarse con el código {roomCode}</div>
         </div>
       )}
       {/* Jugadores desconectados */}
@@ -2404,7 +2423,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
             style={{flex:1,background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",
               color:"rgba(255,255,255,.55)",borderRadius:9,padding:"7px 8px",cursor:"pointer",
               fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1}}>
-            🔁 Transferir host
+            🔁 Transferir admin
           </button>
           <button onClick={()=>{snd('tap');setConfirmEnd(true);}}
             style={{flex:1,background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.25)",
@@ -2419,7 +2438,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           borderRadius:12,padding:10,marginBottom:10}}>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
             color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:8}}>
-            ELEGIR NUEVO HOST — debe estar conectado ahora mismo
+            ELEGIR NUEVO ADMIN — debe estar conectado ahora mismo
           </div>
           {room.players.filter(p=>p.id!==myPlayerId).map(p=>{
             const online=room.presence&&room.presence[p.id];
@@ -2488,7 +2507,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                     <span style={{display:"inline-flex",alignItems:"center",gap:2,
                       background:"rgba(245,200,0,.18)",border:"1px solid rgba(245,200,0,.4)",
                       borderRadius:20,padding:"1px 7px",fontFamily:"'Righteous',sans-serif",
-                      fontSize:".55rem",color:"var(--y)",letterSpacing:1,fontWeight:900}}>👑 HOST</span>
+                      fontSize:".55rem",color:"var(--y)",letterSpacing:1,fontWeight:900}}>👑 ADMIN</span>
                   )}
                 </div>
                 <div style={{display:"flex",alignItems:"baseline",gap:4,flexShrink:0}}>
@@ -2496,7 +2515,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                   <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>pts</span>
                 </div>
               </div>
-              <div style={{height:3,background:"rgba(255,255,255,.07)",borderRadius:2,marginTop:4,marginBottom:4,overflow:"hidden"}}>
+              <div style={{height:3,background:"rgba(255,255,255,.07)",borderRadius:2,marginTop:4,marginBottom:9,overflow:"hidden"}}>
                 <div style={{height:"100%",width:Math.min(100,(p.total/200)*100)+"%",
                   background:"linear-gradient(90deg,"+p.color+","+p.color+"aa)",borderRadius:2,transition:"width .8s"}}/>
               </div>
@@ -2508,19 +2527,17 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                     :{}}>
                     {entry.score===0?"💀":"+"+entry.score}
                   </span>
-                  <span className={"mtag mt-"+entry.method}>
-                    {entry.method==="scan"?"📷":entry.method==="cards"?(isVenganza?"💀":"🃏"):entry.method==="zero"?"💀":""} {entry.method==="cards"?(isVenganza?"cartas":"cartas"):entry.method}
-                  </span>
-                  {/* Badge LISTO solo para el jugador actual */}
-                  {p.id===myPlayerId&&(
-                    <span style={{
-                      display:"inline-flex",alignItems:"center",gap:3,
-                      background:"rgba(59,178,115,.2)",border:"1px solid rgba(59,178,115,.5)",
-                      borderRadius:20,padding:"2px 9px",
-                      fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-                      color:"var(--gr)",letterSpacing:1,fontWeight:900
-                    }}>✓ LISTO</span>
-                  )}
+                  {/* LISTO para todos los que ya terminaron — antes solo se
+                      veía para tu propia fila, y de paso se mostraba el
+                      método usado (cartas/scan/manual), que no aporta y
+                      se ve mejor así de simple. */}
+                  <span style={{
+                    display:"inline-flex",alignItems:"center",gap:3,
+                    background:"rgba(59,178,115,.2)",border:"1px solid rgba(59,178,115,.5)",
+                    borderRadius:20,padding:"2px 9px",
+                    fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+                    color:"var(--gr)",letterSpacing:1,fontWeight:900
+                  }}>✓ LISTO</span>
                   {mine&&!room.finished&&(
                     <button onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:entry.score});}}
                       style={{background:"rgba(46,196,182,.12)",border:"1px solid rgba(46,196,182,.3)",
@@ -2532,15 +2549,17 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                   )}
                 </div>
               ):mine?(
-                <div className="ar">
-                  {!demoMode&&<button className="ab ab-s" onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
-                  {isVenganza
-                    ? <button className="ab ab-c" onClick={()=>{snd('tap');setVengCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
-                    : <button className="ab ab-c" onClick={()=>{snd('tap');setCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
-                  }
-                  {/* 💀 Cero: registra 0 pts. En Venganza: si te obligan (Just One More y salió duplicado), o si activaste The Zero card, o si hiciste bust. Solo hay un tipo de Cero. */}
-                  <button className="ab ab-z" onClick={()=>handleZero(p.id)}>💀 Cero</button>
-                  <button className="ab ab-m" onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:null});}}>🧮 Manual</button>
+                <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>
+                  <div className="ar" style={{marginTop:0}}>
+                    {!demoMode&&<button className="ab ab-s" style={{flex:1}} onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
+                    {isVenganza
+                      ? <button className="ab ab-c" style={{flex:1}} onClick={()=>{snd('tap');setVengCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
+                      : <button className="ab ab-c" style={{flex:1}} onClick={()=>{snd('tap');setCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
+                    }
+                    <button className="ab ab-m" style={{flex:1}} onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:null});}}>🧮 Manual</button>
+                  </div>
+                  {/* 💀 Cero: registra 0 pts. En Venganza: si te obligan (Just One More y salió duplicado), o si activaste The Zero card, o si hiciste bust. Solo hay un tipo de Cero. — su propia fila, más ancho, para que resalte como acción distinta */}
+                  <button className="ab ab-z" style={{width:"100%",justifyContent:"center",padding:"9px 10px"}} onClick={()=>handleZero(p.id)}>💀 Cero</button>
                 </div>
               ):(
                 <div style={{fontSize:".72rem",color:"rgba(255,255,255,.28)",marginTop:3,fontWeight:700}}>⏳ esperando</div>
@@ -5770,7 +5789,7 @@ function WinnerScreen({winner,onClose,onRematch,isHost,T}){
       // Revancha solo para el host
       isHost
         ? React.createElement("button",{className:"btn btn-y",onClick:()=>{snd("round");onRematch();},style:{maxWidth:300,marginBottom:10}},"🔁 REVANCHA · Mismos jugadores")
-        : React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:16,padding:"10px 20px",background:"rgba(255,255,255,.06)",borderRadius:12,border:"1px solid rgba(255,255,255,.1)"}},"⏳ Esperando revancha del host..."),
+        : React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:16,padding:"10px 20px",background:"rgba(255,255,255,.06)",borderRadius:12,border:"1px solid rgba(255,255,255,.1)"}},"⏳ Esperando revancha del admin..."),
       React.createElement("button",{className:"btn btn-g",onClick:()=>{snd("tap");onClose();},style:{maxWidth:300}},"📊 Ver marcador final")
     )
   );
