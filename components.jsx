@@ -2188,7 +2188,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
         {[
           {key:"stats",label:"Estadísticas",icon:"📊",cls:"btn3-y",locked:false,onClick:()=>goDashboard("me")},
-          {key:"friends",label:"Amigos",icon:"👥",cls:"btn3-t",locked:isAnonHome,onClick:()=>goDashboard("friends")},
+          {key:"friends",label:"Amigos",icon:"👥",cls:"btn3-y",locked:isAnonHome,onClick:()=>goDashboard("friends")},
         ].map(b=>(
           <button key={b.key} className={"btn3 "+b.cls} onClick={b.onClick} style={{
             position:"relative",padding:"12px 4px",fontSize:".8rem",
@@ -2207,7 +2207,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
           </button>
         ))}
 
-        <button className="btn3 btn3-pu" onClick={()=>go("grupos")} style={{
+        <button className="btn3 btn3-y" onClick={()=>go("grupos")} style={{
           position:"relative",padding:"12px 4px",fontSize:".8rem",
           opacity:isAnonHome?.55:1
         }}>
@@ -2226,7 +2226,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
           })()}
         </button>
 
-        <button className="btn3 btn3-t" onClick={()=>{snd('tap');setJoinIntent("spectate");go("join");}} style={{
+        <button className="btn3 btn3-y" onClick={()=>{snd('tap');setJoinIntent("spectate");go("join");}} style={{
           padding:"12px 4px",fontSize:".8rem"}}>
           👁 Espectador
         </button>
