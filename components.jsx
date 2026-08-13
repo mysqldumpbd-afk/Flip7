@@ -772,23 +772,31 @@ function App(){
   async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode,groupId}){
     const db=makeDB(demo);dbRef.current=db;
     let roomCode2=code;
+    let resolvedMyPlayerId=playerId; // por default, el playerId que ya te pasaron (reconectar, unirte, etc.)
+    const firstPlayerName=names&&names[0]?names[0].trim():"";
     if(!code){
       roomCode2=demo?"DEMO":uid4();
-      const firstPlayerName=names&&names[0]?names[0].trim():"";
       const groupId2=groupId||null;
+      const myNameLower=(hostName||firstPlayerName||"").trim().toLowerCase();
+      const playersList=names.map((name,i)=>({
+        id:uid(),name:name.trim(),
+        emoji:(customEmojis&&customEmojis[i])||EMOJIS[i%EMOJIS.length],
+        color:(customColors&&customColors[i])||COLORS[i%COLORS.length],
+        total:0,rounds:[]
+      }));
+      // Ligar al creador a su propia fila (si su nombre está en la lista de
+      // jugadores) desde el arranque — así aparece "tú" y la insignia HOST
+      // de inmediato, no solo después de una transferencia explícita.
+      const myRow=playersList.find(p=>p.name.toLowerCase()===myNameLower);
+      resolvedMyPlayerId=myRow?myRow.id:null;
       await db.set("rooms/"+roomCode2,{
         code:roomCode2,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),
         gameMode:gameMode||"classic",
         groupId:groupId2,
         // Guardar nombre del host para permitir reconexión
         hostName: hostName||firstPlayerName,
-        hostPlayerId: null, // se llena solo si hay una transferencia de host explícita
-        players:names.map((name,i)=>({
-          id:uid(),name:name.trim(),
-          emoji:(customEmojis&&customEmojis[i])||EMOJIS[i%EMOJIS.length],
-          color:(customColors&&customColors[i])||COLORS[i%COLORS.length],
-          total:0,rounds:[]
-        }))
+        hostPlayerId: resolvedMyPlayerId, // el creador ya arranca visible como host
+        players:playersList
       });
     }
     // Publish room to group if applicable
@@ -821,15 +829,15 @@ function App(){
       });
     }
     setDemoMode(demo);setRoomCode(roomCode2);setIsSpectator(spectator||false);
-    setMyPlayerId(playerId||null);
+    setMyPlayerId(resolvedMyPlayerId!==undefined?resolvedMyPlayerId:null);
     subscribe(roomCode2,db);
     // Presencia: marcar jugador/host online
-    if(!demo && playerId){
-      const presRef=_db.ref("rooms/"+roomCode2+"/presence/"+playerId);
+    if(!demo && resolvedMyPlayerId){
+      const presRef=_db.ref("rooms/"+roomCode2+"/presence/"+resolvedMyPlayerId);
       presRef.set(true);
       presRef.onDisconnect().remove();
     }
-    if(!demo && (!playerId||asHost) && !spectator){
+    if(!demo && (!resolvedMyPlayerId||asHost) && !spectator){
       // host online (nuevo o reconectando)
       const hostRef=_db.ref("rooms/"+roomCode2+"/hostOnline");
       hostRef.set(true);
@@ -2304,7 +2312,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
   const[shakePid,setShakePid]=useState(null);
   const[showTransfer,setShowTransfer]=useState(false);
   const[confirmEnd,setConfirmEnd]=useState(false);
-  const canControl=pid=>!myPlayerId||myPlayerId===pid;
+  const canControl=pid=>isHost||myPlayerId===pid;
   const gameMode=(room&&room.gameMode)||'classic';
   const isVenganza=gameMode==='venganza';
 
@@ -2454,7 +2462,15 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           </div>
         </div>
       )}
-      {room.players.map(p=>{
+      {(()=>{
+        // Tu fila siempre primero — el resto conserva su orden relativo
+        // (sort es estable, así que solo "jala" tu fila al frente).
+        const orderedPlayers=[...room.players].sort((a,b)=>{
+          if(a.id===myPlayerId)return -1;
+          if(b.id===myPlayerId)return 1;
+          return 0;
+        });
+        return orderedPlayers.map(p=>{
         const entry=room.roundScores?.[p.id];const done=entry!==undefined;const mine=canControl(p.id);
         const isShaking=shakePid===p.id;
         return(
@@ -2533,7 +2549,8 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
             {done&&mine&&!room.finished&&<button className="undo" onClick={()=>onUndo(p.id)}>↩</button>}
           </div>
         );
-      })}
+        });
+      })()}
       {room.players.length===0&&(
         <div style={{textAlign:"center",padding:"24px 10px",borderRadius:16,
           border:"2px dashed rgba(245,200,0,.3)",marginBottom:14}}>
