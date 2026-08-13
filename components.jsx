@@ -421,9 +421,7 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
             </div>
           )}
         </div>
-        <input className="inp" style={{margin:0,flex:1,borderColor:color+"66",
-          background:color+"14",fontFamily:"'Nunito',sans-serif",fontWeight:900,
-          letterSpacing:".3px",padding:"7px 10px",fontSize:".9rem"}}
+        <input className="player-name-inp" style={{"--clr":color}}
           placeholder={(T?T.players:"Jugador")+" "+(idx+1)} value={name}
           onChange={e=>{snd('num');onName(e.target.value);}} onFocus={()=>snd('tap')}/>
         <div style={{position:"relative",flexShrink:0}}>
