@@ -61,6 +61,7 @@ const GAME_MODES={
     name:"FLIP 7",
     subtitle:"Race to 200",
     emoji:"🃏",
+    image:"icons/card-classic.png",
     color:"#F5C800",
     glow:"rgba(245,200,0,.4)",
     goal:200,
@@ -82,6 +83,7 @@ const GAME_MODES={
     name:"FLIP 7",
     subtitle:"With a Vengeance",
     emoji:"💀",
+    image:"icons/card-vengeance.png",
     color:"#E63946",
     glow:"rgba(230,57,70,.5)",
     goal:200,
@@ -1681,7 +1683,14 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                   color:mode.color,letterSpacing:1}}>
                   {mode.badge}
                 </div>
-                <div style={{fontSize:"1.8rem",marginBottom:4,lineHeight:1}}>{mode.emoji}</div>
+                {mode.image
+                  ? <img src={mode.image} alt={mode.name} style={{height:44,marginBottom:6,
+                      filter:"drop-shadow(0 4px 10px "+mode.glow+")",
+                      opacity:isSel?1:.75,transition:"opacity .2s"}}
+                      onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="block";}}/>
+                  : null}
+                <div style={{fontSize:"1.8rem",marginBottom:4,lineHeight:1,
+                  display:mode.image?"none":"block"}}>{mode.emoji}</div>
                 <div style={{fontFamily:"'Anton',sans-serif",fontSize:".95rem",
                   letterSpacing:2,lineHeight:1,marginBottom:1,
                   color:isSel?mode.color:"rgba(255,255,255,.7)"}}>
