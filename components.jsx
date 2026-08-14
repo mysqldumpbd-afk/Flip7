@@ -134,6 +134,7 @@ async function saveGameStats(session, roomData){
       rounds: roomData.round, playerCount: roomData.players.length,
       winner: roomData.winner?.name||"", winnerId: realWinnerId2||"",
       title: title2, saved: true,
+      winTarget: roomData.winTarget||WIN, // meta de esta partida — para mostrarla en el historial
       players: sorted2.map((p,i)=>({
         id:p.id, name:p.name, emoji:p.emoji, color:p.color,
         total:p.total, position:i+1, rounds:p.rounds||[]
@@ -169,7 +170,8 @@ async function saveGameStats(session, roomData){
       name: p.name, emoji: p.emoji, color: p.color,
       total: p.total, position, rounds: p.rounds||[],
       playerCount: roomData.players.length, won,
-      gameMode: roomData.gameMode||"classic"
+      gameMode: roomData.gameMode||"classic",
+      winTarget: roomData.winTarget||WIN
     });
 
     const pRounds = p.rounds||[];
@@ -2458,6 +2460,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
   const canControl=pid=>isHost||myPlayerId===pid;
   const gameMode=(room&&room.gameMode)||'classic';
   const isVenganza=gameMode==='venganza';
+  // Meta real de ESTA sala — antes las barras de avance en esta pantalla
+  // tenían 200 fijo en el código, así que si la partida se creaba a 150
+  // (o cualquier otra meta) el % y el "faltan" seguían calculando contra
+  // 200, dando números incorrectos.
+  const target=room.winTarget||WIN;
 
   // ¿Es una fila ajena que el admin controla solo por ser admin (no la suya
   // propia)? Esas son las que quedan protegidas por default.
@@ -2557,6 +2564,15 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           </span>
         </div>
       )}
+      {/* Meta de la partida — visible arriba de todo para que quede claro
+          a cuánto se está jugando, sin tener que ir a la pestaña Tabla. */}
+      <div style={{textAlign:"center",marginBottom:10}}>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",letterSpacing:2,
+          color:"var(--y)",background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.3)",
+          borderRadius:20,padding:"4px 13px",display:"inline-flex",alignItems:"center",gap:5}}>
+          🏆 META: {target} PUNTOS
+        </span>
+      </div>
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>{T.players2}</p>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -2714,9 +2730,14 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                   <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>pts</span>
                 </div>
               </div>
-              <div style={{height:3,background:"rgba(255,255,255,.07)",borderRadius:2,marginTop:4,marginBottom:9,overflow:"hidden"}}>
-                <div style={{height:"100%",width:Math.min(100,(p.total/200)*100)+"%",
+              <div style={{height:3,background:"rgba(255,255,255,.07)",borderRadius:2,marginTop:4,overflow:"hidden"}}>
+                <div style={{height:"100%",width:Math.min(100,(p.total/target)*100)+"%",
                   background:"linear-gradient(90deg,"+p.color+","+p.color+"aa)",borderRadius:2,transition:"width .8s"}}/>
+              </div>
+              {/* % de avance chiquito, mismo color que la barra */}
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".56rem",fontWeight:700,
+                color:p.color,letterSpacing:.5,marginTop:2,marginBottom:7,opacity:.85}}>
+                {Math.round(Math.min(100,(p.total/target)*100))}%
               </div>
               {done?(
                 <div style={{display:"flex",alignItems:"center",gap:7,marginTop:2,flexWrap:"wrap"}}>
@@ -2870,13 +2891,20 @@ function ScoreTab({sorted,room,T}){
           ))}</tbody>
         </table>
       </div>
-      <p style={{textAlign:"center",color:"rgba(255,255,255,.2)",fontSize:".7rem",fontWeight:700,letterSpacing:2}}>META: {target} PUNTOS</p>
+      <p style={{textAlign:"center",color:"var(--y)",fontFamily:"'Anton',sans-serif",
+        fontSize:"1rem",letterSpacing:3,textShadow:"0 0 14px rgba(245,200,0,.35)",marginTop:2}}>
+        🏆 META: {target} PUNTOS
+      </p>
     </>)}
   </>);
 }
 
 // ── SPECTATORSCREEN — con revancha animación ──────────────────
 function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
+  // Misma corrección que en RoundTab/ScoreTab: usar la meta real de la
+  // sala en vez de 200 fijo, para que el % y "faltan X pts" cuadren con
+  // partidas creadas a 100/150/250/300.
+  const target=(room&&room.winTarget)||WIN;
   const[showJoinAnim,setShowJoinAnim]=React.useState(true);
   const[showWinnerOverlay,setShowWinnerOverlay]=React.useState(!!winner);
   const[showRematch,setShowRematch]=React.useState(false);
@@ -2948,7 +2976,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
         <div style={{padding:"10px 12px 80px",overflowY:"auto"}}>
           <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
             {sorted.map((p,i)=>{
-              const pct=Math.min(100,(p.total/200)*100);
+              const pct=Math.min(100,(p.total/target)*100);
               const isFirst=i===0,isSecond=i===1,isThird=i===2;
               const rankEmoji=isFirst?"🥇":isSecond?"🥈":isThird?"🥉":"#"+(i+1);
               const borderColor=isFirst?"rgba(245,200,0,.6)":isSecond?"rgba(192,192,192,.4)":isThird?"rgba(205,127,50,.4)":"rgba(255,255,255,.08)";
@@ -2965,7 +2993,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
                   <div style={{flex:1,minWidth:0}}>
                     {/* nombre con color del jugador en espectador */}
                     <div style={{fontWeight:900,fontSize:nameSize,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:p.color,textShadow:"0 0 12px "+p.color+"55"}}>{p.emoji} {p.name}</div>
-                    <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>faltan {Math.max(0,200-p.total)} pts · {Math.round(pct)}%</div>
+                    <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>faltan {Math.max(0,target-p.total)} pts · {Math.round(pct)}%</div>
                     <div style={{height:isFirst?6:4,background:"rgba(255,255,255,.08)",borderRadius:3,marginTop:5,overflow:"hidden"}}>
                       <div style={{height:"100%",width:pct+"%",background:"linear-gradient(90deg,"+p.color+","+p.color+"cc)",borderRadius:3,transition:"width 1.2s cubic-bezier(.4,0,.2,1)"}}/>
                     </div>
@@ -3005,7 +3033,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
               </table>
             </div>
           </>)}
-          <p style={{textAlign:"center",color:"rgba(255,255,255,.2)",fontSize:".68rem",fontWeight:700,letterSpacing:2,paddingBottom:10}}>AUTO-ACTUALIZA · META 200 PTS</p>
+          <p style={{textAlign:"center",color:"var(--y)",fontFamily:"'Anton',sans-serif",fontSize:".9rem",letterSpacing:2,paddingBottom:10,textShadow:"0 0 12px rgba(245,200,0,.3)"}}>🏆 META: {target} PUNTOS</p>
         </div>
       )}
     </div>
@@ -5127,39 +5155,82 @@ function HeadToHead({myUid,friendUid,friendName}){
 // Carga bajo demanda el resto de jugadores de una partida (solo cuando se
 // expande la tarjeta) — el historial individual solo guarda tu propia
 // fila, así que para ver a los demás hay que consultar stats/games/{id}.
-function GameOtherPlayers({gameId,myPosition}){
-  const[others,setOthers]=React.useState(null); // null=cargando, []=ninguno más
+// ── GAMEROUNDSTABLE — tabla horizontal Jugador × Ronda para el detalle de
+// una partida en el historial personal. Antes esto mostraba solo TUS
+// puntos por ronda en una lista vertical, y a los demás jugadores solo su
+// total final ("también jugaron"). El registro guardado en
+// stats/games/{gameId} ya trae el rounds[] completo de TODOS los
+// jugadores, así que arma la misma tabla horizontal que se ve en vivo en
+// la pestaña Tabla — con ícono de Flip 7, modificadores y meta incluidos.
+function GameRoundsTable({gameId,highlightId}){
+  const[players,setPlayers]=React.useState(null); // null=cargando
+  const[winTarget,setWinTarget]=React.useState(null);
   React.useEffect(()=>{
     if(!gameId)return;
     let cancelled=false;
     _db.ref("stats/games/"+gameId).once("value").then(snap=>{
       if(cancelled)return;
       const data=snap.val();
-      const players=(data&&data.players)||[];
-      setOthers(players.filter(p=>p.position!==myPosition).sort((a,b)=>a.position-b.position));
-    }).catch(()=>{if(!cancelled)setOthers([]);});
+      setPlayers((data&&data.players)||[]);
+      setWinTarget((data&&data.winTarget)||null);
+    }).catch(()=>{if(!cancelled)setPlayers([]);});
     return()=>{cancelled=true;};
   },[gameId]);
 
-  if(others===null)return(
+  if(players===null)return(
     <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-      color:"rgba(255,255,255,.25)",marginTop:10}}>Cargando jugadores…</div>
+      color:"rgba(255,255,255,.25)",marginTop:10}}>Cargando tabla de rondas…</div>
   );
-  if(others.length===0)return null;
+  if(players.length===0)return null;
+
+  const sorted=[...players].sort((a,b)=>b.total-a.total);
+  const maxRounds=Math.max(0,...sorted.map(p=>(p.rounds||[]).length));
 
   return(
     <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-        color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>TAMBIÉN JUGARON</div>
-      {others.map((p,i)=>(
-        <div key={p.id||i} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
-          <span style={{width:16,textAlign:"center"}}>{p.emoji}</span>
-          <span style={{flex:1,fontSize:".78rem",color:"rgba(255,255,255,.7)",fontWeight:700}}>{p.name}</span>
-          <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-            color:"rgba(255,255,255,.3)",marginRight:6}}>#{p.position}</span>
-          <span style={{fontFamily:"'Anton',sans-serif",fontSize:".82rem",color:"rgba(255,255,255,.6)"}}>{p.total}</span>
-        </div>
-      ))}
+        color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>TABLA DE RONDAS</div>
+      <div className="tw">
+        <table>
+          <thead><tr><th>Jugador</th>{Array.from({length:maxRounds},(_,i)=><th key={i}>R{i+1}</th>)}<th>Total</th></tr></thead>
+          <tbody>
+            {sorted.map((p,ri)=>{
+              const isMe=highlightId&&p.id===highlightId;
+              return(
+              <tr key={p.id||ri} className={isMe||(!highlightId&&ri===0)?"lr":""}>
+                <td>
+                  <span style={{color:p.color}}>{p.emoji}</span>{" "}
+                  <span style={{color:p.color,fontWeight:isMe?900:undefined}}>{p.name}</span>
+                  {isMe&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                    color:"var(--y)",marginLeft:4}}>tú</span>}
+                </td>
+                {(p.rounds||[]).map((r,i)=>{
+                  var hasFlip=r.breakdown&&r.breakdown.flip7;
+                  var hasMod=r.breakdown&&(r.breakdown.multiplier||r.breakdown.divTwo||(r.breakdown.negMods&&r.breakdown.negMods.length>0)||(r.breakdown.plusCards&&r.breakdown.plusCards.length>0));
+                  return(<td key={i}
+                    className={r.score===0?"rz":""}
+                    style={{position:"relative",minWidth:36}}
+                    title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
+                      ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(hasFlip?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}>
+                    {r.score===0?"💀":(r.score>0?"+":"")+r.score}
+                    {hasFlip&&<span style={{fontSize:".55rem",position:"absolute",top:1,right:2,lineHeight:1}}>🃏</span>}
+                    {hasMod&&<span style={{fontSize:".55rem",position:"absolute",bottom:1,right:2,lineHeight:1,opacity:.6}}>✱</span>}
+                  </td>);
+                })}
+                {Array.from({length:maxRounds-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
+                <td className="tc">{p.total}</td>
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {winTarget&&(
+        <p style={{textAlign:"center",color:"var(--y)",fontFamily:"'Anton',sans-serif",
+          fontSize:".85rem",letterSpacing:2,marginTop:8,textShadow:"0 0 10px rgba(245,200,0,.3)"}}>
+          🏆 META: {winTarget} PUNTOS
+        </p>
+      )}
     </div>
   );
 }
@@ -5865,25 +5936,12 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   </span>
                 ))}
               </div>
-              {/* Detalle expandido — puntos por ronda (simple) + otros jugadores */}
+              {/* Detalle expandido — tabla horizontal con TODOS los
+                  participantes y su desglose ronda por ronda, igual que en
+                  la pestaña Tabla durante la partida en vivo. */}
               {isOpen&&(
-                <div onClick={e=>e.stopPropagation()} style={{marginTop:10,paddingTop:10,
-                  borderTop:"1px solid rgba(255,255,255,.08)"}}>
-                  <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                    color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>PUNTOS POR RONDA</div>
-                  {(g.rounds||[]).map((r,ri)=>(
-                    <div key={ri} style={{display:"flex",alignItems:"center",gap:8,
-                      padding:"5px 0",borderBottom:ri<(g.rounds.length-1)?"1px solid rgba(255,255,255,.05)":"none"}}>
-                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-                        color:"rgba(255,255,255,.35)",width:26,flexShrink:0}}>R{ri+1}</div>
-                      <div style={{flex:1}}/>
-                      <div style={{fontFamily:"'Anton',sans-serif",fontSize:".9rem",
-                        color:r.score===0?"var(--r)":r.breakdown&&r.breakdown.flip7?"var(--y)":"rgba(255,255,255,.7)"}}>
-                        {r.score===0?"💀":(r.score>0?"+":"")+r.score}
-                      </div>
-                    </div>
-                  ))}
-                  <GameOtherPlayers gameId={g.gameId} myPosition={g.position}/>
+                <div onClick={e=>e.stopPropagation()}>
+                  <GameRoundsTable gameId={g.gameId} highlightId={uid}/>
                 </div>
               )}
             </div>
