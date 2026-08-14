@@ -591,6 +591,26 @@ function App(){
   const unsubRef=useRef(null);
   const dbRef=useRef(makeDB(false));
   const prevSortedRef=useRef([]);
+  // myPlayerId cambia con setState (async) pero subscribe() arma su
+  // listener con el valor que tenía la clausura AL MOMENTO de llamarse —
+  // por eso se usa un ref en paralelo, que siempre lee el valor más
+  // reciente dentro del callback del listener (mismo patrón que los refs
+  // de arriba).
+  const myPlayerIdRef=useRef(null);
+  useEffect(()=>{myPlayerIdRef.current=myPlayerId;},[myPlayerId]);
+  // Celebración preferida guardada en tu perfil (users/{uid}/preferredCelebration).
+  // Si sos vos quien gana Y tenés una fija (no "aleatoria"), tu pantalla la
+  // usa en vez de sortear una — el resto de los dispositivos sigue viendo
+  // su propio sorteo, ya que no hay forma de saber la preferencia de otro
+  // jugador sin su cuenta.
+  const myPreferredCelebrationRef=useRef(null);
+  useEffect(()=>{
+    if(!authUser||authUser.isAnonymous){myPreferredCelebrationRef.current=null;return;}
+    const ref=_db.ref('users/'+authUser.uid+'/preferredCelebration');
+    const h=snap=>{myPreferredCelebrationRef.current=snap.val();};
+    ref.on('value',h);
+    return()=>ref.off('value',h);
+  },[authUser]);
 
   // Solo guardar preferencias no sensibles (NO keys)
   useEffect(()=>{
@@ -625,7 +645,11 @@ function App(){
       }
       if(data.finished&&data.winner&&!winnerShown.current){
         winnerShown.current=true;setWinner(data.winner);
-        const ct=Math.floor(Math.random()*3);
+        // Si el que ganó sos vos y elegiste una celebración fija en tu
+        // perfil, se usa esa — si no, se sortea igual que siempre.
+        const iAmWinner=!data.winner.tied&&myPlayerIdRef.current&&data.winner.id===myPlayerIdRef.current;
+        const preferred=iAmWinner?myPreferredCelebrationRef.current:null;
+        const ct=(preferred===0||preferred===1||preferred===2)?preferred:Math.floor(Math.random()*3);
         setCelebrationType(ct);
         if(ct===0){snd('winner');setTimeout(()=>snd('victory'),400);}
         else if(ct===1){snd('fanfare');}
@@ -1009,7 +1033,7 @@ function App(){
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room} T={T}/>}
         {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}} T={T}/>}
       </div>
-      {winner&&<WinnerScreen winner={winner} celebrationType={celebrationType} onClose={()=>{setWinner(null);setTab("scores");}} onRematch={()=>{if(room&&room.players)startRematch(room.players);}} isHost={isHost} T={T}/>}
+      {winner&&<WinnerScreen winner={winner} celebrationType={celebrationType} players={room&&room.players} target={(room&&room.winTarget)||WIN} onClose={()=>{setWinner(null);setTab("scores");}} onRematch={()=>{if(room&&room.players)startRematch(room.players);}} isHost={isHost} T={T}/>}
     </div>
   );
 }
@@ -1338,6 +1362,140 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
   );
 }
 
+// ── PROFILESCREEN — emoji/color por defecto + celebración favorita ─────
+// Se guarda en users/{uid}: defaultEmoji, defaultColor, preferredCelebration
+// (0/1/2 o null="aleatoria"). HomeScreen los lee para pre-llenar tu propia
+// fila al crear partida; App los lee para saber qué celebración mostrarte
+// cuando SOS quien gana.
+function ProfileScreen({authUser,onBack,onSaved,T}){
+  const uid=authUser&&authUser.uid;
+  const[loading,setLoading]=React.useState(true);
+  const[emoji,setEmoji]=React.useState(EMOJIS[0]);
+  const[color,setColor]=React.useState(COLORS[0]);
+  const[celebration,setCelebration]=React.useState('random'); // 0|1|2|'random'
+  const[saving,setSaving]=React.useState(false);
+  const[ok,setOk]=React.useState('');
+
+  React.useEffect(()=>{
+    if(!uid)return;
+    _db.ref('users/'+uid).once('value').then(snap=>{
+      const v=snap.val()||{};
+      if(v.defaultEmoji)setEmoji(v.defaultEmoji);
+      if(v.defaultColor)setColor(v.defaultColor);
+      setCelebration(v.preferredCelebration!=null?v.preferredCelebration:'random');
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[uid]);
+
+  async function save(){
+    setSaving(true);setOk('');
+    try{
+      const profile={
+        defaultEmoji:emoji,defaultColor:color,
+        preferredCelebration:celebration==='random'?null:celebration
+      };
+      await _db.ref('users/'+uid).update(profile);
+      snd('join');
+      setOk('✅ Perfil guardado');
+      if(onSaved)onSaved(profile);
+    }catch(e){setOk('❌ Error: '+e.message);}
+    setSaving(false);
+  }
+
+  if(authUser&&authUser.isAnonymous)return(
+    <div className="wrap"><div className="page" style={{paddingTop:32}}>
+      <div style={{textAlign:"center",padding:"40px 20px"}}>
+        <div style={{fontSize:"3rem",marginBottom:12}}>👤</div>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)",letterSpacing:2,marginBottom:8}}>PERFIL</div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.4)",lineHeight:1.6,marginBottom:20}}>
+          Crea una cuenta para guardar tu emoji, color y celebración favorita.
+        </div>
+        <button onClick={()=>signOut()} className="btn btn-y" style={{maxWidth:280,margin:"0 auto"}}>Crear cuenta</button>
+        <div style={{height:12}}/>
+        <button onClick={onBack} className="btn btn-g" style={{maxWidth:280,margin:"0 auto"}}>← Volver</button>
+      </div>
+    </div></div>
+  );
+
+  return(
+    <div className="wrap"><div className="page" style={{paddingTop:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
+          color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:2,color:"var(--y)"}}>👤 PERFIL</div>
+      </div>
+
+      {loading?(
+        <div style={{textAlign:"center",paddingTop:30,color:"rgba(255,255,255,.3)",
+          fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:2}}>CARGANDO...</div>
+      ):(<>
+        {/* Preview */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",marginBottom:18}}>
+          <div style={{width:64,height:64,borderRadius:"50%",background:color+"22",
+            border:"3px solid "+color,display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:"2rem",boxShadow:"0 0 20px "+color+"55"}}>{emoji}</div>
+        </div>
+
+        {/* Emoji por defecto */}
+        <p className="sec">TU EMOJI POR DEFECTO</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6,marginBottom:16}}>
+          {EMOJIS.map((e,i)=>(
+            <button key={i} onClick={()=>{snd('tap');setEmoji(e);}}
+              style={{aspectRatio:"1",borderRadius:10,fontSize:"1.2rem",cursor:"pointer",
+                background:emoji===e?"rgba(245,200,0,.18)":"rgba(255,255,255,.04)",
+                border:"2px solid "+(emoji===e?"var(--y)":"rgba(255,255,255,.1)"),
+                display:"flex",alignItems:"center",justifyContent:"center"}}>{e}</button>
+          ))}
+        </div>
+
+        {/* Color por defecto */}
+        <p className="sec">TU COLOR POR DEFECTO</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:18}}>
+          {COLORS.map((c,i)=>(
+            <button key={i} onClick={()=>{snd('tap');setColor(c);}}
+              style={{aspectRatio:"1",borderRadius:"50%",cursor:"pointer",background:c,
+                border:color===c?"3px solid #fff":"3px solid rgba(255,255,255,.15)",
+                boxShadow:color===c?"0 0 12px "+c:"none"}}/>
+          ))}
+        </div>
+
+        {/* Celebración favorita */}
+        <p className="sec">CELEBRACIÓN AL GANAR</p>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",
+          marginBottom:10,lineHeight:1.5}}>
+          Se aplica solo en TU pantalla cuando SOS quien gana. Los demás jugadores siguen viendo su propio sorteo.
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+          {[
+            {v:'random',icon:'🎲',label:'Aleatoria',sub:'Sorprende cada vez (como hasta ahora)'},
+            {v:0,icon:'🏆',label:'Original',sub:'Dorado — confeti clásico'},
+            {v:1,icon:'🎆',label:'Victoria Explosiva',sub:'Teal / morado'},
+            {v:2,icon:'👑',label:'Coronado',sub:'Morado claro'},
+          ].map(opt=>(
+            <button key={opt.v} onClick={()=>{snd('tap');setCelebration(opt.v);}}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",borderRadius:12,cursor:"pointer",
+                background:celebration===opt.v?"rgba(245,200,0,.1)":"rgba(255,255,255,.03)",
+                border:"2px solid "+(celebration===opt.v?"rgba(245,200,0,.45)":"rgba(255,255,255,.08)"),
+                textAlign:"left",width:"100%"}}>
+              <span style={{fontSize:"1.4rem"}}>{opt.icon}</span>
+              <span style={{flex:1}}>
+                <div style={{fontWeight:900,fontSize:".85rem",color:celebration===opt.v?"var(--y)":"rgba(255,255,255,.8)"}}>{opt.label}</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",marginTop:2}}>{opt.sub}</div>
+              </span>
+              {celebration===opt.v&&<span style={{color:"var(--y)",fontSize:"1.1rem"}}>✓</span>}
+            </button>
+          ))}
+        </div>
+
+        {ok&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
+          color:ok.indexOf('✅')===0?"var(--gr)":"var(--r)",textAlign:"center",marginBottom:10}}>{ok}</div>}
+        <button className="btn btn-y" disabled={saving} onClick={save}>{saving?"⏳ Guardando...":"💾 Guardar perfil"}</button>
+      </>)}
+    </div></div>
+  );
+}
+
 // ── HOMESCREEN ────────────────────────────────────────────────
 function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUser,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
   const[view,setView]=useState("main");
@@ -1361,6 +1519,29 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   const[names,setNames]=useState([myDisplayName,"",""]);
   const[playerEmojis,setPlayerEmojis]=useState(EMOJIS.slice(0,3));
   const[playerColors,setPlayerColors]=useState(COLORS.slice(0,3));
+  // Perfil guardado (emoji/color por defecto, celebración favorita) — se
+  // carga una vez al entrar y se usa para pre-llenar TU fila (índice 0,
+  // que siempre sos vos) al crear una partida nueva, en vez de siempre
+  // caer en el primer emoji/color de la lista.
+  const[myProfile,setMyProfile]=React.useState(null);
+  const appliedProfileDefaults=React.useRef(false);
+  React.useEffect(()=>{
+    if(!authUser||authUser.isAnonymous)return;
+    _db.ref('users/'+authUser.uid).once('value').then(snap=>{
+      const v=snap.val()||{};
+      setMyProfile({
+        defaultEmoji:v.defaultEmoji||null,
+        defaultColor:v.defaultColor||null,
+        preferredCelebration:v.preferredCelebration!=null?v.preferredCelebration:null
+      });
+    }).catch(()=>{});
+  },[authUser]);
+  React.useEffect(()=>{
+    if(appliedProfileDefaults.current||!myProfile)return;
+    appliedProfileDefaults.current=true;
+    if(myProfile.defaultEmoji)setPlayerEmojis(p=>{const c=[...p];c[0]=myProfile.defaultEmoji;return c;});
+    if(myProfile.defaultColor)setPlayerColors(p=>{const c=[...p];c[0]=myProfile.defaultColor;return c;});
+  },[myProfile]);
   const[jcode,setJcode]=useState("");
   const[jname,setJname]=useState("");
   const[hostName,setHostName]=useState("");
@@ -1502,7 +1683,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   },[names.length]);
 
   const isAnonHome=authUser&&authUser.isAnonymous;
-  const LOCKED_VIEWS={grupos:"Grupos"}; // stats NO se bloquea: ya tiene fallback público (StatsScreen)
+  const LOCKED_VIEWS={grupos:"Grupos",perfil:"Perfil"}; // stats NO se bloquea: ya tiene fallback público (StatsScreen)
   const[joinIntent,setJoinIntent]=React.useState("play"); // play | spectate
   const go=v=>{
     if(isAnonHome&&LOCKED_VIEWS[v]){
@@ -1903,8 +2084,14 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
           });
           const finalList=list.length>=2?list:[...list,""];
           setNames(finalList);
-          setPlayerEmojis(EMOJIS.slice(0,finalList.length));
-          setPlayerColors(COLORS.slice(0,finalList.length));
+          // Mantener tu emoji/color por defecto (índice 0 = vos) en vez de
+          // resetear siempre al primero de la lista general.
+          const emojis=EMOJIS.slice(0,finalList.length);
+          const colors=COLORS.slice(0,finalList.length);
+          if(myProfile&&myProfile.defaultEmoji)emojis[0]=myProfile.defaultEmoji;
+          if(myProfile&&myProfile.defaultColor)colors[0]=myProfile.defaultColor;
+          setPlayerEmojis(emojis);
+          setPlayerColors(colors);
         }
         return(
         <div className="create-body" style={{paddingTop:0}}>
@@ -2214,6 +2401,9 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     }}
     T={T}/></>;
 
+  if(view==="perfil")return<>{roomInviteModal}<ProfileScreen authUser={authUser} onBack={()=>go("main")}
+    onSaved={p=>setMyProfile(p)} T={T}/></>;
+
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
       {roomInviteModal}
@@ -2248,11 +2438,12 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                   color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",gap:8}}>
                 🌐 {lang==="es"?"English":"Español"}
               </button>
-              <button disabled style={{width:"100%",textAlign:"left",background:"none",border:"none",
-                  padding:"9px 10px",borderRadius:8,cursor:"not-allowed",
+              <button onClick={()=>{setShowSecondaryMenu(false);go('perfil');}}
+                style={{width:"100%",textAlign:"left",background:"none",border:"none",
+                  padding:"9px 10px",borderRadius:8,cursor:"pointer",
                   fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
-                  color:"rgba(255,255,255,.3)",display:"flex",alignItems:"center",gap:8}}>
-                👤 Perfil <span style={{fontSize:".62rem"}}>(próximamente)</span>
+                  color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",gap:8}}>
+                👤 Perfil
               </button>
             </div>
           )}
@@ -6176,9 +6367,33 @@ const CELEBRATIONS=[
     iconAnim:"celPulse 1.5s ease-in-out infinite",accent:"#cc88ff"}
 ];
 
-function WinnerScreen({winner,celebrationType,onClose,onRematch,isHost,T}){
+// Frases de margen — según qué tan grande fue la diferencia de puntos entre
+// el 1° y el 2° lugar. Se elige una al azar dentro del rango que
+// corresponda, cada vez que alguien gana (sin empate).
+const VICTORY_PHRASES={
+  close:["¡Qué partidazo cerrado!","Ganó por los pelos","Victoria al filo de la navaja","Casi un empate — qué emoción","Se decidió en el último suspiro"],
+  solid:["Victoria sólida","Con margen de sobra","Dominó de principio a fin","Una ventaja clara","Se lo llevó con autoridad"],
+  crushing:["¡Victoria aplastante!","Arrasó con todos","No hubo color","Un baño histórico","Nadie estuvo cerca"]
+};
+
+function WinnerScreen({winner,celebrationType,players,target,onClose,onRematch,isHost,T}){
   const cel=CELEBRATIONS[celebrationType||0];
   const isTie=winner&&winner.tied;
+  // Diferencia de puntos entre el ganador y el 2° lugar — determina qué
+  // tan "aplastante" fue la victoria. Solo aplica si no hay empate y
+  // tenemos la lista completa de jugadores de esa partida.
+  const runnerUp=(!isTie&&Array.isArray(players)&&players.length>1)
+    ?[...players].sort((a,b)=>b.total-a.total).find(p=>p.id!==winner.id)
+    :null;
+  const margin=runnerUp?Math.max(0,(winner.total||0)-(runnerUp.total||0)):null;
+  const marginTier=margin==null?null:(margin<15?'close':margin<40?'solid':'crushing');
+  // Se elige UNA vez por victoria (no en cada re-render) para que no
+  // cambie de frase mientras se ve la pantalla.
+  const[victoryPhrase]=React.useState(()=>{
+    if(!marginTier)return null;
+    const pool=VICTORY_PHRASES[marginTier];
+    return pool[Math.floor(Math.random()*pool.length)];
+  });
   const dots=Array.from({length:40},(_,i)=>({
     id:i,c:cel.confetti[i%cel.confetti.length],
     l:Math.round(Math.random()*100)+"%",
@@ -6199,7 +6414,12 @@ function WinnerScreen({winner,celebrationType,onClose,onRematch,isHost,T}){
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"var(--y)",marginBottom:30,letterSpacing:2,marginTop:6}},winner.total+" PUNTOS CADA UNO")
       ):React.createElement(React.Fragment,null,
         React.createElement("div",{className:"wnm"},(winner.emoji||"")+" "+(winner.name||"")),
-        React.createElement("div",{className:"wpt"},(winner.total||0)+" PUNTOS · RACE TO 200!")
+        React.createElement("div",{className:"wpt",style:{marginBottom:victoryPhrase?10:32}},
+          (winner.total||0)+" PUNTOS · META A "+(target||WIN)+" PUNTOS"),
+        victoryPhrase&&React.createElement("div",{style:{
+          fontFamily:"'Lilita One',sans-serif",fontSize:"1.15rem",color:cel.accent,
+          letterSpacing:1,marginBottom:26,textShadow:"0 0 18px "+cel.accent+"66"
+        }},victoryPhrase)
       ),
       // Revancha solo para el host
       isHost
