@@ -777,14 +777,15 @@ function App(){
       var roundEntry={score:pts,method:e?.method||"zero"};if(e&&e.breakdown)roundEntry.breakdown=e.breakdown;
       return{...p,total:p.total+pts,rounds:[...(p.rounds||[]),roundEntry]};
     });
+    const target=room.winTarget||WIN;
     const maxScore=Math.max(...newPlayers.map(p=>p.total));
-    const champs=newPlayers.filter(p=>p.total>=WIN&&p.total===maxScore);
+    const champs=newPlayers.filter(p=>p.total>=target&&p.total===maxScore);
     const isFinished=champs.length>0;
     const winner=champs.length===1?champs[0]:{tied:true,players:champs,total:maxScore,name:champs.map(p=>p.name).join(" & "),emoji:""};
     await dbRef.current.update("rooms/"+roomCode,{players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null,lastActivityAt:Date.now()});
   }
 
-  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode,groupId}){
+  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode,groupId,winTarget}){
     const db=makeDB(demo);dbRef.current=db;
     let roomCode2=code;
     let resolvedMyPlayerId=playerId; // por default, el playerId que ya te pasaron (reconectar, unirte, etc.)
@@ -812,6 +813,7 @@ function App(){
         hostName: hostName||firstPlayerName,
         hostPlayerId: resolvedMyPlayerId, // el creador ya arranca visible como host
         gameStartedAt: Date.now(), // identifica ESTA partida en curso; se renueva en cada revancha
+        winTarget: winTarget||WIN, // meta de puntos configurable — 200 por default
         players:playersList
       });
     }
@@ -1342,6 +1344,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   const[presenceHome,setPresenceHome]=React.useState({});  // uid → {online,status}
   const[selectedGroup,setSelectedGroup]=React.useState(null); // for create-with-group
   const[gameMode,setGameMode]=useState("classic");
+  const[winTarget,setWinTarget]=useState(200);
   const[createStep,setCreateStep]=React.useState("mode"); // mode | players
   const[playerMode,setPlayerMode]=React.useState("manual"); // manual | amigos | grupo
   const[friendsHome,setFriendsHome]=React.useState([]);
@@ -1566,7 +1569,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     setBusy(true);setErr(null);
     try{
       await onEnter({names:ns,demo:false,customEmojis:playerEmojis,customColors:playerColors,
-        hostName:jname.trim()||ns[0],gameMode:gameMode,groupId:selectedGroup?selectedGroup.id:null});
+        hostName:jname.trim()||ns[0],gameMode:gameMode,groupId:selectedGroup?selectedGroup.id:null,winTarget:winTarget});
     }
     catch(e){setErr(classifyError(e));}
     setBusy(false);
@@ -1810,7 +1813,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
               💀 <b style={{color:"rgba(255,255,255,.85)"}}>Carta duplicada</b> = bust, cero pts en la ronda.<br/>
               ⭐ <b style={{color:"var(--y)"}}>Flip 7</b>: 7 cartas únicas = +15 pts bonus + fin de ronda.<br/>
               🔧 <b style={{color:"rgba(255,255,255,.85)"}}>Modificadores:</b> ×2, +2 al +10 sobre tu suma.<br/>
-              🏆 <b style={{color:"var(--y)"}}>Meta 200 pts</b> · primero en llegar gana.
+              🏆 <b style={{color:"var(--y)"}}>Meta {winTarget} pts</b> · primero en llegar gana.
             </div>
           </div>
         ):(
@@ -1824,10 +1827,27 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
               ⭐ <b style={{color:"var(--r)"}}>Flip 7</b>: 7 cartas únicas = +15 pts bonus + fin de ronda.<br/>
               🔧 <b style={{color:"rgba(255,255,255,.85)"}}>Modificadores negativos</b> (te los juegan): ÷2, −2 al −10.<br/>
               ⚡ <b style={{color:"rgba(255,255,255,.85)"}}>Acciones:</b> Swap, Steal, Discard, Flip Four, Just One More.<br/>
-              🏆 <b style={{color:"var(--r)"}}>Meta 200 pts</b> · primero en llegar gana.
+              🏆 <b style={{color:"var(--r)"}}>Meta {winTarget} pts</b> · primero en llegar gana.
             </div>
           </div>
         )}
+
+        {/* Meta de puntos configurable — 200 es el estándar oficial, 150
+            es la alternativa más común para partidas más cortas */}
+        <p className="sec" style={{marginBottom:8}}>META DE PUNTOS</p>
+        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+          {[100,150,200,250,300].map(t=>(
+            <button key={t} onClick={()=>{snd('tap');setWinTarget(t);}}
+              style={{flex:"1 1 18%",minWidth:56,padding:"9px 4px",borderRadius:10,cursor:"pointer",
+                fontFamily:"'Anton',sans-serif",fontSize:".85rem",letterSpacing:1,
+                background:winTarget===t?"linear-gradient(135deg,var(--y),var(--or))":"rgba(255,255,255,.05)",
+                border:"1.5px solid "+(winTarget===t?"transparent":"rgba(255,255,255,.12)"),
+                color:winTarget===t?"var(--dark)":"rgba(255,255,255,.55)"}}>
+              {t}{t===200&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".45rem",
+                letterSpacing:0,marginTop:1,opacity:.7}}>ESTÁNDAR</div>}
+            </button>
+          ))}
+        </div>
       </>)}
       </div>
       )}
@@ -2376,6 +2396,31 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
   const[shakePid,setShakePid]=useState(null);
   const[showTransfer,setShowTransfer]=useState(false);
   const[showTentative,setShowTentative]=useState(true);
+
+  // Aviso de ronda nueva — toast animado + sonido cuando room.round sube,
+  // para que se note claramente que arrancó otra ronda.
+  const prevRoundRef=useRef(room.round);
+  const[roundToast,setRoundToast]=useState(false);
+  React.useEffect(()=>{
+    if(prevRoundRef.current!==room.round){
+      prevRoundRef.current=room.round;
+      if(!room.finished){
+        setRoundToast(true);
+        snd('round');
+        setTimeout(()=>setRoundToast(false),1800);
+      }
+    }
+  },[room.round]);
+
+  // Auto-cerrar ronda: si el host activó la opción, y todos ya
+  // capturaron, cierra sola sin que el host tenga que tocar nada.
+  const autoCloseRef=useRef(false);
+  React.useEffect(()=>{
+    if(room.autoCloseRound&&allDone&&isHost&&!room.finished&&room.players.length>=2&&!autoCloseRef.current){
+      autoCloseRef.current=true;
+      setTimeout(()=>{onFinalize();autoCloseRef.current=false;},900); // breve pausa para ver el último "LISTO"
+    }
+  },[room.autoCloseRound,allDone,isHost,room.finished]);
   const[confirmEnd,setConfirmEnd]=useState(false);
   const canControl=pid=>isHost||myPlayerId===pid;
   const gameMode=(room&&room.gameMode)||'classic';
@@ -2451,6 +2496,17 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           </div>
         );
       })()}
+      {roundToast&&(
+        <div style={{position:"fixed",top:70,left:"50%",transform:"translateX(-50%)",zIndex:300,
+          background:"linear-gradient(135deg,var(--pu),#5A2070)",borderRadius:20,
+          padding:"10px 22px",boxShadow:"0 8px 30px rgba(123,45,139,.5)",
+          animation:"roundToastIn .4s cubic-bezier(.34,1.56,.64,1) both, roundToastOut .4s ease-in 1.4s both",
+          pointerEvents:"none"}}>
+          <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"#fff",letterSpacing:2}}>
+            🎴 RONDA {room.round}
+          </span>
+        </div>
+      )}
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>{T.players2}</p>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -2477,6 +2533,23 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
               fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1}}>
             🛑 Terminar partida
           </button>
+        </div>
+      )}
+      {isHost&&!room.finished&&!demoMode&&(
+        <div onClick={()=>{snd('tap');_db.ref("rooms/"+roomCode+"/autoCloseRound").set(!room.autoCloseRound);}}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",
+            background:room.autoCloseRound?"rgba(59,178,115,.08)":"rgba(255,255,255,.03)",
+            border:"1px solid "+(room.autoCloseRound?"rgba(59,178,115,.3)":"rgba(255,255,255,.1)"),
+            borderRadius:10,padding:"8px 12px",marginBottom:10}}>
+          <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",
+            color:room.autoCloseRound?"var(--gr)":"rgba(255,255,255,.45)",letterSpacing:.5}}>
+            ⚡ Auto-cerrar ronda cuando todos terminen
+          </span>
+          <div style={{width:34,height:19,borderRadius:20,position:"relative",flexShrink:0,
+            background:room.autoCloseRound?"var(--gr)":"rgba(255,255,255,.15)",transition:"background .2s"}}>
+            <div style={{position:"absolute",top:2,left:room.autoCloseRound?17:2,width:15,height:15,
+              borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+          </div>
         </div>
       )}
       {isHost&&showTransfer&&(
@@ -2645,6 +2718,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
 // ── SCORETAB — nombre con color del jugador ───────────────────
 function ScoreTab({sorted,room,T}){
   const mr=room.finished?room.round:room.round-1; // finished=last round shown
+  const target=room.winTarget||WIN;
   return(<>
     <p className="sec">CLASIFICACIÓN</p>
     <div className="sg">
@@ -2660,12 +2734,12 @@ function ScoreTab({sorted,room,T}){
                 <span style={{color:p.color,textShadow:"0 0 12px "+p.color+"55"}}>{p.name}</span>
               </div>
               <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>
-                {(p.rounds||[]).length} ronda{(p.rounds||[]).length!==1?"s":""} · faltan {Math.max(0,WIN-p.total)} pts
+                {(p.rounds||[]).length} ronda{(p.rounds||[]).length!==1?"s":""} · faltan {Math.max(0,target-p.total)} pts
               </div>
             </div>
-            <div className="sc-pts">{p.total}</div>
-            <div className="sc-bar" style={{width:Math.min(100,(p.total/WIN)*100)+"%"}}/>
-            <div className="sc-pct">{Math.round((p.total/WIN)*100)}%</div>
+            <AnimatedScore className="sc-pts" value={p.total}/>
+            <div className="sc-bar" style={{width:Math.min(100,(p.total/target)*100)+"%"}}/>
+            <div className="sc-pct">{Math.round((p.total/target)*100)}%</div>
           </div>
         );
       })}
@@ -2698,7 +2772,7 @@ function ScoreTab({sorted,room,T}){
           ))}</tbody>
         </table>
       </div>
-      <p style={{textAlign:"center",color:"rgba(255,255,255,.2)",fontSize:".7rem",fontWeight:700,letterSpacing:2}}>META: {WIN} PUNTOS</p>
+      <p style={{textAlign:"center",color:"rgba(255,255,255,.2)",fontSize:".7rem",fontWeight:700,letterSpacing:2}}>META: {target} PUNTOS</p>
     </>)}
   </>);
 }
@@ -4782,6 +4856,106 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
 }
 
 // ── PERSONALDASHBOARD — stats del jugador + amigos ────────────
+// Mapa de calor de días jugados — mes navegable, intensidad según
+// cuántas partidas jugaste ese día. Puro adorno/vanidad, pero le da
+// contexto visual al historial.
+function GameCalendarHeatmap({games}){
+  const[monthOffset,setMonthOffset]=React.useState(0);
+  const now=new Date();
+  const viewDate=new Date(now.getFullYear(),now.getMonth()+monthOffset,1);
+  const year=viewDate.getFullYear(),month=viewDate.getMonth();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const firstDayOfWeek=new Date(year,month,1).getDay();
+
+  const countByDay={};
+  games.forEach(g=>{
+    const d=new Date(g.date);
+    if(d.getFullYear()===year&&d.getMonth()===month){
+      countByDay[d.getDate()]=(countByDay[d.getDate()]||0)+1;
+    }
+  });
+  const maxCount=Math.max(1,...Object.values(countByDay));
+  const monthName=viewDate.toLocaleDateString("es-MX",{month:"long",year:"numeric"});
+  const cells=[];
+  for(let i=0;i<firstDayOfWeek;i++)cells.push(null);
+  for(let d=1;d<=daysInMonth;d++)cells.push(d);
+  const colorFor=count=>count?"rgba(245,200,0,"+(0.25+(count/maxCount)*0.65)+")":"rgba(255,255,255,.04)";
+
+  return(
+    <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",
+      borderRadius:13,padding:"12px 13px",marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <button onClick={()=>setMonthOffset(m=>m-1)} style={{background:"none",border:"none",
+          color:"rgba(255,255,255,.4)",fontSize:"1rem",cursor:"pointer",padding:"2px 10px"}}>‹</button>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+          color:"rgba(255,255,255,.6)",letterSpacing:1,textTransform:"capitalize"}}>{monthName}</span>
+        <button onClick={()=>setMonthOffset(m=>Math.min(0,m+1))} disabled={monthOffset>=0}
+          style={{background:"none",border:"none",
+            color:monthOffset>=0?"rgba(255,255,255,.15)":"rgba(255,255,255,.4)",
+            fontSize:"1rem",cursor:monthOffset>=0?"default":"pointer",padding:"2px 10px"}}>›</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:6}}>
+        {["D","L","M","M","J","V","S"].map((d,i)=>(
+          <div key={i} style={{textAlign:"center",fontFamily:"'Righteous',sans-serif",
+            fontSize:".52rem",color:"rgba(255,255,255,.3)"}}>{d}</div>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+        {cells.map((d,i)=>{
+          const count=d?(countByDay[d]||0):0;
+          const isToday=d&&monthOffset===0&&d===now.getDate();
+          return(
+            <div key={i} title={d&&count>0?count+" partida"+(count!==1?"s":""):""}
+              style={{aspectRatio:"1",borderRadius:6,
+                background:d?colorFor(count):"transparent",
+                border:isToday?"1.5px solid var(--y)":"1px solid rgba(255,255,255,.03)",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                color:count>0?"#fff":"rgba(255,255,255,.2)"}}>
+              {d||""}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:10,justifyContent:"flex-end"}}>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".5rem",color:"rgba(255,255,255,.25)"}}>menos</span>
+        {[0,.3,.5,.7,.9].map((o,i)=>(
+          <div key={i} style={{width:9,height:9,borderRadius:3,
+            background:i===0?"rgba(255,255,255,.04)":"rgba(245,200,0,"+o+")"}}/>
+        ))}
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".5rem",color:"rgba(255,255,255,.25)"}}>más</span>
+      </div>
+    </div>
+  );
+}
+
+// Hook de conteo animado — interpola de un valor a otro en vez de saltar,
+// para que los puntajes "crezcan" visualmente en vez de cambiar de golpe.
+function useCountUp(value,duration=600){
+  const[display,setDisplay]=React.useState(value);
+  const prevRef=React.useRef(value);
+  React.useEffect(()=>{
+    const start=prevRef.current,end=value;
+    if(start===end)return;
+    const startTime=performance.now();
+    let raf;
+    function tick(now){
+      const t=Math.min(1,(now-startTime)/duration);
+      const eased=1-Math.pow(1-t,3);
+      setDisplay(Math.round(start+(end-start)*eased));
+      if(t<1)raf=requestAnimationFrame(tick);
+      else prevRef.current=end;
+    }
+    raf=requestAnimationFrame(tick);
+    return()=>cancelAnimationFrame(raf);
+  },[value]);
+  return display;
+}
+function AnimatedScore({value,className,style}){
+  const display=useCountUp(value);
+  return <div className={className} style={style}>{display}</div>;
+}
+
 // Comparativa cabeza a cabeza — cruza TUS partidas con las del amigo por
 // gameId compartido (si ambos tienen un registro con el mismo gameId,
 // jugaron juntos). No hace falta leer stats/games completo para esto.
@@ -5299,57 +5473,53 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
               </div>
             </div>
 
-            {/* Comebacks + peor racha de busts */}
+            {/* Comebacks + peor racha de busts — mismo patrón vertical que arriba */}
             {(kpis.comebacks>0||kpis.worstBustStreak>=2)&&(
               <div style={{display:"flex",gap:8,marginBottom:8}}>
                 {kpis.comebacks>0&&(
                   <div style={{flex:1,background:"rgba(123,45,139,.08)",border:"1px solid rgba(123,45,139,.25)",
-                    borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
+                    borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
                     <div style={{fontSize:"1.3rem"}}>🎬</div>
-                    <div>
-                      <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",color:"#cc88ff"}}>
-                        {kpis.comebacks}
-                      </div>
-                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",
-                        color:"rgba(255,255,255,.35)"}}>remontada{kpis.comebacks!==1?"s":""}</div>
-                    </div>
+                    <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"#cc88ff"}}>{kpis.comebacks}</div>
+                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                      color:"rgba(255,255,255,.3)",letterSpacing:1}}>REMONTADA{kpis.comebacks!==1?"S":""}</div>
                   </div>
                 )}
                 {kpis.worstBustStreak>=2&&(
                   <div style={{flex:1,background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.25)",
-                    borderRadius:12,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
+                    borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
                     <div style={{fontSize:"1.3rem"}}>☠️</div>
-                    <div>
-                      <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",color:"var(--r)"}}>
-                        {kpis.worstBustStreak}
-                      </div>
-                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",
-                        color:"rgba(255,255,255,.35)"}}>busts seguidos (1 partida)</div>
-                    </div>
+                    <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--r)"}}>{kpis.worstBustStreak}</div>
+                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                      color:"rgba(255,255,255,.3)",letterSpacing:1}}>BUSTS SEGUIDOS</div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Clásico vs Venganza */}
+            {/* Clásico vs Venganza — mismo patrón vertical */}
             {(kpis.classic||kpis.venganza)&&(
-              <div style={{marginBottom:14}}>
-                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                  color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6}}>POR MODO DE JUEGO</div>
-                <div style={{display:"flex",gap:8}}>
-                  <div style={{flex:1,background:"rgba(245,200,0,.06)",border:"1px solid rgba(245,200,0,.18)",
-                    borderRadius:12,padding:"9px 11px"}}>
-                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--y)",fontWeight:900}}>🃏 Clásico</div>
-                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.4)",marginTop:2}}>
-                      {kpis.classic?kpis.classic.games+" partidas · "+kpis.classic.winRate+"% wins":"sin datos aún"}
-                    </div>
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <div style={{flex:1,background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",
+                  borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+                  <div style={{fontSize:"1.3rem"}}>🃏</div>
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)"}}>
+                    {kpis.classic?kpis.classic.winRate+"%":"—"}
                   </div>
-                  <div style={{flex:1,background:"rgba(230,57,70,.06)",border:"1px solid rgba(230,57,70,.18)",
-                    borderRadius:12,padding:"9px 11px"}}>
-                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--r)",fontWeight:900}}>💀 Venganza</div>
-                    <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.4)",marginTop:2}}>
-                      {kpis.venganza?kpis.venganza.games+" partidas · "+kpis.venganza.winRate+"% wins":"sin datos aún"}
-                    </div>
+                  <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                    color:"rgba(255,255,255,.3)",letterSpacing:1}}>
+                    CLÁSICO{kpis.classic?" · "+kpis.classic.games+"P":""}
+                  </div>
+                </div>
+                <div style={{flex:1,background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.2)",
+                  borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
+                  <div style={{fontSize:"1.3rem"}}>💀</div>
+                  <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--r)"}}>
+                    {kpis.venganza?kpis.venganza.winRate+"%":"—"}
+                  </div>
+                  <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+                    color:"rgba(255,255,255,.3)",letterSpacing:1}}>
+                    VENGANZA{kpis.venganza?" · "+kpis.venganza.games+"P":""}
                   </div>
                 </div>
               </div>
@@ -5555,7 +5725,9 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
             fontFamily:"'Righteous',sans-serif",fontSize:".75rem"}}>
             Sin partidas registradas aún
           </div>
-        : myGames.map((g,i)=>{
+        : <>
+          <GameCalendarHeatmap games={myGames}/>
+          {myGames.map((g,i)=>{
             const isOpen=expandedGame===(g.gameId||i);
             return(
             <div key={g.gameId||i} onClick={()=>setExpandedGame(isOpen?null:(g.gameId||i))}
@@ -5618,7 +5790,8 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
               )}
             </div>
             );
-          })
+          })}
+          </>
       )}
 
       <div style={{height:8}}/>
