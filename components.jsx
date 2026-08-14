@@ -2448,53 +2448,6 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           <div className="rbd">R{room.round}</div>
         </div>
       </div>
-
-      {/* Proyección tentativa — "si cerráramos la ronda ahora mismo,
-          ¿cómo va todo?" Combina el total ya confirmado de cada quien con
-          lo que llevan capturado en esta ronda (aunque falten otros por
-          capturar). No cierra nada, solo informa para decidir si seguir
-          o parar aquí. */}
-      {room.players.length>0&&(
-        <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",
-          borderRadius:13,padding:"10px 13px",marginBottom:10}}>
-          <div onClick={()=>setShowTentative(v=>!v)} style={{display:"flex",alignItems:"center",
-            justifyContent:"space-between",cursor:"pointer"}}>
-            <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-              color:"rgba(255,255,255,.4)",letterSpacing:2}}>📈 SI CERRARAS AHORA…</span>
-            <span style={{fontSize:".8rem",color:"rgba(255,255,255,.3)",
-              transform:showTentative?"rotate(180deg)":"none",transition:"transform .2s"}}>▾</span>
-          </div>
-          {showTentative&&(()=>{
-            const tentative=room.players.map(p=>{
-              const entry=room.roundScores?.[p.id];
-              return{...p,tent:p.total+(entry?entry.score:0),captured:!!entry};
-            }).sort((a,b)=>b.tent-a.tent);
-            const leaderTotal=tentative[0]?tentative[0].tent:0;
-            return(
-              <div style={{marginTop:8}}>
-                {tentative.map((p,i)=>(
-                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
-                    <span style={{fontFamily:"'Anton',sans-serif",fontSize:".8rem",
-                      color:i===0?"var(--y)":"rgba(255,255,255,.3)",width:16}}>{i+1}</span>
-                    <span>{p.emoji}</span>
-                    <span style={{flex:1,fontWeight:800,fontSize:".8rem",
-                      color:p.captured?"#fff":"rgba(255,255,255,.4)"}}>
-                      {p.name}{!p.captured&&<span style={{fontSize:".6rem",marginLeft:5,
-                        color:"rgba(255,255,255,.25)"}}>(sin capturar)</span>}
-                    </span>
-                    <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",
-                      color:i===0?"var(--y)":"rgba(255,255,255,.6)"}}>{p.tent}</span>
-                    <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-                      color:"rgba(255,255,255,.3)",minWidth:42,textAlign:"right"}}>
-                      {i===0?"líder":"-"+(leaderTotal-p.tent)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
-      )}
       {/* Controles de host — solo visibles para quien tiene el rol */}
       {isHost&&!room.finished&&!demoMode&&(
         <div style={{display:"flex",gap:6,marginBottom:10}}>
@@ -2666,11 +2619,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           </button>
         </div>
       )}
-      {scanModal&&<ScanModal playerName={scanModal.name} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{onSubmit(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
-      {cardModal&&<CardPickerModal playerName={cardModal.name} onSubmit={function(s,bd){onSubmit(cardModal.pid,s,"cards",bd);setCard(null);}} onClose={()=>setCard(null)}/>}
+      {scanModal&&<ScanModal playerName={scanModal.name} currentTotal={room.players.find(p=>p.id===scanModal.pid)?.total||0} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{onSubmit(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
+      {cardModal&&<CardPickerModal playerName={cardModal.name} currentTotal={room.players.find(p=>p.id===cardModal.pid)?.total||0} onSubmit={function(s,bd){onSubmit(cardModal.pid,s,"cards",bd);setCard(null);}} onClose={()=>setCard(null)}/>}
       {/* ManualModal recibe initialScore para permitir corrección */}
-      {manModal&&<ManualModal playerName={manModal.name} initialScore={manModal.initialScore} gameMode={gameMode} onSubmit={s=>{onSubmit(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
-      {vengCardModal&&<VenganzaCardPickerModal playerName={vengCardModal.name} onSubmit={function(s,bd){onSubmit(vengCardModal.pid,s,"cards",bd);setVengCard(null);}} onClose={()=>setVengCard(null)}/>}
+      {manModal&&<ManualModal playerName={manModal.name} currentTotal={room.players.find(p=>p.id===manModal.pid)?.total||0} initialScore={manModal.initialScore} gameMode={gameMode} onSubmit={s=>{onSubmit(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
+      {vengCardModal&&<VenganzaCardPickerModal playerName={vengCardModal.name} currentTotal={room.players.find(p=>p.id===vengCardModal.pid)?.total||0} onSubmit={function(s,bd){onSubmit(vengCardModal.pid,s,"cards",bd);setVengCard(null);}} onClose={()=>setVengCard(null)}/>}
     </>
   );
 }
@@ -2937,7 +2890,7 @@ function SesCards({sessions,onClear,T}){
 }
 
 // ── SCANMODAL — Árbitro de Cartas™ (motor interno, key de Firebase) ──
-function ScanModal({playerName,onResult,onClose,aiConfig}){
+function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
   var useState=React.useState,useRef=React.useRef,useEffect=React.useEffect;
   var ph=useState("pick"),img_=useState(null),b64_=useState(null),mime_=useState("image/jpeg");
   var res_=useState(null),err_=useState(""),keyLoaded_=useState(false),claudeKey_=useState("");
@@ -3265,6 +3218,12 @@ function ResultEditor({res,onResult,onRetake}){
         )
       ),
 
+      // Total tentativo personal
+      currentTotal!==undefined&&cards.length>0&&React.createElement("div",{style:{
+        fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+        color:"rgba(255,255,255,.35)",marginBottom:8,letterSpacing:.5,textAlign:"center"
+      }},"Tienes "+currentTotal+" + esta ronda "+total+" = "+(currentTotal+total)),
+
       // Botones confirm/retake
       React.createElement("div",{className:"mr2"},
         React.createElement("button",{className:"mc",onClick:()=>{snd("tap");onRetake();}},"📷 Repetir foto"),
@@ -3278,7 +3237,7 @@ function ResultEditor({res,onResult,onRetake}){
 // ── CARDPICKERMODAL — selector directo de cartas + modificadores ──
 // El jugador toca las cartas que tiene en su mano (1 clic = agregar/quitar)
 // Misma lógica que ResultEditor pero como modal de captura primaria
-function CardPickerModal({playerName,onSubmit,onClose}){
+function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
   var useState=React.useState,useEffect=React.useEffect;
   // Cartas seleccionadas — Set de números (0-12), máx 1 por número (regla del juego)
   var selState=useState([]);
@@ -3344,6 +3303,12 @@ function CardPickerModal({playerName,onSubmit,onClose}){
           lineHeight:1,textShadow:selected.length>0?"4px 4px 0 var(--or)":"none",
           transition:"all .2s"
         }},total),
+        // Total tentativo personal — "tienes X + esta ronda Y = Z", chiquito,
+        // solo para orientarte mientras capturas, no le quita nada a la Tabla.
+        currentTotal!==undefined&&React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+          color:"rgba(255,255,255,.35)",marginTop:6,letterSpacing:.5
+        }},"Tienes "+currentTotal+(total>0?" + esta ronda "+total+" = "+(currentTotal+total):"")),
         // Fórmula desglosada
         selected.length>0&&React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
@@ -3593,7 +3558,7 @@ const VENG_CARD_TEXT={
 const VENG_CARD_BG="#FFF8F0"; // crema ligeramente distinto al classic
 
 // ── VENGANZA CARD PICKER MODAL ─────────────────────────────────
-function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
+function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
   var useState=React.useState,useEffect=React.useEffect;
   var selState=useState([]);
   var selected=selState[0],setSelected=selState[1];
@@ -3710,6 +3675,11 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
           lineHeight:1,textShadow:selected.length>0?"4px 4px 0 rgba(230,57,70,.4)":"none",
           transition:"all .2s"
         }},total),
+        // Total tentativo personal
+        currentTotal!==undefined&&React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+          color:"rgba(255,255,255,.35)",marginTop:6,letterSpacing:.5
+        }},"Tienes "+currentTotal+(total>0?" + esta ronda "+total+" = "+(currentTotal+total):"")),
         // Desglose del calculo
         selected.length>0&&React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
@@ -4057,7 +4027,7 @@ function VenganzaCardPickerModal({playerName,onSubmit,onClose}){
 }
 
 // ── MANUALMODAL — soporta initialScore para corrección ────────
-function ManualModal({playerName,initialScore,onSubmit,onClose,gameMode}){
+function ManualModal({playerName,currentTotal,initialScore,onSubmit,onClose,gameMode}){
   const[expr,setExpr]=useState(initialScore!=null&&initialScore>0?String(initialScore):"");
   const[calcResult,setCalcResult]=useState(initialScore!=null?initialScore:0);
   const[error,setError]=useState(false);
@@ -4086,6 +4056,12 @@ function ManualModal({playerName,initialScore,onSubmit,onClose,gameMode}){
         React.createElement("div",{className:"calc-expr"},display),
         React.createElement("div",{className:"calc-result"+(error?" error":"")},error?"ERROR":finalVal)
       ),
+      // Total tentativo personal — no aplica en corrección (ahí currentTotal
+      // ya no representa "antes de esta ronda" de forma clara)
+      !isCorrection&&currentTotal!==undefined&&React.createElement("div",{style:{
+        fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+        color:"rgba(255,255,255,.35)",marginTop:-6,marginBottom:10,letterSpacing:.5,textAlign:"center"
+      }},"Tienes "+currentTotal+(!error&&finalVal>0?" + esta ronda "+finalVal+" = "+(currentTotal+finalVal):"")),
       // Tip: botón rápido +15 para Flip 7 bonus
       React.createElement("div",{style:{marginBottom:10}},
         React.createElement("button",{
