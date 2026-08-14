@@ -622,7 +622,7 @@ function App(){
       }
       if(data.finished&&data.winner&&!winnerShown.current){
         winnerShown.current=true;setWinner(data.winner);snd('winner');setTimeout(()=>snd('victory'),400);
-        const sessionObj={id:uid(),date:data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,demo:demoMode};
+        const sessionObj={id:uid(),date:data.gameStartedAt||data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,demo:demoMode};
         setSessions(prev=>{
           if(prev.find(s=>s.code===data.code&&s.date===data.createdAt))return prev;
           const s=[sessionObj,...prev].slice(0,20);
@@ -639,7 +639,7 @@ function App(){
   async function createLobby(){
     snd("join");
     var code=uid4();const db=makeDB(false);dbRef.current=db;
-    await db.set("rooms/"+code,{code,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),players:[],lobbyMode:true});
+    await db.set("rooms/"+code,{code,round:1,roundScores:{},finished:false,winner:null,createdAt:Date.now(),gameStartedAt:Date.now(),players:[],lobbyMode:true});
     setRoomCode(code);setIsSpectator(false);setMyPlayerId(null);
     subscribe(code,db);setScreen("game");setTab("round");
     winnerShown.current=false;prevSortedRef.current=[];
@@ -730,7 +730,8 @@ function App(){
     const freshPlayers=prevPlayers.map(p=>({...p,total:0,rounds:[]}));
     await dbRef.current.update("rooms/"+roomCode,{
       round:1,roundScores:{},finished:false,winner:null,
-      players:freshPlayers,rematchPending:false,forceEnded:false
+      players:freshPlayers,rematchPending:false,forceEnded:false,
+      gameStartedAt:Date.now() // partida nueva = identificador nuevo para estadísticas
     });
     setRematchPending(false);setTab("round");
     subscribe(roomCode,dbRef.current);
@@ -796,6 +797,7 @@ function App(){
         // Guardar nombre del host para permitir reconexión
         hostName: hostName||firstPlayerName,
         hostPlayerId: resolvedMyPlayerId, // el creador ya arranca visible como host
+        gameStartedAt: Date.now(), // identifica ESTA partida en curso; se renueva en cada revancha
         players:playersList
       });
     }
@@ -2343,6 +2345,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
   const[vengCardModal,setVengCard]=useState(null); // {pid, name} — Venganza mode
   const[shakePid,setShakePid]=useState(null);
   const[showTransfer,setShowTransfer]=useState(false);
+  const[showTentative,setShowTentative]=useState(true);
   const[confirmEnd,setConfirmEnd]=useState(false);
   const canControl=pid=>isHost||myPlayerId===pid;
   const gameMode=(room&&room.gameMode)||'classic';
@@ -2429,6 +2432,53 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           <div className="rbd">R{room.round}</div>
         </div>
       </div>
+
+      {/* Proyección tentativa — "si cerráramos la ronda ahora mismo,
+          ¿cómo va todo?" Combina el total ya confirmado de cada quien con
+          lo que llevan capturado en esta ronda (aunque falten otros por
+          capturar). No cierra nada, solo informa para decidir si seguir
+          o parar aquí. */}
+      {room.players.length>0&&(
+        <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",
+          borderRadius:13,padding:"10px 13px",marginBottom:10}}>
+          <div onClick={()=>setShowTentative(v=>!v)} style={{display:"flex",alignItems:"center",
+            justifyContent:"space-between",cursor:"pointer"}}>
+            <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
+              color:"rgba(255,255,255,.4)",letterSpacing:2}}>📈 SI CERRARAS AHORA…</span>
+            <span style={{fontSize:".8rem",color:"rgba(255,255,255,.3)",
+              transform:showTentative?"rotate(180deg)":"none",transition:"transform .2s"}}>▾</span>
+          </div>
+          {showTentative&&(()=>{
+            const tentative=room.players.map(p=>{
+              const entry=room.roundScores?.[p.id];
+              return{...p,tent:p.total+(entry?entry.score:0),captured:!!entry};
+            }).sort((a,b)=>b.tent-a.tent);
+            const leaderTotal=tentative[0]?tentative[0].tent:0;
+            return(
+              <div style={{marginTop:8}}>
+                {tentative.map((p,i)=>(
+                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
+                    <span style={{fontFamily:"'Anton',sans-serif",fontSize:".8rem",
+                      color:i===0?"var(--y)":"rgba(255,255,255,.3)",width:16}}>{i+1}</span>
+                    <span>{p.emoji}</span>
+                    <span style={{flex:1,fontWeight:800,fontSize:".8rem",
+                      color:p.captured?"#fff":"rgba(255,255,255,.4)"}}>
+                      {p.name}{!p.captured&&<span style={{fontSize:".6rem",marginLeft:5,
+                        color:"rgba(255,255,255,.25)"}}>(sin capturar)</span>}
+                    </span>
+                    <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",
+                      color:i===0?"var(--y)":"rgba(255,255,255,.6)"}}>{p.tent}</span>
+                    <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+                      color:"rgba(255,255,255,.3)",minWidth:42,textAlign:"right"}}>
+                      {i===0?"líder":"-"+(leaderTotal-p.tent)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
       {/* Controles de host — solo visibles para quien tiene el rol */}
       {isHost&&!room.finished&&!demoMode&&(
         <div style={{display:"flex",gap:6,marginBottom:10}}>
