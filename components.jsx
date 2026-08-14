@@ -785,7 +785,7 @@ function App(){
     await dbRef.current.update("rooms/"+roomCode,{players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null,lastActivityAt:Date.now()});
   }
 
-  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode,groupId,winTarget}){
+  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode,groupId,winTarget,autoCloseRound}){
     const db=makeDB(demo);dbRef.current=db;
     let roomCode2=code;
     let resolvedMyPlayerId=playerId; // por default, el playerId que ya te pasaron (reconectar, unirte, etc.)
@@ -814,6 +814,7 @@ function App(){
         hostPlayerId: resolvedMyPlayerId, // el creador ya arranca visible como host
         gameStartedAt: Date.now(), // identifica ESTA partida en curso; se renueva en cada revancha
         winTarget: winTarget||WIN, // meta de puntos configurable — 200 por default
+        autoCloseRound: !!autoCloseRound, // configurable desde la creación, se puede cambiar después
         players:playersList
       });
     }
@@ -1345,6 +1346,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   const[selectedGroup,setSelectedGroup]=React.useState(null); // for create-with-group
   const[gameMode,setGameMode]=useState("classic");
   const[winTarget,setWinTarget]=useState(200);
+  const[autoCloseRound,setAutoCloseRound]=useState(false);
   const[createStep,setCreateStep]=React.useState("mode"); // mode | players
   const[playerMode,setPlayerMode]=React.useState("manual"); // manual | amigos | grupo
   const[friendsHome,setFriendsHome]=React.useState([]);
@@ -1569,7 +1571,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     setBusy(true);setErr(null);
     try{
       await onEnter({names:ns,demo:false,customEmojis:playerEmojis,customColors:playerColors,
-        hostName:jname.trim()||ns[0],gameMode:gameMode,groupId:selectedGroup?selectedGroup.id:null,winTarget:winTarget});
+        hostName:jname.trim()||ns[0],gameMode:gameMode,groupId:selectedGroup?selectedGroup.id:null,winTarget:winTarget,autoCloseRound:autoCloseRound});
     }
     catch(e){setErr(classifyError(e));}
     setBusy(false);
@@ -1847,6 +1849,31 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                 letterSpacing:0,marginTop:1,opacity:.7}}>ESTÁNDAR</div>}
             </button>
           ))}
+        </div>
+
+        {/* Autocierre — configurable desde la creación, para que se sienta
+            lista desde el inicio. Se puede seguir cambiando dentro del
+            juego en cualquier momento (mismo interruptor). */}
+        <div onClick={()=>{snd('tap');setAutoCloseRound(v=>!v);}}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",
+            background:autoCloseRound?"rgba(59,178,115,.08)":"rgba(255,255,255,.03)",
+            border:"1px solid "+(autoCloseRound?"rgba(59,178,115,.3)":"rgba(255,255,255,.1)"),
+            borderRadius:10,padding:"10px 12px",marginBottom:14}}>
+          <div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",
+              color:autoCloseRound?"var(--gr)":"rgba(255,255,255,.5)",letterSpacing:.5}}>
+              ⚡ Auto-cerrar ronda cuando todos terminen
+            </div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+              color:"rgba(255,255,255,.3)",marginTop:2}}>
+              Puedes cambiarlo después, dentro del juego
+            </div>
+          </div>
+          <div style={{width:34,height:19,borderRadius:20,position:"relative",flexShrink:0,
+            background:autoCloseRound?"var(--gr)":"rgba(255,255,255,.15)",transition:"background .2s"}}>
+            <div style={{position:"absolute",top:2,left:autoCloseRound?17:2,width:15,height:15,
+              borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+          </div>
         </div>
       </>)}
       </div>
