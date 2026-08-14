@@ -2423,6 +2423,12 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
   const[shakePid,setShakePid]=useState(null);
   const[showTransfer,setShowTransfer]=useState(false);
   const[showTentative,setShowTentative]=useState(true);
+  // Seguro leve para el admin: por default NO puede tocar la fila de otro
+  // jugador con un solo tap accidental — tiene que desbloquear con el
+  // switch de arriba primero. El desbloqueo se consume solo (se re-bloquea
+  // automáticamente) apenas se usa una sola vez, para no dejarlo "abierto"
+  // sin querer el resto de la partida.
+  const[otherRowUnlocked,setOtherRowUnlocked]=useState(false);
 
   // Aviso de ronda nueva — toast animado + sonido cuando room.round sube,
   // para que se note claramente que arrancó otra ronda.
@@ -2453,9 +2459,26 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
   const gameMode=(room&&room.gameMode)||'classic';
   const isVenganza=gameMode==='venganza';
 
+  // ¿Es una fila ajena que el admin controla solo por ser admin (no la suya
+  // propia)? Esas son las que quedan protegidas por default.
+  const isForeignRow=pid=>isHost&&myPlayerId!==pid;
+
+  // Wrappers que re-bloquean el candado automáticamente después de usarlo
+  // UNA vez sobre una fila ajena — así el admin tiene que desbloquear cada
+  // vez que quiera tocar a otro jugador, en vez de dejarlo prendido y
+  // olvidarse (que era justo el riesgo de equivocarse por accidente).
+  function submitWithLock(pid,score,method,breakdown){
+    onSubmit(pid,score,method,breakdown);
+    if(isForeignRow(pid)&&otherRowUnlocked)setOtherRowUnlocked(false);
+  }
+  function undoWithLock(pid){
+    onUndo(pid);
+    if(isForeignRow(pid)&&otherRowUnlocked)setOtherRowUnlocked(false);
+  }
+
   function handleZero(pid){
     snd('zero');setShakePid(pid);setTimeout(()=>setShakePid(null),500);
-    onSubmit(pid,0,"zero");
+    submitWithLock(pid,0,"zero");
   }
 
   return(
@@ -2579,6 +2602,33 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           </div>
         </div>
       )}
+      {/* Seguro de edición de filas ajenas — protegido por default para que
+          un tap accidental no capture/corrija a otro jugador. El admin lo
+          prende cuando SÍ quiere tocar la fila de alguien más, y se apaga
+          solo después de usarlo una vez. */}
+      {isHost&&!room.finished&&!demoMode&&room.players.length>1&&(
+        <div onClick={()=>{snd('tap');setOtherRowUnlocked(v=>!v);}}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",
+            background:otherRowUnlocked?"rgba(230,57,70,.1)":"rgba(255,255,255,.03)",
+            border:"1px solid "+(otherRowUnlocked?"rgba(230,57,70,.35)":"rgba(255,255,255,.1)"),
+            borderRadius:10,padding:"8px 12px",marginBottom:10}}>
+          <div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",
+              color:otherRowUnlocked?"var(--r)":"rgba(255,255,255,.45)",letterSpacing:.5}}>
+              {otherRowUnlocked?"🔓":"🔒"} Editar fila de otro jugador
+            </div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
+              color:"rgba(255,255,255,.3)",marginTop:2}}>
+              {otherRowUnlocked?"Desbloqueado — se bloquea solo después de usarlo":"Protegido — evita capturar por error la fila de alguien más"}
+            </div>
+          </div>
+          <div style={{width:34,height:19,borderRadius:20,position:"relative",flexShrink:0,
+            background:otherRowUnlocked?"var(--r)":"rgba(255,255,255,.15)",transition:"background .2s"}}>
+            <div style={{position:"absolute",top:2,left:otherRowUnlocked?17:2,width:15,height:15,
+              borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+          </div>
+        </div>
+      )}
       {isHost&&showTransfer&&(
         <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.1)",
           borderRadius:12,padding:10,marginBottom:10}}>
@@ -2638,6 +2688,9 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         return orderedPlayers.map(p=>{
         const entry=room.roundScores?.[p.id];const done=entry!==undefined;const mine=canControl(p.id);
         const isShaking=shakePid===p.id;
+        // Fila ajena que el admin controla solo por ser admin y que NO
+        // desbloqueó — se muestra protegida en vez de los botones normales.
+        const rowLocked=isForeignRow(p.id)&&!otherRowUnlocked;
         return(
           <div key={p.id}
             className={"pr "+(done?"done":"")+(p.id===myPlayerId?" me":"")+((done&&p.id===myPlayerId)?" me-done":"")+(isShaking?" zero-flash":"")}
@@ -2684,7 +2737,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                     fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
                     color:"var(--gr)",letterSpacing:1,fontWeight:900
                   }}>✓ LISTO</span>
-                  {mine&&!room.finished&&(
+                  {mine&&!room.finished&&!rowLocked&&(
                     <button onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:entry.score});}}
                       style={{background:"rgba(46,196,182,.12)",border:"1px solid rgba(46,196,182,.3)",
                         color:"var(--t)",borderRadius:8,padding:"3px 10px",cursor:"pointer",
@@ -2693,8 +2746,17 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                       ✏️ Corregir
                     </button>
                   )}
+                  {mine&&!room.finished&&rowLocked&&(
+                    <button onClick={()=>{snd('tap');setOtherRowUnlocked(true);}}
+                      style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.3)",
+                        color:"var(--r)",borderRadius:8,padding:"3px 10px",cursor:"pointer",
+                        fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,
+                        marginLeft:"auto"}}>
+                      🔒 Desbloquear
+                    </button>
+                  )}
                 </div>
-              ):mine?(
+              ):mine&&!rowLocked?(
                 <div style={{display:"flex",flexDirection:"column",gap:12,marginTop:6}}>
                   <div className="ar" style={{marginTop:0}}>
                     {!demoMode&&<button className="ab ab-s" style={{flex:1}} onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
@@ -2707,11 +2769,20 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                   {/* 💀 Cero: registra 0 pts. En Venganza: si te obligan (Just One More y salió duplicado), o si activaste The Zero card, o si hiciste bust. Solo hay un tipo de Cero. — su propia fila, más ancho, para que resalte como acción distinta */}
                   <button className="ab ab-z" style={{width:"100%",justifyContent:"center",padding:"9px 10px"}} onClick={()=>handleZero(p.id)}>💀 Cero</button>
                 </div>
+              ):mine&&rowLocked?(
+                <div onClick={()=>{snd('tap');setOtherRowUnlocked(true);}}
+                  style={{marginTop:6,cursor:"pointer",display:"flex",alignItems:"center",gap:8,
+                    background:"rgba(230,57,70,.06)",border:"1px dashed rgba(230,57,70,.3)",
+                    borderRadius:10,padding:"9px 12px"}}>
+                  <span style={{fontSize:"1rem"}}>🔒</span>
+                  <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
+                    color:"rgba(230,57,70,.85)",letterSpacing:.5}}>Fila protegida — toca para desbloquear y capturar</span>
+                </div>
               ):(
                 <div style={{fontSize:".72rem",color:"rgba(255,255,255,.28)",marginTop:3,fontWeight:700}}>⏳ esperando</div>
               )}
             </div>
-            {done&&mine&&!room.finished&&<button className="undo" onClick={()=>onUndo(p.id)}>↩</button>}
+            {done&&mine&&!room.finished&&!rowLocked&&<button className="undo" onClick={()=>undoWithLock(p.id)}>↩</button>}
           </div>
         );
         });
@@ -2733,11 +2804,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           </button>
         </div>
       )}
-      {scanModal&&<ScanModal playerName={scanModal.name} currentTotal={room.players.find(p=>p.id===scanModal.pid)?.total||0} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{onSubmit(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
-      {cardModal&&<CardPickerModal playerName={cardModal.name} currentTotal={room.players.find(p=>p.id===cardModal.pid)?.total||0} onSubmit={function(s,bd){onSubmit(cardModal.pid,s,"cards",bd);setCard(null);}} onClose={()=>setCard(null)}/>}
+      {scanModal&&<ScanModal playerName={scanModal.name} currentTotal={room.players.find(p=>p.id===scanModal.pid)?.total||0} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{submitWithLock(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
+      {cardModal&&<CardPickerModal playerName={cardModal.name} currentTotal={room.players.find(p=>p.id===cardModal.pid)?.total||0} onSubmit={function(s,bd){submitWithLock(cardModal.pid,s,"cards",bd);setCard(null);}} onClose={()=>setCard(null)}/>}
       {/* ManualModal recibe initialScore para permitir corrección */}
-      {manModal&&<ManualModal playerName={manModal.name} currentTotal={room.players.find(p=>p.id===manModal.pid)?.total||0} initialScore={manModal.initialScore} gameMode={gameMode} onSubmit={s=>{onSubmit(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
-      {vengCardModal&&<VenganzaCardPickerModal playerName={vengCardModal.name} currentTotal={room.players.find(p=>p.id===vengCardModal.pid)?.total||0} onSubmit={function(s,bd){onSubmit(vengCardModal.pid,s,"cards",bd);setVengCard(null);}} onClose={()=>setVengCard(null)}/>}
+      {manModal&&<ManualModal playerName={manModal.name} currentTotal={room.players.find(p=>p.id===manModal.pid)?.total||0} initialScore={manModal.initialScore} gameMode={gameMode} onSubmit={s=>{submitWithLock(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
+      {vengCardModal&&<VenganzaCardPickerModal playerName={vengCardModal.name} currentTotal={room.players.find(p=>p.id===vengCardModal.pid)?.total||0} onSubmit={function(s,bd){submitWithLock(vengCardModal.pid,s,"cards",bd);setVengCard(null);}} onClose={()=>setVengCard(null)}/>}
     </>
   );
 }
