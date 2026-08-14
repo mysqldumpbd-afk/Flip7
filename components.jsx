@@ -749,12 +749,12 @@ function App(){
     if(breakdown)entry.breakdown=breakdown;
     var newRoundScores=Object.assign({},cur);
     newRoundScores[pid]=entry;
-    await dbRef.current.update("rooms/"+roomCode,{roundScores:newRoundScores});
+    await dbRef.current.update("rooms/"+roomCode,{roundScores:newRoundScores,lastActivityAt:Date.now()});
   }
   async function undoScore(pid){
     snd('tap');
     const ns={...room?.roundScores};delete ns[pid];
-    await dbRef.current.update("rooms/"+roomCode,{roundScores:ns});
+    await dbRef.current.update("rooms/"+roomCode,{roundScores:ns,lastActivityAt:Date.now()});
   }
   async function finalizeRound(){
     snd('round');
@@ -767,7 +767,7 @@ function App(){
     const champs=newPlayers.filter(p=>p.total>=WIN&&p.total===maxScore);
     const isFinished=champs.length>0;
     const winner=champs.length===1?champs[0]:{tied:true,players:champs,total:maxScore,name:champs.map(p=>p.name).join(" & "),emoji:""};
-    await dbRef.current.update("rooms/"+roomCode,{players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null});
+    await dbRef.current.update("rooms/"+roomCode,{players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null,lastActivityAt:Date.now()});
   }
 
   async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode,groupId}){
@@ -1365,9 +1365,11 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   },[pickingPlayer,jcode]);
 
   // Auto-reparación: si el "currentRoom" de un grupo apunta a una sala que
-  // ya terminó (o ya no existe), la liberamos solas — así el banner
-  // "partida en curso" no se queda pegado indefinidamente por sesiones
-  // viejas donde nadie usó el botón explícito de terminar/salir.
+  // ya terminó, ya no existe, O quedó abandonada (nadie conectado y sin
+  // actividad por horas) la liberamos sola — así el banner "partida en
+  // curso" no se queda pegado indefinidamente por sesiones donde nadie usó
+  // el botón explícito de terminar/salir (ej. simplemente cerraron la app).
+  const STALE_ROOM_MS=3*60*60*1000; // 3 horas sin actividad y sin host = abandonada
   const checkedRoomsRef=React.useRef(new Set());
   React.useEffect(()=>{
     if(!authUser||authUser.isAnonymous)return;
@@ -1378,7 +1380,13 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       checkedRoomsRef.current.add(key);
       _db.ref("rooms/"+g.currentRoom).once("value").then(snap=>{
         const r=snap.val();
-        if(!r||r.finished||r.forceEnded){
+        if(!r){_db.ref("groups/"+g.id+"/currentRoom").set(null).catch(()=>{});return;}
+        if(r.finished||r.forceEnded){
+          _db.ref("groups/"+g.id+"/currentRoom").set(null).catch(()=>{});return;
+        }
+        const lastActivity=r.lastActivityAt||r.gameStartedAt||r.createdAt||0;
+        const abandoned=!r.hostOnline&&(Date.now()-lastActivity)>STALE_ROOM_MS;
+        if(abandoned){
           _db.ref("groups/"+g.id+"/currentRoom").set(null).catch(()=>{});
         }
       }).catch(()=>{});
@@ -1485,17 +1493,25 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   const[dashboardTab,setDashboardTab]=React.useState("me");
   const[roomInvite,setRoomInvite]=React.useState(null); // {group} pendiente de aceptar/declinar
   const prevRoomsRef=React.useRef({}); // gid -> currentRoom anterior, para detectar SOLO partidas nuevas
+  const seenGroupsRef=React.useRef(new Set()); // gids con base ya establecida esta sesión
 
   // Detecta cuando un grupo tuyo arranca una partida nueva (transición
   // null → código) y muestra un popup con Aceptar/Declinar — a diferencia
   // del banner pasivo (que solo se ve si estás en Home), esto interrumpe
   // sin importar en qué pantalla estés.
+  //
+  // Importante: la PRIMERA vez que vemos cada grupo en esta sesión (ej.
+  // recién cargaste la app) solo establecemos la base, sin avisar — antes
+  // esto se comparaba contra "sin dato previo" y avisaba de una partida
+  // que llevaba activa desde ayer, cada vez que recargabas la página.
   React.useEffect(()=>{
     if(!authUser||authUser.isAnonymous)return;
     const myName=(authUser.displayName||(authUser.email||"").split("@")[0]||"").toLowerCase();
     myGroupsHome.forEach(g=>{
+      const isFirstSeen=!seenGroupsRef.current.has(g.id);
+      seenGroupsRef.current.add(g.id);
       const prev=prevRoomsRef.current[g.id];
-      if(g.currentRoom&&g.currentRoom!==prev){
+      if(!isFirstSeen&&g.currentRoom&&g.currentRoom!==prev){
         _db.ref("rooms/"+g.currentRoom+"/hostName").once("value").then(snap=>{
           const hostName=(snap.val()||"").toLowerCase();
           if(hostName&&hostName!==myName){ // no notificarte tu propia partida
