@@ -63,6 +63,25 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
   filter:drop-shadow(3px 3px 0 rgba(230,57,70,.4))}
 .hero-tag{font-family:'Righteous',sans-serif;color:var(--t);font-size:.8rem;letter-spacing:3px;
   text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 20px rgba(46,196,182,.4)}
+
+/* ── TEST: logo animado (ver HERO_LOGO_TEST en components.jsx) ──── */
+.hero-logo-test{display:flex;flex-direction:column;align-items:center;margin-bottom:2px}
+.hero-flip-wrap{perspective:900px;margin-bottom:4px}
+.hero-flip-img{width:200px;max-width:70vw;height:auto;display:block;
+  animation:heroCardFlip 6s ease-in-out infinite;
+  filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+@keyframes heroCardFlip{
+  0%,38%{transform:rotateY(0deg)}
+  50%{transform:rotateY(90deg)}
+  62%,100%{transform:rotateY(0deg)}
+}
+.rolling-tag{overflow:hidden;min-height:1.4em;margin-bottom:14px}
+.rt-row{display:flex;justify-content:center;flex-wrap:wrap}
+.rt-char{display:inline-block;animation:rtIn .5s cubic-bezier(.2,1,.3,1) both}
+@keyframes rtIn{
+  0%{transform:translateY(120%);opacity:0}
+  100%{transform:translateY(0);opacity:1}
+}
 .create-title{font-family:'Anton',sans-serif;font-size:1.7rem;letter-spacing:3px;
   background:linear-gradient(135deg,var(--y),var(--or));-webkit-background-clip:text;
   -webkit-text-fill-color:transparent;line-height:1.1;margin-bottom:2px}

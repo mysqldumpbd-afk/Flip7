@@ -1039,6 +1039,59 @@ function App(){
 }
 
 
+// ── TEST: LOGO ANIMADO + FRASE ROTATIVA ─────────────────────────
+// Prueba visual pedida por Jonathan (14-ago-2026): en vez del 🎴 + texto
+// "FLIP 7" / "Race to 200!", probar el logo ilustrado con una animación
+// tipo "flip de carta" (inspirada en el flip-card 3D de CodePen) y una
+// frase del juego con efecto de texto rotativo (inspirado en el
+// SplitText de anime.js: caracteres entran en cascada desde el centro).
+// Para volver a la versión anterior en cualquier momento, basta con
+// poner HERO_LOGO_TEST=false — el bloque original no se tocó, sigue
+// tal cual más abajo en AuthScreen y HomeScreen.
+const HERO_LOGO_TEST=true;
+
+const HERO_PHRASES=[
+  "FLIP. SUMA. GANA.",
+  "¿PLANTAS O ARRIESGAS?",
+  "SIN REPETIR, SIN PASARTE",
+  "CADA CARTA CUENTA",
+  "LA SUERTE ESTÁ ECHADA",
+  "CORRE A LA META"
+];
+
+function RollingTagline({phrases=HERO_PHRASES,interval=2800}){
+  const[i,setI]=React.useState(0);
+  React.useEffect(()=>{
+    const t=setInterval(()=>setI(v=>(v+1)%phrases.length),interval);
+    return()=>clearInterval(t);
+  },[phrases.length,interval]);
+  const phrase=phrases[i];
+  const chars=phrase.split("");
+  const mid=(chars.length-1)/2;
+  return(
+    <div className="hero-tag rolling-tag" aria-live="polite">
+      <div key={i} className="rt-row">
+        {chars.map((c,idx)=>(
+          <span key={idx} className="rt-char" style={{animationDelay:(Math.abs(idx-mid)*28)+"ms"}}>
+            {c===" "?" ":c}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HeroLogo(){
+  return(
+    <div className="hero-logo-test">
+      <div className="hero-flip-wrap">
+        <img src="score7-logo.png" alt="Flip 7" className="hero-flip-img"/>
+      </div>
+      <RollingTagline/>
+    </div>
+  );
+}
+
 // ── AUTHSCREEN — Google / Email / Anónimo ──────────────────────
 function AuthScreen({onAuth}){
   const[mode,setMode]=React.useState("main"); // main | email-login | email-signup
@@ -1130,9 +1183,11 @@ function AuthScreen({onAuth}){
     <div className="wrap"><div className="page" style={{paddingTop:32,paddingBottom:40}}>
       {/* Logo */}
       <div style={{textAlign:"center",marginBottom:32}}>
+        {HERO_LOGO_TEST?<HeroLogo/>:<>
         <div style={{fontSize:"3.5rem",marginBottom:8}}>🎴</div>
         <div className="hero-logo">FLIP 7</div>
         <div className="hero-tag">Race to 200!</div>
+        </>}
       </div>
 
       {mode==="main"&&(<>
@@ -2448,9 +2503,11 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
             </div>
           )}
         </div>
+        {HERO_LOGO_TEST?<HeroLogo/>:<>
         <div style={{fontSize:"3.5rem",marginBottom:8}}>🎴</div>
         <div className="hero-logo">FLIP 7</div>
         <div className="hero-tag">Race to 200!</div>
+        </>}
         {/* User greeting */}
         {authUser&&!authUser.isAnonymous?(
           <div style={{display:"inline-flex",alignItems:"center",gap:8,
