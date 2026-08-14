@@ -466,6 +466,7 @@ function App(){
   const[sessions,setSessions]=useState(()=>{try{return JSON.parse(localStorage.getItem("f7sess")||"[]")}catch{return[]}});
   const[tab,setTab]=useState("round");
   const[winner,setWinner]=useState(null);
+  const[celebrationType,setCelebrationType]=useState(0); // 0/1/2 — variedad de pantalla de victoria
   const[aiConfig,setAiConfig]=useState({provider:"gemini",key:"",claudeKey:""});
   const[aiLoaded,setAiLoaded]=useState(false);
   const[rematchPending,setRematchPending]=useState(false);
@@ -621,7 +622,12 @@ function App(){
         setRematchPending(true);
       }
       if(data.finished&&data.winner&&!winnerShown.current){
-        winnerShown.current=true;setWinner(data.winner);snd('winner');setTimeout(()=>snd('victory'),400);
+        winnerShown.current=true;setWinner(data.winner);
+        const ct=Math.floor(Math.random()*3);
+        setCelebrationType(ct);
+        if(ct===0){snd('winner');setTimeout(()=>snd('victory'),400);}
+        else if(ct===1){snd('fanfare');}
+        else{snd('victory');setTimeout(()=>snd('winner'),350);}
         const sessionObj={id:uid(),date:data.gameStartedAt||data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,demo:demoMode};
         setSessions(prev=>{
           if(prev.find(s=>s.code===data.code&&s.date===data.createdAt))return prev;
@@ -718,7 +724,7 @@ function App(){
   // ── REVANCHA (solo host) — escribe rematchPending en Firebase ──
   async function startRematch(prevPlayers){
     snd('round');
-    winnerShown.current=false;prevSortedRef.current=[];
+    prevSortedRef.current=[];
     setWinner(null);
     // 1. Marcar rematchPending → todos (host incluido) ven el overlay via Firebase listener
     await dbRef.current.update("rooms/"+roomCode,{rematchPending:true});
@@ -733,6 +739,14 @@ function App(){
       players:freshPlayers,rematchPending:false,forceEnded:false,
       gameStartedAt:Date.now() // partida nueva = identificador nuevo para estadísticas
     });
+    // IMPORTANTE: winnerShown se reactiva recién AQUÍ, con la sala ya
+    // limpia — no al principio de la función. Antes, al resetearlo desde
+    // el inicio, el listener todavía activo podía recibir el paso 1
+    // (rematchPending:true) con finished/winner viejos del juego 1 sin
+    // limpiar todavía, disparar la celebración vieja de nuevo, y volver a
+    // dejar winnerShown en true antes de que empezara el juego 2 —
+    // bloqueando la celebración real cuando el juego 2 sí terminaba.
+    winnerShown.current=false;
     setRematchPending(false);setTab("round");
     subscribe(roomCode,dbRef.current);
   }
@@ -990,7 +1004,7 @@ function App(){
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room} T={T}/>}
         {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}} T={T}/>}
       </div>
-      {winner&&<WinnerScreen winner={winner} onClose={()=>{setWinner(null);setTab("scores");}} onRematch={()=>{if(room&&room.players)startRematch(room.players);}} isHost={isHost} T={T}/>}
+      {winner&&<WinnerScreen winner={winner} celebrationType={celebrationType} onClose={()=>{setWinner(null);setTab("scores");}} onRematch={()=>{if(room&&room.players)startRematch(room.players);}} isHost={isHost} T={T}/>}
     </div>
   );
 }
@@ -5816,11 +5830,28 @@ function StatsScreen({onBack,T}){
 }
 
 // ── WINNERSCREEN — revancha solo host ─────────────────────────
-function WinnerScreen({winner,onClose,onRematch,isHost,T}){
-  React.useEffect(()=>{setTimeout(()=>snd("victory"),300);},[]);
+// 3 variantes de celebración — mismo layout y mecánica (confeti, texto,
+// botones), solo cambia ícono, acento de color, fondo y animación del
+// ícono. Se elige al azar cada vez que termina una partida.
+const CELEBRATIONS=[
+  {icon:"🏆",label:"¡GANADOR!",labelTie:"¡EMPATE!",
+    bg:"radial-gradient(circle at 50% 40%,#2a1800 0%,#0F0F1A 60%)",
+    confetti:CONF,iconAnim:"fl 2s ease-in-out infinite",accent:"var(--y)"},
+  {icon:"🎆",label:"¡VICTORIA EXPLOSIVA!",labelTie:"¡EMPATE EXPLOSIVO!",
+    bg:"radial-gradient(circle at 50% 40%,#0d1a3a 0%,#0a0a18 60%)",
+    confetti:["#2EC4B6","#7C6FE0","#ffffff","#4A90D9"],
+    iconAnim:"celSpin 1.2s ease-in-out infinite",accent:"var(--t)"},
+  {icon:"👑",label:"¡CORONADO!",labelTie:"¡CORONA COMPARTIDA!",
+    bg:"radial-gradient(circle at 50% 40%,#2a0a30 0%,#0F0F1A 60%)",
+    confetti:["#F5C800","#ffffff","#cc88ff","#FF6B35"],
+    iconAnim:"celPulse 1.5s ease-in-out infinite",accent:"#cc88ff"}
+];
+
+function WinnerScreen({winner,celebrationType,onClose,onRematch,isHost,T}){
+  const cel=CELEBRATIONS[celebrationType||0];
   const isTie=winner&&winner.tied;
   const dots=Array.from({length:40},(_,i)=>({
-    id:i,c:CONF[i%CONF.length],
+    id:i,c:cel.confetti[i%cel.confetti.length],
     l:Math.round(Math.random()*100)+"%",
     dl:Math.round(Math.random()*25)/10+"s",
     dr:Math.round((2.5+Math.random()*2.5)*10)/10+"s",
@@ -5828,13 +5859,13 @@ function WinnerScreen({winner,onClose,onRematch,isHost,T}){
     sh:Math.random()>.5?"2px":"50%"
   }));
   return(
-    React.createElement("div",{className:"wb"},
+    React.createElement("div",{className:"wb",style:{background:cel.bg}},
       dots.map(d=>React.createElement("div",{key:d.id,style:{position:"absolute",background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:d.sh,animation:"cf "+d.dr+" "+d.dl+" linear infinite"}})),
-      React.createElement("div",{className:"wc"},isTie?"🎊":"🏆"),
-      React.createElement("div",{className:"wl"},isTie?"EMPATE!":"¡GANADOR!"),
+      React.createElement("div",{className:"wc",style:{animation:cel.iconAnim}},isTie?"🎊":cel.icon),
+      React.createElement("div",{className:"wl",style:{color:cel.accent}},isTie?cel.labelTie:cel.label),
       React.createElement("div",{className:"wbig"},"FLIP 7"),
       isTie?React.createElement(React.Fragment,null,
-        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",color:"var(--t)",letterSpacing:3,marginBottom:8}},winner.players.length+" GANADORES"),
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",color:cel.accent,letterSpacing:3,marginBottom:8}},winner.players.length+" GANADORES"),
         winner.players.map(p=>React.createElement("div",{key:p.id,style:{fontFamily:"'Lilita One',sans-serif",fontSize:"2rem",color:"white",letterSpacing:1,marginBottom:4,textShadow:"0 0 20px rgba(245,200,0,.4)"}},p.emoji+" "+p.name)),
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"var(--y)",marginBottom:30,letterSpacing:2,marginTop:6}},winner.total+" PUNTOS CADA UNO")
       ):React.createElement(React.Fragment,null,
