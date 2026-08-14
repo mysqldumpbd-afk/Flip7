@@ -1084,9 +1084,11 @@ function RollingTagline({phrases=HERO_PHRASES,interval=2800}){
 function HeroLogo(){
   return(
     <div className="hero-logo-test">
+      <div className="hero-brand-title">SCORETRACK</div>
       <div className="hero-flip-wrap">
         <img src="score7-logo.png" alt="Flip 7" className="hero-flip-img"/>
       </div>
+      <div className="hero-brand-sub">FLIP 7 · UNOFFICIAL</div>
       <RollingTagline/>
     </div>
   );
