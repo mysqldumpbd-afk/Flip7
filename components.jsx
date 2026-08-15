@@ -1001,23 +1001,22 @@ function App(){
   return(
     <div className="wrap">
       <div className="hdr" style={{alignItems:"flex-start"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <div>
-            <div style={{display:"flex",alignItems:"baseline",gap:4}}>
-              <span className="logo-f">FLIP</span><span className="logo-7">7</span>
-            </div>
-            <span className="logo-sub">Race to 200!</span>
-          </div>
-          {room&&room.gameMode&&room.gameMode!=="classic"&&GAME_MODES[room.gameMode]&&(
-            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:1,
-              background:GAME_MODES[room.gameMode].badgeColor,
-              border:"1px solid "+GAME_MODES[room.gameMode].badgeBorder,
-              color:GAME_MODES[room.gameMode].color,
-              padding:"4px 9px",borderRadius:20,display:"flex",alignItems:"center",gap:4,
-              whiteSpace:"nowrap"}}>
-              {GAME_MODES[room.gameMode].emoji} {room.gameMode.toUpperCase()}
-            </div>
-          )}
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <HeroLogoCompact/>
+          {room&&room.gameMode&&GAME_MODES[room.gameMode]&&(()=>{
+            const gm=GAME_MODES[room.gameMode];
+            return gm.image
+              ? <img src={gm.image} alt={gm.name+" "+gm.subtitle} title={gm.subtitle}
+                  style={{height:40,width:"auto",flexShrink:0,
+                    filter:"drop-shadow(0 0 10px "+gm.glow+") drop-shadow(0 3px 8px rgba(0,0,0,.4))"}}
+                  onError={e=>{e.target.style.display="none";}}/>
+              : <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:1,
+                  background:gm.badgeColor,border:"1px solid "+gm.badgeBorder,color:gm.color,
+                  padding:"4px 9px",borderRadius:20,display:"flex",alignItems:"center",gap:4,
+                  whiteSpace:"nowrap"}}>
+                  {gm.emoji} {gm.id.toUpperCase()}
+                </div>;
+          })()}
         </div>
 
         {/* Columna de controles — jerarquía: EN/Salir (chico, utilidad) arriba,
@@ -1064,7 +1063,7 @@ function App(){
 
           <div className={"badge "+(demoMode?"demo":"")} style={{margin:0}}>
             <span className={"dot "+(demoMode?"demo":"")}/>
-            {demoMode?"DEMO":roomCode}
+            {demoMode?"DEMO":<>SALA: <span className="code-mono">{roomCode}</span></>}
           </div>
         </div>
       </div>
@@ -1106,7 +1105,7 @@ const HERO_PHRASES=[
   "CORRE A LA META"
 ];
 
-function RollingTagline({phrases=HERO_PHRASES,interval=2800}){
+function RollingTagline({phrases=HERO_PHRASES,interval=2800,compact=false}){
   const[i,setI]=React.useState(0);
   React.useEffect(()=>{
     const t=setInterval(()=>setI(v=>(v+1)%phrases.length),interval);
@@ -1116,7 +1115,7 @@ function RollingTagline({phrases=HERO_PHRASES,interval=2800}){
   const chars=phrase.split("");
   const mid=(chars.length-1)/2;
   return(
-    <div className="hero-tag rolling-tag" aria-live="polite">
+    <div className={compact?"rolling-tag-sm":"hero-tag rolling-tag"} aria-live="polite">
       <div key={i} className="rt-row">
         {chars.map((c,idx)=>(
           <span key={idx} className="rt-char" style={{animationDelay:(Math.abs(idx-mid)*28)+"ms"}}>
@@ -1136,6 +1135,22 @@ function HeroLogo(){
       </div>
       <div className="hero-brand-sub">FLIP 7 · UNOFFICIAL SCORETRACK</div>
       <RollingTagline/>
+    </div>
+  );
+}
+
+// Versión chica del logo animado — para el header persistente de la
+// partida en curso, donde antes iba el texto plano "FLIP7 / Race to
+// 200!". Mismo logo + "unofficial" + frase rotativa, pero a tamaño de
+// encabezado en vez de pantalla completa.
+function HeroLogoCompact(){
+  return(
+    <div className="hero-logo-compact">
+      <img src="score7-logo.png" alt="Flip 7" className="hero-flip-img-sm"/>
+      <div>
+        <div className="hero-brand-sub-sm">FLIP 7 · UNOFFICIAL SCORETRACK</div>
+        <RollingTagline compact/>
+      </div>
     </div>
   );
 }
@@ -2976,10 +2991,10 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         <p className="sec" style={{margin:0}}>{T.players2}</p>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <div
-            style={{fontFamily:"'Anton',sans-serif",fontSize:".85rem",letterSpacing:2,color:"var(--y)",background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",padding:"2px 10px",borderRadius:20,cursor:"pointer"}}
+            style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,color:"var(--y)",background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",padding:"3px 10px 3px 10px",borderRadius:20,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}
             title="Toca para copiar"
             onClick={()=>{try{navigator.clipboard.writeText(roomCode);snd("score");}catch(e){}}}
-          >{roomCode}</div>
+          >SALA: <span className="code-mono" style={{fontSize:".9rem",letterSpacing:1}}>{roomCode}</span></div>
           <div className="rbd">R{room.round}</div>
         </div>
       </div>
@@ -3211,7 +3226,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         <div style={{textAlign:"center",padding:"24px 10px",borderRadius:16,
           border:"2px dashed rgba(245,200,0,.3)",marginBottom:14}}>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:10}}>SALA EN MODO LOBBY</div>
-          <div className="lobby-code">{roomCode}</div>
+          <div className="lobby-code code-mono">{roomCode}</div>
           <div style={{fontSize:".78rem",color:"rgba(255,255,255,.4)",fontWeight:700,marginTop:8}}>
             Comparte este código para que los jugadores se unan
           </div>
@@ -3332,7 +3347,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
           <div style={{fontSize:"5rem",marginBottom:10}}>📡</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--t),#1A9A94)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:6}}>MARCADOR</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--y),var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:20}}>EN VIVO</div>
-          <div style={{animation:"slidePill .5s .4s both",fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)",letterSpacing:3,background:"rgba(255,255,255,.06)",padding:"8px 20px",borderRadius:30,border:"1px solid rgba(255,255,255,.1)"}}>SALA {roomCode} · LIVE</div>
+          <div style={{animation:"slidePill .5s .4s both",fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)",letterSpacing:3,background:"rgba(255,255,255,.06)",padding:"8px 20px",borderRadius:30,border:"1px solid rgba(255,255,255,.1)"}}>SALA <span className="code-mono">{roomCode}</span> · LIVE</div>
         </div>
       </div>}
       {showWinnerOverlay&&winner&&(
@@ -3359,14 +3374,14 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
           <span className="logo-sub">Race to 200!</span>
         </div>
         <div style={{display:"flex",gap:6}}>
-          <div className="badge spec"><span className="dot"/> {roomCode}</div>
+          <div className="badge spec"><span className="dot"/> <span className="code-mono">{roomCode}</span></div>
           <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>Salir</button>
         </div>
       </div>
       <div style={{padding:"10px 16px 0",textAlign:"center"}}>
         <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:5,color:"var(--t)"}}>📡 MARCADOR EN VIVO</div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.3)",letterSpacing:2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:3}}>
-          <span className="dot"/>SALA {roomCode} · RONDA {room?.round||""}
+          <span className="dot"/>SALA <span className="code-mono">{roomCode}</span> · RONDA {room?.round||""}
         </div>
       </div>
       {!room?(
@@ -5528,12 +5543,15 @@ function HeadToHead({myUid,friendUid,friendName}){
 
   if(data===null)return(
     <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-      color:"rgba(255,255,255,.25)",padding:"10px 14px"}}>Comparando…</div>
+      color:"rgba(255,255,255,.25)",padding:"10px 14px",background:"rgba(46,196,182,.07)",
+      border:"1px solid rgba(46,196,182,.3)",borderTop:"none",
+      borderRadius:"0 0 13px 13px",marginTop:-1}}>Comparando…</div>
   );
   if(data.length===0)return(
     <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
-      color:"rgba(255,255,255,.3)",padding:"10px 14px",background:"rgba(255,255,255,.02)",
-      borderRadius:"0 0 13px 13px",marginTop:-8}}>
+      color:"rgba(255,255,255,.3)",padding:"10px 14px",background:"rgba(46,196,182,.07)",
+      border:"1px solid rgba(46,196,182,.3)",borderTop:"none",
+      borderRadius:"0 0 13px 13px",marginTop:-1}}>
       Aún no han jugado juntos en la misma partida
     </div>
   );
@@ -5542,8 +5560,8 @@ function HeadToHead({myUid,friendUid,friendName}){
   const theirWins=data.filter(r=>r.theirPos<r.myPos).length;
 
   return(
-    <div style={{background:"rgba(46,196,182,.05)",border:"1px solid rgba(46,196,182,.15)",
-      borderTop:"none",borderRadius:"0 0 13px 13px",padding:"10px 14px",marginTop:-8}}>
+    <div style={{background:"rgba(46,196,182,.07)",border:"1px solid rgba(46,196,182,.3)",
+      borderTop:"none",borderRadius:"0 0 13px 13px",padding:"10px 14px",marginTop:-1}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginBottom:8}}>
         <div style={{textAlign:"center"}}>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--t)"}}>{myWins}</div>
@@ -5558,12 +5576,26 @@ function HeadToHead({myUid,friendUid,friendName}){
           {data.length} partida{data.length!==1?"s":""} juntos
         </div>
       </div>
+      {/* Encabezados — antes las columnas de la lista no decían qué se
+          está comparando (¿puntaje? ¿posición?). Aquí queda explícito:
+          fecha de la partida vs. la POSICIÓN de cada quien en esa ronda,
+          mismo lenguaje que la pestaña Tabla. */}
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0 6px",
+        borderBottom:"1px solid rgba(255,255,255,.1)",marginBottom:2}}>
+        <span style={{flex:1,fontFamily:"'Righteous',sans-serif",fontSize:".52rem",
+          color:"rgba(255,255,255,.3)",letterSpacing:1,textTransform:"uppercase"}}>Fecha</span>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"var(--gr)",
+          letterSpacing:1,textTransform:"uppercase",minWidth:26,textAlign:"center"}}>Tú</span>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".48rem",color:"rgba(255,255,255,.2)"}}>pos.</span>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"var(--y)",
+          letterSpacing:1,textTransform:"uppercase",minWidth:26,textAlign:"center"}}>{(friendName||"").toUpperCase().slice(0,8)}</span>
+      </div>
       {data.slice(0,5).map(r=>(
         <div key={r.gameId} style={{display:"flex",alignItems:"center",gap:8,padding:"3px 0",fontSize:".68rem"}}>
           <span style={{flex:1,color:"rgba(255,255,255,.4)"}}>{fmtAgo(r.date)}</span>
-          <span style={{color:r.myPos<r.theirPos?"var(--gr)":"rgba(255,255,255,.4)",fontWeight:900}}>#{r.myPos}</span>
+          <span style={{minWidth:26,textAlign:"center",color:r.myPos<r.theirPos?"var(--gr)":"rgba(255,255,255,.4)",fontWeight:900}}>#{r.myPos}</span>
           <span style={{color:"rgba(255,255,255,.2)"}}>–</span>
-          <span style={{color:r.theirPos<r.myPos?"var(--y)":"rgba(255,255,255,.4)",fontWeight:900}}>#{r.theirPos}</span>
+          <span style={{minWidth:26,textAlign:"center",color:r.theirPos<r.myPos?"var(--y)":"rgba(255,255,255,.4)",fontWeight:900}}>#{r.theirPos}</span>
         </div>
       ))}
     </div>
@@ -6239,10 +6271,17 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                 const fWinRate=fs&&fs.games>0?Math.round((fs.wins/fs.games)*100):0;
                 const pres=friendPresence[f.uid]||{};
                 const isOnline=pres.online;
+                const h2hIsOpen=h2hOpen===f.uid;
                 return(
                   <div key={f.uid} style={{marginBottom:8}}>
-                  <div style={{background:"rgba(255,255,255,.04)",
-                    border:"1px solid rgba(255,255,255,.07)",borderRadius:13,
+                  {/* Cuando la comparativa está abierta, la fila toma el
+                      mismo tinte/borde teal que el panel de abajo y pierde
+                      el redondeo inferior — así los dos se leen como una
+                      sola tarjeta continua en vez de dos cuadros pegados
+                      con colores distintos. */}
+                  <div style={{background:h2hIsOpen?"rgba(46,196,182,.07)":"rgba(255,255,255,.04)",
+                    border:"1px solid "+(h2hIsOpen?"rgba(46,196,182,.3)":"rgba(255,255,255,.07)"),
+                    borderRadius:h2hIsOpen?"13px 13px 0 0":13,transition:"background .15s,border-color .15s",
                     padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
                     <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(245,200,0,.15)",
                       border:"2px solid "+(isOnline?"var(--gr)":"rgba(245,200,0,.3)"),display:"flex",alignItems:"center",

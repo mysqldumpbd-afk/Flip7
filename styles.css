@@ -41,13 +41,31 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .logo-7{font-family:'Anton',sans-serif;font-size:2.2rem;color:var(--r);
   text-shadow:3px 3px 0 var(--y),0 0 30px rgba(230,57,70,.3);line-height:1}
 .logo-sub{font-family:'Righteous',sans-serif;font-size:.58rem;color:var(--t);letter-spacing:2px;text-transform:uppercase;display:block}
-.badge{font-family:'Anton',sans-serif;font-size:.95rem;letter-spacing:3px;color:var(--y);
+.badge{font-family:'Righteous',sans-serif;font-size:.62rem;letter-spacing:1px;color:var(--y);
   background:rgba(245,200,0,.12);border:1px solid rgba(245,200,0,.35);
   padding:5px 13px;border-radius:20px;display:flex;align-items:center;gap:6px}
 .badge.demo{color:var(--pu);background:rgba(123,45,139,.15);border-color:rgba(123,45,139,.4);
   font-family:'Righteous',sans-serif;font-size:.68rem;letter-spacing:1px}
 .badge.spec{color:var(--t);background:rgba(46,196,182,.12);border-color:rgba(46,196,182,.35);
   font-family:'Righteous',sans-serif;font-size:.68rem;letter-spacing:1px}
+
+/* Código de sala — fuente monoespaciada (JetBrains Mono) para que el 1 y
+   la I, y el 0 y la O, se distingan claramente al leerlo o transcribirlo.
+   JetBrains Mono dibuja el cero con un punto interior y la I con remates,
+   así no se confunden entre sí. */
+.code-mono{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.85rem;
+  letter-spacing:2px}
+
+/* ── Logo animado compacto (header de la partida en curso) ──────── */
+.hero-logo-compact{display:flex;align-items:center;gap:8px}
+.hero-flip-img-sm{width:34px;height:auto;display:block;flex-shrink:0;
+  filter:drop-shadow(0 3px 8px rgba(0,0,0,.4));
+  animation:heroImgPop .7s cubic-bezier(.22,1,.36,1) both,
+            heroCardFlip 6s ease-in-out 1s infinite}
+.hero-brand-sub-sm{font-family:'Righteous',sans-serif;font-size:.42rem;letter-spacing:1px;
+  color:rgba(255,255,255,.35);text-transform:uppercase;white-space:nowrap}
+.rolling-tag-sm{overflow:hidden;min-height:1em;font-family:'Righteous',sans-serif;
+  font-size:.5rem;letter-spacing:1px;color:var(--t);text-transform:uppercase;white-space:nowrap}
 .nav{display:flex;gap:5px;padding:8px 14px 10px}
 .nb{flex:1;border:none;border-radius:10px;font-family:'Righteous',sans-serif;font-size:.68rem;
   letter-spacing:1px;padding:9px 4px;cursor:pointer;transition:all .18s;text-transform:uppercase}
@@ -468,7 +486,7 @@ tbody tr:last-child td{border-bottom:none}
   cursor:pointer;text-align:center;font-family:'Righteous',sans-serif;font-size:.68rem;
   letter-spacing:1px;transition:all .2s;background:none;color:rgba(255,255,255,.45)}
 .ai-tab.on{border-color:var(--y);background:rgba(245,200,0,.1);color:var(--y)}
-.lobby-code{font-family:'Anton',sans-serif;font-size:3.8rem;letter-spacing:12px;color:var(--y);
+.lobby-code{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:3.4rem;letter-spacing:10px;color:var(--y);
   text-align:center;text-shadow:0 0 30px rgba(245,200,0,.5);animation:gp 2s ease-in-out infinite}
 @keyframes gp{0%,100%{text-shadow:0 0 20px rgba(245,200,0,.3)}50%{text-shadow:0 0 50px rgba(245,200,0,.85)}}
 @keyframes wovIn{0%{opacity:0;transform:scale(.8)}100%{opacity:1;transform:scale(1)}}
