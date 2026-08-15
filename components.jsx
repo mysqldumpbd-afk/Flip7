@@ -162,6 +162,18 @@ async function saveGameStats(session, roomData){
   const sorted = [...roomData.players].sort((a,b)=>b.total-a.total);
   const realWinnerId = roomData.winner?.tied ? null : (roomData.winner?.id || sorted[0]?.id);
   const title = "Partida " + new Date(session.date).toLocaleDateString("es-MX",{month:"short",day:"numeric"});
+  const groupId = roomData.groupId||null;
+
+  // Si la partida se creó desde un Grupo, dejar un índice de esa partida
+  // bajo el grupo — así se puede listar el historial del grupo sin tener
+  // que escanear todo /stats/games buscando coincidencias.
+  if(groupId){
+    await _db.ref("stats/groups/"+groupId+"/games/"+gameId).set({
+      gameId, date: session.date, code: session.code, title,
+      winner: roomData.winner?.name||"", winnerId: realWinnerId||"",
+      playerCount: roomData.players.length, winTarget: roomData.winTarget||WIN
+    }).catch(()=>{});
+  }
 
   // Guardar por jugador — la CLAVE de almacenamiento ahora es el uid de
   // cuenta cuando existe (resuelto vía /userIndex, igual que en amigos).
@@ -209,6 +221,25 @@ async function saveGameStats(session, roomData){
         lastPlayed: session.date
       };
     });
+
+    // Estadísticas del jugador DENTRO del grupo — se guardan por su
+    // identidad (key), no por si sigue en el grupo o no. Así el historial
+    // de un grupo queda completo aunque alguien lo abandone después, o
+    // aunque haya sido invitado solo esa vez.
+    if(groupId){
+      await _db.ref("stats/groups/"+groupId+"/players/"+key+"/summary").transaction(prev=>{
+        prev=prev||{games:0,wins:0,totalScore:0,bestScore:0};
+        return{
+          name: p.name, emoji: p.emoji, color: p.color, pKey: key,
+          uid: resolvedUid||prev.uid||null,
+          games: (prev.games||0)+1,
+          wins: (prev.wins||0)+(won?1:0),
+          totalScore: (prev.totalScore||0)+p.total,
+          bestScore: Math.max(prev.bestScore||0, p.total),
+          lastPlayed: session.date
+        };
+      }).catch(()=>{});
+    }
   }
   console.log("Stats: guardadas correctamente para gameId",gameId);
 }
@@ -2232,9 +2263,14 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         // que aparezcas dos veces si algún dato de grupo quedó con un
         // rastro duplicado de tu propio nombre.
         function applyPicked(pickedNames){
+          // Tu propio nombre en la lista: preferir el seudónimo guardado en
+          // Perfil sobre el nombre real de la cuenta — antes esto siempre
+          // caía en myDisplayName (tu nombre de Google/correo) y pisaba el
+          // seudónimo cada vez que elegías jugadores desde Amigos o Grupo.
+          const myName=(myProfile&&myProfile.nickname)||myDisplayName;
           const seen=new Set();
           const list=[];
-          [myDisplayName,...pickedNames].filter(Boolean).forEach(n=>{
+          [myName,...pickedNames].filter(Boolean).forEach(n=>{
             const k=n.trim().toLowerCase();
             if(k&&!seen.has(k)){seen.add(k);list.push(n);}
           });
@@ -2342,7 +2378,8 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                     Aún no tienes grupos
                   </div>
                 : <>
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+                    <p className="sec" style={{marginBottom:8,marginTop:0}}>GRUPOS DISPONIBLES</p>
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
                       {myGroupsHome.map(g=>(
                         <button key={g.id} onClick={()=>{
                           snd('tap');setPickedGroupForPlayers(g);setSelectedGroup(g);
@@ -2355,8 +2392,8 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                           });
                           setPickedGroupMembers(allSelected);
                         }}
-                          style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",
-                            fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1,
+                          style={{padding:"10px 18px",borderRadius:22,cursor:"pointer",
+                            fontFamily:"'Righteous',sans-serif",fontSize:".8rem",letterSpacing:1,
                             background:pickedGroupForPlayers&&pickedGroupForPlayers.id===g.id?"rgba(123,45,139,.3)":"rgba(255,255,255,.04)",
                             border:"1px solid "+(pickedGroupForPlayers&&pickedGroupForPlayers.id===g.id?"rgba(123,45,139,.6)":"rgba(255,255,255,.1)"),
                             color:pickedGroupForPlayers&&pickedGroupForPlayers.id===g.id?"#cc88ff":"rgba(255,255,255,.4)"}}>
@@ -2364,8 +2401,8 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                         </button>
                       ))}
                     </div>
-                    {pickedGroupForPlayers&&(
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    {pickedGroupForPlayers&&(<>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)"}}>
                           {Object.values(pickedGroupMembers).filter(Boolean).length} seleccionados
                         </span>
@@ -2379,7 +2416,11 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                             style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",cursor:"pointer"}}>Ninguno</span>
                         </span>
                       </div>
-                    )}
+                      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
+                        color:"rgba(255,255,255,.3)",marginBottom:10,lineHeight:1.5}}>
+                        Toca a cada integrante para incluirlo o excluirlo de esta partida.
+                      </div>
+                    </>)}
                     {pickedGroupForPlayers&&Object.entries(pickedGroupForPlayers.members||{}).map(([muid,m])=>{
                       if(muid===authUser.uid)return null; // el host ya va incluido siempre
                       if((m.name||"").trim().toLowerCase()===(myDisplayName||"").trim().toLowerCase())return null;
@@ -2558,7 +2599,16 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     T={T}/></>;
 
   if(view==="perfil")return<>{roomInviteModal}<ProfileScreen authUser={authUser} onBack={()=>go("main")}
-    onSaved={p=>setMyProfile(p)} T={T}/></>;
+    onSaved={p=>{
+      // Reaplicar de inmediato a tu fila (índice 0) — antes esto solo
+      // pasaba una vez, la primera vez que cargaba el perfil en esta
+      // sesión, así que si guardabas un cambio después (ej. el seudónimo)
+      // no se reflejaba hasta recargar la página.
+      setMyProfile(p);
+      if(p.nickname)setNames(nm=>{const c=[...nm];c[0]=p.nickname;return c;});
+      if(p.defaultEmoji)setPlayerEmojis(pe=>{const c=[...pe];c[0]=p.defaultEmoji;return c;});
+      if(p.defaultColor)setPlayerColors(pc=>{const c=[...pc];c[0]=p.defaultColor;return c;});
+    }} T={T}/></>;
 
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
