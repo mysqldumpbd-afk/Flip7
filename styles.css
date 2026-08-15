@@ -60,17 +60,17 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
    Más grande que la primera versión (que quedó ilegible) pero sin
    llegar al tamaño de pantalla completa del Home — sigue compartiendo
    fila con idioma/salir y el código de sala. */
-.hero-logo-compact{display:flex;align-items:center;gap:8px;min-width:0}
-.hero-flip-img-sm{width:44px;height:auto;display:block;flex-shrink:0;
+.hero-logo-compact{display:flex;align-items:center;gap:9px;min-width:0}
+.hero-flip-img-sm{width:64px;height:auto;display:block;flex-shrink:0;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.4));
   animation:heroImgPop .7s cubic-bezier(.22,1,.36,1) both,
             heroCardFlip 6s ease-in-out 1s infinite}
-.hero-brand-sub-sm{font-family:'Righteous',sans-serif;font-size:.52rem;letter-spacing:.5px;
+.hero-brand-sub-sm{font-family:'Righteous',sans-serif;font-size:.58rem;letter-spacing:.5px;
   color:rgba(255,255,255,.45);text-transform:uppercase;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;max-width:180px}
-.rolling-tag-sm{overflow:hidden;min-height:1.1em;font-family:'Righteous',sans-serif;
-  font-size:.6rem;letter-spacing:.5px;color:var(--t);text-transform:uppercase;
-  white-space:nowrap;text-overflow:ellipsis;max-width:180px}
+  overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.rolling-tag-sm{overflow:hidden;min-height:1.2em;font-family:'Righteous',sans-serif;
+  font-size:.68rem;letter-spacing:.5px;color:var(--t);text-transform:uppercase;
+  white-space:nowrap;text-overflow:ellipsis;max-width:200px}
 .nav{display:flex;gap:5px;padding:8px 14px 10px}
 .nb{flex:1;border:none;border-radius:10px;font-family:'Righteous',sans-serif;font-size:.68rem;
   letter-spacing:1px;padding:9px 4px;cursor:pointer;transition:all .18s;text-transform:uppercase}

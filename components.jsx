@@ -1003,17 +1003,17 @@ function App(){
   return(
     <div className="wrap">
       <div className="hdr" style={{alignItems:"flex-start"}}>
-        <div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"nowrap",minWidth:0,overflow:"hidden"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:5,minWidth:0,overflow:"hidden"}}>
           <HeroLogoCompact/>
           {room&&room.gameMode&&GAME_MODES[room.gameMode]&&(()=>{
             const gm=GAME_MODES[room.gameMode];
             return gm.image
-              ? <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,flexShrink:0}}>
+              ? <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,marginLeft:2}}>
                   <img src={gm.image} alt={gm.name+" "+gm.subtitle} title={gm.subtitle}
-                    style={{height:36,width:"auto",flexShrink:0,
-                      filter:"drop-shadow(0 0 6px "+gm.glow+") drop-shadow(0 2px 4px rgba(0,0,0,.4))"}}
+                    style={{height:22,width:"auto",flexShrink:0,
+                      filter:"drop-shadow(0 0 5px "+gm.glow+") drop-shadow(0 2px 4px rgba(0,0,0,.4))"}}
                     onError={e=>{e.target.style.display="none";}}/>
-                  {gm.labelEs&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".48rem",
+                  {gm.labelEs&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".46rem",
                     letterSpacing:.5,color:gm.color,whiteSpace:"nowrap"}}>
                     Modo: {gm.labelEs}
                   </div>}
@@ -1021,7 +1021,7 @@ function App(){
               : <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:1,
                   background:gm.badgeColor,border:"1px solid "+gm.badgeBorder,color:gm.color,
                   padding:"4px 9px",borderRadius:20,display:"flex",alignItems:"center",gap:4,
-                  whiteSpace:"nowrap",flexShrink:0}}>
+                  whiteSpace:"nowrap",flexShrink:0,marginLeft:2}}>
                   {gm.emoji} {gm.id.toUpperCase()}
                 </div>;
           })()}
