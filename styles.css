@@ -56,16 +56,21 @@ body{background:var(--dark);font-family:'Nunito',sans-serif;color:#fff}
 .code-mono{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:.85rem;
   letter-spacing:2px}
 
-/* ── Logo animado compacto (header de la partida en curso) ──────── */
-.hero-logo-compact{display:flex;align-items:center;gap:8px}
-.hero-flip-img-sm{width:34px;height:auto;display:block;flex-shrink:0;
-  filter:drop-shadow(0 3px 8px rgba(0,0,0,.4));
+/* ── Logo animado compacto (header de la partida en curso) ──────────
+   Tamaños deliberadamente chicos — este bloque comparte fila con el
+   idioma/salir y el código de sala, así que el logo debe leer como un
+   ícono, no como el protagonista de la pantalla. */
+.hero-logo-compact{display:flex;align-items:center;gap:6px;min-width:0}
+.hero-flip-img-sm{width:22px;height:auto;display:block;flex-shrink:0;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.4));
   animation:heroImgPop .7s cubic-bezier(.22,1,.36,1) both,
             heroCardFlip 6s ease-in-out 1s infinite}
-.hero-brand-sub-sm{font-family:'Righteous',sans-serif;font-size:.42rem;letter-spacing:1px;
-  color:rgba(255,255,255,.35);text-transform:uppercase;white-space:nowrap}
+.hero-brand-sub-sm{font-family:'Righteous',sans-serif;font-size:.38rem;letter-spacing:.5px;
+  color:rgba(255,255,255,.35);text-transform:uppercase;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:140px}
 .rolling-tag-sm{overflow:hidden;min-height:1em;font-family:'Righteous',sans-serif;
-  font-size:.5rem;letter-spacing:1px;color:var(--t);text-transform:uppercase;white-space:nowrap}
+  font-size:.46rem;letter-spacing:.5px;color:var(--t);text-transform:uppercase;
+  white-space:nowrap;text-overflow:ellipsis;max-width:140px}
 .nav{display:flex;gap:5px;padding:8px 14px 10px}
 .nb{flex:1;border:none;border-radius:10px;font-family:'Righteous',sans-serif;font-size:.68rem;
   letter-spacing:1px;padding:9px 4px;cursor:pointer;transition:all .18s;text-transform:uppercase}

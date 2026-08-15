@@ -1001,19 +1001,19 @@ function App(){
   return(
     <div className="wrap">
       <div className="hdr" style={{alignItems:"flex-start"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"nowrap",minWidth:0,overflow:"hidden"}}>
           <HeroLogoCompact/>
           {room&&room.gameMode&&GAME_MODES[room.gameMode]&&(()=>{
             const gm=GAME_MODES[room.gameMode];
             return gm.image
               ? <img src={gm.image} alt={gm.name+" "+gm.subtitle} title={gm.subtitle}
-                  style={{height:40,width:"auto",flexShrink:0,
-                    filter:"drop-shadow(0 0 10px "+gm.glow+") drop-shadow(0 3px 8px rgba(0,0,0,.4))"}}
+                  style={{height:24,width:"auto",flexShrink:0,
+                    filter:"drop-shadow(0 0 5px "+gm.glow+") drop-shadow(0 2px 4px rgba(0,0,0,.4))"}}
                   onError={e=>{e.target.style.display="none";}}/>
               : <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:1,
                   background:gm.badgeColor,border:"1px solid "+gm.badgeBorder,color:gm.color,
                   padding:"4px 9px",borderRadius:20,display:"flex",alignItems:"center",gap:4,
-                  whiteSpace:"nowrap"}}>
+                  whiteSpace:"nowrap",flexShrink:0}}>
                   {gm.emoji} {gm.id.toUpperCase()}
                 </div>;
           })()}
@@ -1147,7 +1147,7 @@ function HeroLogoCompact(){
   return(
     <div className="hero-logo-compact">
       <img src="score7-logo.png" alt="Flip 7" className="hero-flip-img-sm"/>
-      <div>
+      <div style={{minWidth:0,overflow:"hidden"}}>
         <div className="hero-brand-sub-sm">FLIP 7 · UNOFFICIAL SCORETRACK</div>
         <RollingTagline compact/>
       </div>
