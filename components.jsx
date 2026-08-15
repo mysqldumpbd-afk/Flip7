@@ -46,6 +46,22 @@ const uid4=()=>Math.random().toString(36).slice(2,6).toUpperCase();
 const uid=()=>Math.random().toString(36).slice(2,10);
 const fmtDate=ts=>new Date(ts).toLocaleDateString("es-MX",{weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
 
+// Seudónimo para invitados (cuentas anónimas): NO se guarda en Firebase
+// (una cuenta anónima no tiene un lugar persistente/único donde guardarlo
+// entre sesiones), solo en sessionStorage — dura mientras la pestaña del
+// navegador siga abierta, tal como se pidió ("solo para la sesión de uso").
+function getAnonNickname(){ try{return sessionStorage.getItem('f7_anon_nick')||'';}catch(e){return '';} }
+function setAnonNickname(v){ try{ if(v)sessionStorage.setItem('f7_anon_nick',v); else sessionStorage.removeItem('f7_anon_nick'); }catch(e){} }
+// Etiqueta legible del método de acceso a partir de providerData de Firebase Auth
+function providerLabel(user){
+  if(!user)return '';
+  if(user.isAnonymous)return 'Sin cuenta';
+  const pid=user.providerData&&user.providerData[0]&&user.providerData[0].providerId;
+  if(pid==='google.com')return 'Google';
+  if(pid==='password')return 'Correo y contraseña';
+  return 'Cuenta';
+}
+
 // Colores de texto para cada número de carta Flip 7
 const CARD_TEXT_MAP={0:"#FF2FA3",1:"#B7A9C9",2:"#D8E81B",3:"#FF4B78",4:"#19C7D8",5:"#10C96C",6:"#C86AE3",7:"#F48A9A",8:"#9EDB92",9:"#FFA33A",10:"#FF3B3B",11:"#6EBBFF",12:"#B9AEC9"};
 const MOD_TEXT_COLOR="#F25A7A";
@@ -1425,29 +1441,36 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
 // cuando SOS quien gana.
 function ProfileScreen({authUser,onBack,onSaved,T}){
   const uid=authUser&&authUser.uid;
+  const isAnon=authUser&&authUser.isAnonymous;
   const[loading,setLoading]=React.useState(true);
   const[emoji,setEmoji]=React.useState(EMOJIS[0]);
   const[color,setColor]=React.useState(COLORS[0]);
+  const[nickname,setNickname]=React.useState('');
   const[celebration,setCelebration]=React.useState('random'); // 0|1|2|'random'
   const[saving,setSaving]=React.useState(false);
   const[ok,setOk]=React.useState('');
+  // Seudónimo de invitado (sin cuenta) — vive solo en sessionStorage,
+  // nunca se manda a Firebase (ver getAnonNickname arriba).
+  const[anonNick,setAnonNick]=React.useState(()=>getAnonNickname());
+  const[anonOk,setAnonOk]=React.useState('');
 
   React.useEffect(()=>{
-    if(!uid)return;
+    if(!uid||isAnon){setLoading(false);return;}
     _db.ref('users/'+uid).once('value').then(snap=>{
       const v=snap.val()||{};
       if(v.defaultEmoji)setEmoji(v.defaultEmoji);
       if(v.defaultColor)setColor(v.defaultColor);
+      setNickname(v.nickname||'');
       setCelebration(v.preferredCelebration!=null?v.preferredCelebration:'random');
       setLoading(false);
     }).catch(()=>setLoading(false));
-  },[uid]);
+  },[uid,isAnon]);
 
   async function save(){
     setSaving(true);setOk('');
     try{
       const profile={
-        defaultEmoji:emoji,defaultColor:color,
+        defaultEmoji:emoji,defaultColor:color,nickname:nickname.trim(),
         preferredCelebration:celebration==='random'?null:celebration
       };
       await _db.ref('users/'+uid).update(profile);
@@ -1458,20 +1481,58 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
     setSaving(false);
   }
 
-  if(authUser&&authUser.isAnonymous)return(
-    <div className="wrap"><div className="page" style={{paddingTop:32}}>
-      <div style={{textAlign:"center",padding:"40px 20px"}}>
-        <div style={{fontSize:"3rem",marginBottom:12}}>👤</div>
-        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)",letterSpacing:2,marginBottom:8}}>PERFIL</div>
-        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.4)",lineHeight:1.6,marginBottom:20}}>
-          Crea una cuenta para guardar tu emoji, color y celebración favorita.
+  if(isAnon){
+    const label=authUser.email||authUser.displayName||('Invitado '+uid.slice(0,5));
+    return(
+    <div className="wrap"><div className="page" style={{paddingTop:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
+          color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:2,color:"var(--y)"}}>👤 PERFIL</div>
+      </div>
+
+      {/* Identidad actual */}
+      <div style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,.03)",
+        border:"1px solid rgba(255,255,255,.08)",borderRadius:13,padding:"12px 14px",marginBottom:16}}>
+        <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(255,255,255,.08)",
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.3rem",flexShrink:0}}>👤</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:900,fontSize:".85rem",color:"rgba(255,255,255,.85)",
+            whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{label}</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",letterSpacing:1,marginTop:2}}>
+            SIN CUENTA — sesión temporal
+          </div>
         </div>
-        <button onClick={()=>signOut()} className="btn btn-y" style={{maxWidth:280,margin:"0 auto"}}>Crear cuenta</button>
-        <div style={{height:12}}/>
-        <button onClick={onBack} className="btn btn-g" style={{maxWidth:280,margin:"0 auto"}}>← Volver</button>
+      </div>
+
+      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.4)",
+        lineHeight:1.6,marginBottom:16}}>
+        Estás jugando sin cuenta: nada de esto se guarda de forma permanente, solo se usa mientras
+        siga abierta esta sesión del navegador. Si cierras la pestaña o entras desde otro dispositivo, se pierde.
+      </div>
+
+      {/* Seudónimo temporal */}
+      <p className="sec">TU SEUDÓNIMO PARA ESTA SESIÓN</p>
+      <input className="inp" value={anonNick} maxLength={20} placeholder="¿Cómo quieres que te vean en las partidas?"
+        onChange={e=>setAnonNick(e.target.value)} style={{marginBottom:10}}/>
+      {anonOk&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--gr)",
+        textAlign:"center",marginBottom:10}}>{anonOk}</div>}
+      <button className="btn btn-y" style={{marginBottom:20}} onClick={()=>{
+        setAnonNickname(anonNick.trim());snd('join');
+        setAnonOk('✅ Guardado para esta sesión');
+      }}>💾 Usar este seudónimo</button>
+
+      <div style={{borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:16,textAlign:"center"}}>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",
+          marginBottom:12,lineHeight:1.5}}>
+          ¿Quieres que tu emoji, color y estadísticas se guarden entre partidas y dispositivos?
+        </div>
+        <button onClick={()=>signOut()} className="btn btn-g" style={{maxWidth:280,margin:"0 auto"}}>Crear cuenta</button>
       </div>
     </div></div>
-  );
+    );
+  }
 
   return(
     <div className="wrap"><div className="page" style={{paddingTop:16}}>
@@ -1486,12 +1547,47 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
         <div style={{textAlign:"center",paddingTop:30,color:"rgba(255,255,255,.3)",
           fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:2}}>CARGANDO...</div>
       ):(<>
+        {/* Identidad actual */}
+        <div style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,.03)",
+          border:"1px solid rgba(255,255,255,.08)",borderRadius:13,padding:"12px 14px",marginBottom:16}}>
+          {authUser.photoURL
+            ? <img src={authUser.photoURL} style={{width:44,height:44,borderRadius:"50%",objectFit:"cover",flexShrink:0}} alt=""/>
+            : <div style={{width:44,height:44,borderRadius:"50%",background:"var(--y)",
+                display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,
+                fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"var(--dark)"}}>
+                {(authUser.displayName||authUser.email||"?")[0].toUpperCase()}
+              </div>
+          }
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:900,fontSize:".85rem",color:"rgba(255,255,255,.85)",
+              whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+              {authUser.displayName||authUser.email||"Cuenta"}
+            </div>
+            {authUser.email&&authUser.displayName&&
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",
+                whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>{authUser.email}</div>}
+          </div>
+          <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"var(--t)",
+            background:"rgba(46,196,182,.1)",border:"1px solid rgba(46,196,182,.3)",borderRadius:20,
+            padding:"4px 9px",letterSpacing:1,flexShrink:0,whiteSpace:"nowrap"}}>{providerLabel(authUser)}</span>
+        </div>
+
         {/* Preview */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",marginBottom:18}}>
           <div style={{width:64,height:64,borderRadius:"50%",background:color+"22",
             border:"3px solid "+color,display:"flex",alignItems:"center",justifyContent:"center",
             fontSize:"2rem",boxShadow:"0 0 20px "+color+"55"}}>{emoji}</div>
         </div>
+
+        {/* Seudónimo para partidas */}
+        <p className="sec">TU SEUDÓNIMO PARA PARTIDAS</p>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",
+          marginBottom:8,lineHeight:1.5}}>
+          Se usa para pre-llenar tu nombre al crear una partida, sin tener que cambiar tu nombre real de {providerLabel(authUser)}.
+        </div>
+        <input className="inp" value={nickname} maxLength={20}
+          placeholder={authUser.displayName||(authUser.email||"").split("@")[0]||"Tu nombre en partidas"}
+          onChange={e=>setNickname(e.target.value)} style={{marginBottom:16}}/>
 
         {/* Emoji por defecto */}
         <p className="sec">TU EMOJI POR DEFECTO</p>
@@ -1569,9 +1665,11 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   const[pickedFriends,setPickedFriends]=React.useState({}); // uid→true
   const[pickedGroupForPlayers,setPickedGroupForPlayers]=React.useState(null);
   const[pickedGroupMembers,setPickedGroupMembers]=React.useState({}); // uid→true
-  // Pre-fill player 1 with logged user's name
+  // Pre-fill player 1 with logged user's name — o, si no tiene cuenta,
+  // con el seudónimo temporal que haya guardado en Perfil para esta sesión.
   const myDisplayName=authUser&&!authUser.isAnonymous
-    ?(authUser.displayName||(authUser.email||"").split("@")[0]||""):"";
+    ?(authUser.displayName||(authUser.email||"").split("@")[0]||"")
+    :(authUser&&authUser.isAnonymous?getAnonNickname():"");
   const[names,setNames]=useState([myDisplayName,"",""]);
   const[playerEmojis,setPlayerEmojis]=useState(EMOJIS.slice(0,3));
   const[playerColors,setPlayerColors]=useState(COLORS.slice(0,3));
@@ -1588,6 +1686,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       setMyProfile({
         defaultEmoji:v.defaultEmoji||null,
         defaultColor:v.defaultColor||null,
+        nickname:v.nickname||null,
         preferredCelebration:v.preferredCelebration!=null?v.preferredCelebration:null
       });
     }).catch(()=>{});
@@ -1597,6 +1696,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     appliedProfileDefaults.current=true;
     if(myProfile.defaultEmoji)setPlayerEmojis(p=>{const c=[...p];c[0]=myProfile.defaultEmoji;return c;});
     if(myProfile.defaultColor)setPlayerColors(p=>{const c=[...p];c[0]=myProfile.defaultColor;return c;});
+    if(myProfile.nickname)setNames(nm=>{const c=[...nm];c[0]=myProfile.nickname;return c;});
   },[myProfile]);
   const[jcode,setJcode]=useState("");
   const[jname,setJname]=useState("");
@@ -5235,6 +5335,10 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
 // cuántas partidas jugaste ese día. Puro adorno/vanidad, pero le da
 // contexto visual al historial.
 function GameCalendarHeatmap({games}){
+  // Colapsado por defecto cada vez que se entra al historial (el
+  // componente se desmonta al salir del tab, así que este estado
+  // siempre vuelve a arrancar en false al volver a entrar).
+  const[open,setOpen]=React.useState(false);
   const[monthOffset,setMonthOffset]=React.useState(0);
   const now=new Date();
   const viewDate=new Date(now.getFullYear(),now.getMonth()+monthOffset,1);
@@ -5255,10 +5359,24 @@ function GameCalendarHeatmap({games}){
   for(let i=0;i<firstDayOfWeek;i++)cells.push(null);
   for(let d=1;d<=daysInMonth;d++)cells.push(d);
   const colorFor=count=>count?"rgba(245,200,0,"+(0.25+(count/maxCount)*0.65)+")":"rgba(255,255,255,.04)";
+  const gamesThisMonth=Object.values(countByDay).reduce((a,b)=>a+b,0);
 
   return(
     <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",
       borderRadius:13,padding:"12px 13px",marginBottom:14}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{width:"100%",background:"none",border:"none",
+        cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"space-between",
+        marginBottom:open?10:0}}>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
+          color:"rgba(255,255,255,.6)",letterSpacing:1,display:"flex",alignItems:"center",gap:6}}>
+          📅 CALENDARIO
+          {!open&&gamesThisMonth>0&&
+            <span style={{color:"var(--y)"}}>· {gamesThisMonth} este mes</span>}
+        </span>
+        <span style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",
+          transform:open?"rotate(180deg)":"none",transition:"transform .2s"}}>▾</span>
+      </button>
+      {open&&(<>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <button onClick={()=>setMonthOffset(m=>m-1)} style={{background:"none",border:"none",
           color:"rgba(255,255,255,.4)",fontSize:"1rem",cursor:"pointer",padding:"2px 10px"}}>‹</button>
@@ -5300,6 +5418,7 @@ function GameCalendarHeatmap({games}){
         ))}
         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".5rem",color:"rgba(255,255,255,.25)"}}>más</span>
       </div>
+      </>)}
     </div>
   );
 }
