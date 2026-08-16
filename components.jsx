@@ -560,6 +560,16 @@ function App(){
     const t=setTimeout(()=>setStuckLoading(true),6000);
     return()=>clearTimeout(t);
   },[]);
+  // Aviso que se muestra en Home cuando volviste ahí porque el admin
+  // terminó la partida para todos (en vez de quedarte sin explicación
+  // viendo solo "el admin se desconectó"). Se limpia solo después de
+  // unos segundos, o apenas el usuario haga cualquier otra cosa.
+  const[homeNotice,setHomeNotice]=useState(null);
+  React.useEffect(()=>{
+    if(!homeNotice)return;
+    const t=setTimeout(()=>setHomeNotice(null),5000);
+    return()=>clearTimeout(t);
+  },[homeNotice]);
 
   useEffect(()=>{
     async function loadAiConfig(){
@@ -703,6 +713,12 @@ function App(){
       // llega a alcanzar a procesar el eco de su propio escritura) vuelve
       // a Home automáticamente.
       if(data.forceEnded){
+        // Si el que se fue fuiste VOS (host), ya lo sabés — no hace falta
+        // avisarte. Para todos los demás, antes esto los devolvía a Home
+        // en silencio y solo veían "el admin se desconectó" sin enterarse
+        // de que la partida ya había terminado.
+        const iWasHost=data.hostPlayerId!=null?myPlayerIdRef.current===data.hostPlayerId:!myPlayerIdRef.current;
+        if(!iWasHost)setHomeNotice("🚪 El admin terminó la partida");
         leaveGame();
         return;
       }
@@ -1025,7 +1041,17 @@ function App(){
     </div>
   );
   if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}/>;
-  if(screen==="home")return<HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>;
+  if(screen==="home")return<>
+    {homeNotice&&(
+      <div onClick={()=>setHomeNotice(null)} style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",
+        zIndex:400,maxWidth:"min(92vw,420px)",background:"linear-gradient(135deg,rgba(230,57,70,.95),rgba(123,45,139,.95))",
+        borderRadius:16,padding:"12px 20px",boxShadow:"0 10px 34px rgba(0,0,0,.5)",cursor:"pointer",
+        animation:"roundToastIn .4s cubic-bezier(.34,1.56,.64,1) both, roundToastOut .4s ease-in 4.4s both"}}>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",color:"#fff",letterSpacing:1}}>{homeNotice}</span>
+      </div>
+    )}
+    <HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>
+  </>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
 
   // Animación revancha para TODOS (host la ve también para sincronía visual)
@@ -2913,6 +2939,11 @@ function ErrBox({err}){
   );
 }
 
+// Paleta para el color aleatorio de la insignia de ronda — colores
+// saturados que se leen bien con texto blanco encima (nada de blanco ni
+// pasteles muy claros, que se pierden contra el fondo oscuro del pill).
+const ROUND_BADGE_COLORS=["#7B2D8B","#E63946","#1A4FCC","#3BB273","#FF6B35","#2EC4B6","#B8195B"];
+
 // ── ROUNDTAB ──────────────────────────────────────────────────
 function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,demoMode,aiConfig,setAiConfig,onRematch,onEndGame,onTransferHost,onEndGameForAll,roomCode,T}){
   const[scanModal,setScan]=useState(null);
@@ -2930,16 +2961,24 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
   const[otherRowUnlocked,setOtherRowUnlocked]=useState(false);
 
   // Aviso de ronda nueva — toast animado + sonido cuando room.round sube,
-  // para que se note claramente que arrancó otra ronda.
+  // para que se note claramente que arrancó otra ronda. La insignia
+  // "RONDA N" (antes solo "R1") también cambia a un color aleatorio
+  // distinto del anterior en cada cambio, para que el cambio se note de
+  // un vistazo aunque te hayas perdido la animación.
   const prevRoundRef=useRef(room.round);
   const[roundToast,setRoundToast]=useState(false);
+  const[roundColor,setRoundColor]=useState(ROUND_BADGE_COLORS[0]);
   React.useEffect(()=>{
     if(prevRoundRef.current!==room.round){
       prevRoundRef.current=room.round;
       if(!room.finished){
         setRoundToast(true);
-        snd('round');
-        setTimeout(()=>setRoundToast(false),1800);
+        setRoundColor(prev=>{
+          const pool=ROUND_BADGE_COLORS.filter(c=>c!==prev);
+          return pool[Math.floor(Math.random()*pool.length)];
+        });
+        snd('roundchange');
+        setTimeout(()=>setRoundToast(false),2200);
       }
     }
   },[room.round]);
@@ -2996,10 +3035,16 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           <div style={{display:"flex",gap:8}}>
             {/* Solo el host puede iniciar revancha */}
             {isHost
-              ? <button className="btn btn-y" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={()=>onRematch(room.players)}>{T.rematch}</button>
-              : <div style={{flex:1,padding:"12px",background:"rgba(255,255,255,.05)",borderRadius:14,fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:1,display:"flex",alignItems:"center",justifyContent:"center"}}>⏳ Esperando revancha del admin</div>
+              ? <button className="btn btn-y" style={{flex:1,minWidth:0,fontSize:".9rem",padding:"12px"}} onClick={()=>onRematch(room.players)}>{T.rematch}</button>
+              : <div style={{flex:1,minWidth:0,padding:"12px",background:"rgba(255,255,255,.05)",borderRadius:14,fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:1,display:"flex",alignItems:"center",justifyContent:"center"}}>⏳ Esperando revancha del admin</div>
             }
-            <button className="btn btn-g" style={{flex:1,fontSize:".9rem",padding:"12px"}} onClick={onEndGame}>{T.endGame}</button>
+            {/* Si sos host, "Terminar" cierra la partida para TODOS (avisa a
+                los demás y los regresa a Home) — antes solo te sacaba a vos,
+                y a los demás les quedaba pegado el aviso de "admin
+                desconectado" sin explicarles que la partida ya terminó. Si
+                NO sos host, sigue siendo solo salir vos. */}
+            <button className="btn btn-g" style={{flex:1,minWidth:0,fontSize:".9rem",padding:"12px"}}
+              onClick={isHost?onEndGameForAll:onEndGame}>{T.endGame}</button>
           </div>
         </div>
       )}
@@ -3051,12 +3096,18 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         );
       })()}
       {roundToast&&(
-        <div style={{position:"fixed",top:70,left:"50%",transform:"translateX(-50%)",zIndex:300,
-          background:"linear-gradient(135deg,var(--pu),#5A2070)",borderRadius:20,
-          padding:"10px 22px",boxShadow:"0 8px 30px rgba(123,45,139,.5)",
-          animation:"roundToastIn .4s cubic-bezier(.34,1.56,.64,1) both, roundToastOut .4s ease-in 1.4s both",
+        // Antes quedaba pegado justo debajo del header fijo (top:70) — con
+        // el header más alto que tiene ahora el logo, se veía tapado a
+        // medias y no se notaba. Bajado más, y más grande/con más brillo
+        // (usa el mismo color aleatorio que la insignia RONDA de abajo).
+        <div style={{position:"fixed",top:130,left:"50%",transform:"translateX(-50%)",zIndex:300,
+          background:"linear-gradient(135deg,"+roundColor+",#000000cc)",borderRadius:22,
+          padding:"14px 30px",border:"2px solid rgba(255,255,255,.25)",
+          boxShadow:"0 10px 40px "+roundColor+"99",
+          animation:"roundToastIn .4s cubic-bezier(.34,1.56,.64,1) both, roundToastOut .4s ease-in 1.8s both",
           pointerEvents:"none"}}>
-          <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"#fff",letterSpacing:2}}>
+          <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:"#fff",letterSpacing:2,
+            textShadow:"0 2px 10px rgba(0,0,0,.5)"}}>
             🎴 RONDA {room.round}
           </span>
         </div>
@@ -3078,7 +3129,13 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
             title="Toca para copiar"
             onClick={()=>{try{navigator.clipboard.writeText(roomCode);snd("score");}catch(e){}}}
           >SALA: <span className="code-mono" style={{fontSize:".9rem",letterSpacing:1}}>{roomCode}</span></div>
-          <div className="rbd">R{room.round}</div>
+          {/* Palabra completa (antes solo "R1") + color aleatorio que
+              cambia cada ronda — ver efecto de arriba — para que el
+              avance se note de un vistazo, no solo con la animación. */}
+          <div className="rbd" style={{background:"linear-gradient(135deg,"+roundColor+","+roundColor+"cc)",
+            boxShadow:"0 2px 10px "+roundColor+"55",transition:"background .3s"}}>
+            RONDA {room.round}
+          </div>
         </div>
       </div>
       {/* Controles de host — solo visibles para quien tiene el rol */}

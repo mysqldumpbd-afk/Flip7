@@ -184,6 +184,15 @@ function snd(t){
   else if(t==='spec_join'){
     [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.15,'sine',.3),i*180));
   }
+  else if(t==='roundchange'){
+    // Aviso de ronda nueva — mucho más largo y notorio que 'round' (que
+    // se usa para acciones rápidas como cerrar ronda o unirse), para que
+    // se note claramente aunque no estés mirando la pantalla ese instante.
+    const notes=[392,440,523,659,784,659,523,659,784,880];
+    const durs=[.12,.12,.12,.18,.35,.12,.12,.18,.4,.5];
+    let t2=0;
+    notes.forEach((f,i)=>{setTimeout(()=>beep(f,durs[i],'triangle',.32),t2*1000);t2+=durs[i]+.03;});
+  }
   else if(t==='jungle'){
     // Celebración Selva — tambores graves y rápidos, cierre con un chillido agudo
     const beat=[100,80,100,120,80,100,140];

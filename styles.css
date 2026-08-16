@@ -471,9 +471,9 @@ tbody tr:last-child td{border-bottom:none}
   color:rgba(255,255,255,.3);text-transform:uppercase;margin-bottom:9px}
 .div{height:1px;background:rgba(255,255,255,.07);margin:14px 0}
 .rsb{display:flex;align-items:center;justify-content:space-between}
-.rbd{font-family:'Anton',sans-serif;font-size:1rem;letter-spacing:2px;
-  background:linear-gradient(135deg,var(--pu),#5A2070);color:white;
-  padding:5px 14px;border-radius:20px;box-shadow:0 2px 10px rgba(123,45,139,.3)}
+.rbd{font-family:'Anton',sans-serif;font-size:.82rem;letter-spacing:1px;
+  background:linear-gradient(135deg,var(--pu),#5A2070);color:white;white-space:nowrap;
+  padding:5px 12px;border-radius:20px;box-shadow:0 2px 10px rgba(123,45,139,.3)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--gr);
   animation:blink 1.4s ease-in-out infinite;display:inline-block;flex-shrink:0}
 .dot.demo{background:var(--pu)}
