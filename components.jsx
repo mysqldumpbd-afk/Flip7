@@ -3417,7 +3417,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           </button>
         </div>
       )}
-      {scanModal&&<ScanModal playerName={scanModal.name} currentTotal={room.players.find(p=>p.id===scanModal.pid)?.total||0} aiConfig={aiConfig} setAiConfig={setAiConfig} onResult={s=>{submitWithLock(scanModal.pid,s,"scan");setScan(null);}} onClose={()=>setScan(null)}/>}
+      {scanModal&&<ScanModal playerName={scanModal.name} currentTotal={room.players.find(p=>p.id===scanModal.pid)?.total||0} aiConfig={aiConfig} setAiConfig={setAiConfig} gameMode={gameMode} onResult={(s,bd)=>{submitWithLock(scanModal.pid,s,"scan",bd);setScan(null);}} onClose={()=>setScan(null)}/>}
       {cardModal&&<CardPickerModal playerName={cardModal.name} currentTotal={room.players.find(p=>p.id===cardModal.pid)?.total||0} onSubmit={function(s,bd){submitWithLock(cardModal.pid,s,"cards",bd);setCard(null);}} onClose={()=>setCard(null)}/>}
       {/* ManualModal recibe initialScore para permitir corrección */}
       {manModal&&<ManualModal playerName={manModal.name} currentTotal={room.players.find(p=>p.id===manModal.pid)?.total||0} initialScore={manModal.initialScore} gameMode={gameMode} onSubmit={s=>{submitWithLock(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
@@ -3820,7 +3820,8 @@ function SesCards({sessions,onClear,T}){
 }
 
 // ── SCANMODAL — Árbitro de Cartas™ (motor interno, key de Firebase) ──
-function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
+function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode}){
+  var isVenganza=gameMode==="venganza";
   var useState=React.useState,useRef=React.useRef,useEffect=React.useEffect;
   var ph=useState("pick"),img_=useState(null),b64_=useState(null),mime_=useState("image/jpeg");
   var res_=useState(null),err_=useState(""),keyLoaded_=useState(false),claudeKey_=useState("");
@@ -3847,7 +3848,15 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
     fetchKey();
   },[]);
 
-  var PROMPT="Mira esta foto de cartas del juego Flip 7 (Classic o With a Vengeance).\n\nTu UNICA tarea: identificar los NUMEROS de las cartas de fondo BLANCO o CREMA que ves claramente.\n\nCARTAS NUMERICAS POSIBLES:\n- Classic: 0 al 12. El 0 tiene color rosa/magenta.\n- With a Vengeance: 0 al 13. Cada numero tiene un color distinto.\n\nCOLORES DE REFERENCIA (With a Vengeance):\n0=rosa/magenta, 1=gris, 2=amarillo-verde, 3=rojo-rosa, 4=cyan, 5=verde, 6=morado, 7=salmon, 8=verde claro, 9=naranja, 10=rojo oscuro, 11=azul, 12=gris-cafe, 13=azul brillante\n\nIGNORA completamente:\n- Cartas de fondo AMARILLO/DORADO (modificadores)\n- Cartas de accion (Swap, Steal, Discard, Flip Four, Just One More)\n- Cartas bocabajo\n\nNOTA: si hay exactamente 7 cartas distintas, el jugador hizo Flip 7 (bonus +15).\n\nResponde UNICAMENTE con JSON sin markdown:\n{\"cards\":[<lista de numeros enteros>],\"total\":<suma de los numeros>,\"flip7\":<true si hay 7 cartas unicas>,\"note\":\"<que viste>\"}"
+  // Antes el prompt le decia a la IA que IGNORARA por completo las cartas
+  // modificadoras (x2/+N) y las de accion -- por eso nunca se marcaban solas
+  // en el resultado, aunque el modelo si es capaz de leerlas. Ahora se le
+  // pide identificarlas tambien, con un prompt distinto segun el modo de
+  // la sala (los modificadores y las cartas de accion son diferentes en
+  // Clasico vs. Venganza).
+  var PROMPT_CLASSIC="Mira esta foto de cartas del juego Flip 7 (version Clasica).\n\nIdentifica TODO lo que hay en la foto, en 3 categorias:\n\n1) CARTAS NUMERICAS (fondo blanco/crema, numeros del 0 al 12; el 0 es rosa/magenta): lista cada numero que veas.\n2) CARTAS MODIFICADORAS (fondo AMARILLO/DORADO): indica si hay una carta \"x2\", y por separado cuales de estas cartas de sumar estan presentes: +2, +4, +6, +8, +10.\n3) CARTAS DE ACCION (ilustradas, sin numero): indica si aparece alguna de: \"Freeze\", \"Flip Three\", \"Second Chance\". Si aparece mas de una vez, incluyela una vez por cada aparicion.\n\nIGNORA cartas bocabajo o que no se lean con claridad.\n\nNOTA: si hay exactamente 7 cartas numericas distintas, el jugador hizo Flip 7 (bonus +15).\n\nResponde UNICAMENTE con JSON sin markdown:\n{\"cards\":[<numeros enteros 0-12>],\"multiplier\":<2 si hay carta x2, si no null>,\"plus_cards\":[<subconjunto de 2,4,6,8,10 presentes>],\"action_cards\":[<nombres, uno por cada aparicion>],\"flip7\":<true si hay 7 cartas unicas>,\"note\":\"<que viste>\"}";
+  var PROMPT_VENGANZA="Mira esta foto de cartas del juego Flip 7: With a Vengeance (Venganza).\n\nIdentifica TODO lo que hay en la foto, en 3 categorias:\n\n1) CARTAS NUMERICAS (fondo blanco/crema, numeros del 0 al 13, cada numero con un color distinto): lista cada numero que veas.\nCOLORES DE REFERENCIA: 0=rosa/magenta, 1=gris, 2=amarillo-verde, 3=rojo-rosa, 4=cyan, 5=verde, 6=morado, 7=salmon, 8=verde claro, 9=naranja, 10=rojo oscuro, 11=azul, 12=gris-cafe, 13=azul brillante.\n2) CARTAS MODIFICADORAS NEGATIVAS (fondo oscuro/rojo): indica si hay una carta \"/2\", y por separado cuales de estas cartas de restar estan presentes: -2, -4, -6, -8, -10.\n3) CARTAS DE ACCION (ilustradas, sin numero): indica si aparece alguna de: \"Just One More\", \"Swap\", \"Steal\", \"Discard\", \"Flip Four\", \"Lucky 13\", \"Unlucky 7\". Si aparece mas de una vez, incluyela una vez por cada aparicion.\n\nIGNORA cartas bocabajo o que no se lean con claridad.\n\nNOTA: si hay exactamente 7 cartas numericas distintas, el jugador hizo Flip 7 (bonus +15).\n\nResponde UNICAMENTE con JSON sin markdown:\n{\"cards\":[<numeros enteros 0-13>],\"divide\":<true si hay carta /2, si no false>,\"minus_cards\":[<subconjunto de 2,4,6,8,10 presentes, solo la magnitud>],\"action_cards\":[<nombres, uno por cada aparicion>],\"flip7\":<true si hay 7 cartas unicas>,\"note\":\"<que viste>\"}";
+  var PROMPT=isVenganza?PROMPT_VENGANZA:PROMPT_CLASSIC;
 
   function handleFile(e){
     var f=e.target.files[0];if(!f)return;
@@ -3944,6 +3953,8 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
       if(!Array.isArray(parsed.cards))parsed.cards=[];
       if(parsed.base_cards!==undefined&&!Array.isArray(parsed.base_cards))parsed.base_cards=[];
       if(parsed.plus_cards!==undefined&&!Array.isArray(parsed.plus_cards))parsed.plus_cards=[];
+      if(parsed.minus_cards!==undefined&&!Array.isArray(parsed.minus_cards))parsed.minus_cards=[];
+      if(parsed.action_cards!==undefined&&!Array.isArray(parsed.action_cards))parsed.action_cards=[];
       snd("score");setRes(parsed);setPhase("result");
     }catch(e){
       var m=e.message||"";
@@ -4005,7 +4016,7 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
           )
         ),
 
-        phase==="result"&&res&&React.createElement(ResultEditor,{res:res,onResult:onResult,onRetake:retake,currentTotal:currentTotal}),
+        phase==="result"&&res&&React.createElement(ResultEditor,{res:res,onResult:onResult,onRetake:retake,currentTotal:currentTotal,gameMode:gameMode}),
 
         phase==="error"&&React.createElement(React.Fragment,null,
           React.createElement("div",{style:{textAlign:"center",padding:"16px 0"}},
@@ -4023,12 +4034,14 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
 }
 
 // ── RESULTEDITOR — cartas grandes + paleta rápida + regla 1 carta/número ──
-function ResultEditor({res,onResult,onRetake,currentTotal}){
+function ResultEditor({res,onResult,onRetake,currentTotal,gameMode}){
+  const isVenganza=gameMode==="venganza";
+  const NUM_MAX=isVenganza?13:12;
   // Regla: máximo 1 de cada número. Si IA detectó duplicados, filtrar y avisar.
   // Blindaje extra (además del saneo en analyze()): si "cards"/"base_cards"
   // llegara en un formato no-array por cualquier otra vía, no truena el render.
   const rawSrc=res.cards||res.base_cards||[];
-  const rawCards=(Array.isArray(rawSrc)?rawSrc:[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=12);
+  const rawCards=(Array.isArray(rawSrc)?rawSrc:[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=NUM_MAX);
   const seen=new Set();
   const dedupCards=[];
   const duplicatesFound=[];
@@ -4038,14 +4051,29 @@ function ResultEditor({res,onResult,onRetake,currentTotal}){
   });
 
   const[cards,setCards]=React.useState(dedupCards);
-  const[multiplier,setMultiplier]=React.useState(res.multiplier||null);
-  const[plusCards,setPlusCards]=React.useState((Array.isArray(res.plus_cards)?res.plus_cards:[]).map(Number).filter(n=>n>0));
+  // Modificadores Clásico (x2 / +N) — ya venían soportados por el estado,
+  // solo faltaba que el prompt le pidiera a la IA detectarlos en vez de
+  // ignorarlos, así que ahora sí llegan pre-marcados desde la foto.
+  const[multiplier,setMultiplier]=React.useState(!isVenganza?(res.multiplier||null):null);
+  const[plusCards,setPlusCards]=React.useState(!isVenganza?(Array.isArray(res.plus_cards)?res.plus_cards:[]).map(Number).filter(n=>n>0):[]);
+  // Modificadores Venganza (/2 / -N) — mismo cálculo oficial que usa
+  // VenganzaCardPickerModal: Suma -> /2 -> -N -> min 0 -> +15 flip7.
+  const[hasDivTwo,setHasDivTwo]=React.useState(isVenganza?!!res.divide:false);
+  const[negMods,setNegMods]=React.useState(isVenganza?(Array.isArray(res.minus_cards)?res.minus_cards:[]).map(Number).filter(n=>n>0).map(n=>-n):[]);
+  // Cartas de acción detectadas — solo informativas (su efecto se resuelve
+  // en la mesa), se guardan en el desglose para que quede registro.
+  const[actionCards,setActionCards]=React.useState(Array.isArray(res.action_cards)?res.action_cards:[]);
+
   // Flip 7 bonus: se deriva ÚNICAMENTE de tener las 7 cartas — no es algo
   // que se pueda activar/desactivar a mano, solo se gana completando el Flip 7.
   const flip7=cards.length===MAX_CARDS;
   const baseTotal=cards.reduce((a,b)=>Number(a)+Number(b),0);
   const afterMult=multiplier?baseTotal*multiplier:baseTotal;
-  const total=afterMult+plusCards.reduce((a,b)=>Number(a)+Number(b),0)+(flip7?FLIP7_BONUS:0);
+  const afterDiv=hasDivTwo?Math.floor(baseTotal/2):baseTotal;
+  const afterNeg=Math.max(0,afterDiv+negMods.reduce((a,b)=>a+b,0));
+  const total=isVenganza
+    ? afterNeg+(flip7?FLIP7_BONUS:0)
+    : afterMult+plusCards.reduce((a,b)=>Number(a)+Number(b),0)+(flip7?FLIP7_BONUS:0);
 
   function removeCard(idx){
     snd("del");
@@ -4058,9 +4086,26 @@ function ResultEditor({res,onResult,onRetake,currentTotal}){
     snd("score");
     setCards(c=>[...c,n]);
   }
+  function removeActionCard(name){
+    snd("del");
+    setActionCards(list=>{
+      const i=list.indexOf(name);
+      if(i<0)return list;
+      const next=list.slice();next.splice(i,1);return next;
+    });
+  }
+
+  const CLASSIC_ACTION_CARDS=["Freeze","Flip Three","Second Chance"];
+  const VENGANZA_ACTION_CARDS=["Just One More","Swap","Steal","Discard","Flip Four","Lucky 13","Unlucky 7"];
+  // Agrupa duplicados ("Flip Three","Flip Three" → "2× Flip Three"), tal
+  // como se ven las cartas repetidas en la mesa real.
+  const actionCardCounts=actionCards.reduce((acc,name)=>{acc[name]=(acc[name]||0)+1;return acc;},{});
+  const actionCardNames=Object.keys(actionCardCounts);
 
   // Disponibles = los que NO están ya en cards (máx 1 por número, regla del juego)
-  const availableCards=ALL_CARD_NUMS.filter(n=>!cards.includes(n));
+  const ALL_NUMS_MODE=isVenganza?[0,1,2,3,4,5,6,7,8,9,10,11,12,13]:ALL_CARD_NUMS;
+  const availableCards=ALL_NUMS_MODE.filter(n=>!cards.includes(n));
+  const colorFor=n=>isVenganza?(VENG_CARD_TEXT[n]||"#333"):(CARD_TEXT_MAP[n]||"#333");
 
   return(
     React.createElement(React.Fragment,null,
@@ -4068,13 +4113,19 @@ function ResultEditor({res,onResult,onRetake,currentTotal}){
       React.createElement("div",{style:{marginBottom:12}},
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:10,textAlign:"center"}},"CARTAS DETECTADAS — toca para quitar"),
         // Aviso si el Árbitro detectó números duplicados (regla: 1 por número)
-        duplicatesFound.length>0&&React.createElement("div",{style:{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.3)",borderRadius:10,padding:"7px 12px",marginBottom:10,fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--y)",letterSpacing:1,textAlign:"center"}},
-          "⚠️ "+duplicatesFound.join(", ")+" aparecen dos veces en la foto — solo puntúan cartas diferentes"
+        // + recordatorio de que en Flip 7 sacar un número repetido es un
+        // reventón — antes solo se avisaba que "no puntúan cartas
+        // duplicadas", sin recordar explícitamente que eso significa perder
+        // la ronda si de verdad ocurrió durante el turno.
+        duplicatesFound.length>0&&React.createElement("div",{style:{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.3)",borderRadius:10,padding:"7px 12px",marginBottom:10,fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--y)",letterSpacing:1,textAlign:"center",lineHeight:1.5}},
+          "⚠️ "+duplicatesFound.join(", ")+" aparecen dos veces en la foto — solo puntúan cartas diferentes.",
+          React.createElement("br"),
+          React.createElement("span",{style:{opacity:.85,fontWeight:500}},"Si de verdad sacaste dos números iguales en tu turno, eso es un reventón — considera anotar 💀 Cero en vez de confirmar este puntaje.")
         ),
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:10,justifyContent:"center",minHeight:56,alignItems:"center",padding:"4px 0"}},
           cards.length===0&&React.createElement("div",{style:{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}},"Sin cartas — agrega de la paleta"),
           cards.map((n,i)=>React.createElement("div",{key:i,className:"card-chip",onClick:()=>removeCard(i)},
-            React.createElement("span",{className:"card-chip-num",style:{color:CARD_TEXT_MAP[n]||"#333"}},n),
+            React.createElement("span",{className:"card-chip-num",style:{color:colorFor(n)}},n),
             React.createElement("button",{className:"card-chip-rm",onClick:(e)=>{e.stopPropagation();removeCard(i);}},"✕")
           ))
         )
@@ -4083,36 +4134,62 @@ function ResultEditor({res,onResult,onRetake,currentTotal}){
       // Total
       React.createElement("div",{style:{textAlign:"center",padding:"8px 0 10px",borderTop:"1px solid rgba(255,255,255,.08)",borderBottom:"1px solid rgba(255,255,255,.08)",marginBottom:12}},
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2}},"TOTAL FINAL"),
-        React.createElement("div",{style:{fontFamily:"'Anton',sans-serif",fontSize:"4.5rem",color:"var(--y)",lineHeight:1,textShadow:"4px 4px 0 var(--or)"}},total),
+        React.createElement("div",{style:{fontFamily:"'Anton',sans-serif",fontSize:"4.5rem",color:isVenganza?"var(--r)":"var(--y)",lineHeight:1,textShadow:"4px 4px 0 "+(isVenganza?"rgba(230,57,70,.4)":"var(--or)")}},total),
         cards.length>0&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",marginTop:4,lineHeight:1.6}},
-          multiplier||plusCards.length>0||flip7
-            ? React.createElement(React.Fragment,null,
-                React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},"Base: "+cards.join("+"+(cards.length>1?" ":""))+" = "+baseTotal),
-                multiplier&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(255,120,120,.8)"}},"x"+multiplier+" = "+(baseTotal*multiplier))),
-                plusCards.length>0&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(100,220,150,.8)"}},"+ "+plusCards.join("+")+" = "+afterMult+plusCards.reduce(function(a,b){return a+Number(b);},0))),
-                flip7&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"var(--y)",fontWeight:700}},"+ 15 Flip 7 = "+total))
-              )
-            : React.createElement("span",null,cards.length>1?cards.join(" + ")+" = "+baseTotal:"")
+          isVenganza
+            ? (hasDivTwo||negMods.length>0||flip7
+                ? React.createElement(React.Fragment,null,
+                    React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},"Base: "+cards.join("+"+(cards.length>1?" ":""))+" = "+baseTotal),
+                    hasDivTwo&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(230,57,70,.8)"}},"÷2 = "+afterDiv)),
+                    negMods.length>0&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(230,57,70,.8)"}},negMods.join("")+" = "+afterNeg+(afterNeg<afterDiv?" (min 0)":""))),
+                    flip7&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"var(--y)",fontWeight:700}},"+ 15 Flip 7 = "+total))
+                  )
+                : React.createElement("span",null,cards.length>1?cards.join(" + ")+" = "+baseTotal:""))
+            : (multiplier||plusCards.length>0||flip7
+                ? React.createElement(React.Fragment,null,
+                    React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},"Base: "+cards.join("+"+(cards.length>1?" ":""))+" = "+baseTotal),
+                    multiplier&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(255,120,120,.8)"}},"x"+multiplier+" = "+(baseTotal*multiplier))),
+                    plusCards.length>0&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(100,220,150,.8)"}},"+ "+plusCards.join("+")+" = "+afterMult+plusCards.reduce(function(a,b){return a+Number(b);},0))),
+                    flip7&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"var(--y)",fontWeight:700}},"+ 15 Flip 7 = "+total))
+                  )
+                : React.createElement("span",null,cards.length>1?cards.join(" + ")+" = "+baseTotal:""))
         ),
         res.note&&React.createElement("div",{style:{color:"rgba(255,255,255,.25)",fontSize:".68rem",fontWeight:700,marginTop:5,fontStyle:"italic"}},res.note)
       ),
 
-      // Modificadores
+      // Modificadores — botones distintos según el modo (antes el Árbitro
+      // los ignoraba por completo; ahora el prompt le pide detectarlos y
+      // este bloque ya los muestra pre-marcados, aunque siempre se pueden
+      // corregir a mano tocándolos).
       React.createElement("div",{style:{marginBottom:12}},
-        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6,textAlign:"center"}},"MODIFICADORES — toca para aplicar"),
-        React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:6}},
-          React.createElement("button",{onClick:()=>{snd("op");setMultiplier(m=>m?null:2);},
-            style:{border:"2px solid "+(multiplier===2?MOD_TEXT_COLOR:"rgba(242,90,122,.3)"),background:multiplier===2?MOD_BG_COLOR:"rgba(246,166,35,.1)",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:multiplier===2?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:56,textAlign:"center"}},
-            "x2",multiplier===2&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}},"ACTIVO")
-          ),
-          [2,4,6,8,10].map(n=>{
-            const active=plusCards.includes(n);
-            return React.createElement("button",{key:n,onClick:()=>{snd("op");setPlusCards(p=>active?p.filter(x=>x!==n):[...p,n]);},
-              style:{border:"2px solid "+(active?MOD_TEXT_COLOR:"rgba(242,90,122,.25)"),background:active?MOD_BG_COLOR:"rgba(246,166,35,.08)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:48,textAlign:"center"}},
-              "+"+n,active&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}},"✓")
-            );
-          })
-        )
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6,textAlign:"center"}},"MODIFICADORES — toca para corregir"),
+        isVenganza
+          ? React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"center",marginBottom:6}},
+              React.createElement("button",{onClick:()=>{snd("op");setHasDivTwo(v=>!v);},
+                style:{border:"2px solid "+(hasDivTwo?"var(--r)":"rgba(230,57,70,.25)"),background:hasDivTwo?"var(--r)":"rgba(230,57,70,.07)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:hasDivTwo?"#fff":"var(--r)",transition:"all .2s",minWidth:52,textAlign:"center"}},
+                "÷2",hasDivTwo&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"#fff",letterSpacing:1,marginTop:1}},"ON")
+              ),
+              [2,4,6,8,10].map(n=>{
+                const active=negMods.includes(-n);
+                return React.createElement("button",{key:n,onClick:()=>{snd("op");setNegMods(p=>active?p.filter(x=>x!==-n):[...p,-n]);},
+                  style:{border:"2px solid "+(active?"var(--r)":"rgba(230,57,70,.2)"),background:active?"var(--r)":"rgba(230,57,70,.05)",borderRadius:10,padding:"8px 10px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"#fff":"var(--r)",transition:"all .2s",minWidth:44,textAlign:"center"}},
+                  "-"+n,active&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"#fff",letterSpacing:1,marginTop:1}},"ON")
+                );
+              })
+            )
+          : React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:6}},
+              React.createElement("button",{onClick:()=>{snd("op");setMultiplier(m=>m?null:2);},
+                style:{border:"2px solid "+(multiplier===2?MOD_TEXT_COLOR:"rgba(242,90,122,.3)"),background:multiplier===2?MOD_BG_COLOR:"rgba(246,166,35,.1)",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:multiplier===2?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:56,textAlign:"center"}},
+                "x2",multiplier===2&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}},"ACTIVO")
+              ),
+              [2,4,6,8,10].map(n=>{
+                const active=plusCards.includes(n);
+                return React.createElement("button",{key:n,onClick:()=>{snd("op");setPlusCards(p=>active?p.filter(x=>x!==n):[...p,n]);},
+                  style:{border:"2px solid "+(active?MOD_TEXT_COLOR:"rgba(242,90,122,.25)"),background:active?MOD_BG_COLOR:"rgba(246,166,35,.08)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:48,textAlign:"center"}},
+                  "+"+n,active&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}},"✓")
+                );
+              })
+            )
       ),
 
       // ── FLIP 7 BONUS ─────────────────────────────────────────
@@ -4143,6 +4220,37 @@ function ResultEditor({res,onResult,onRetake,currentTotal}){
           transition:"all .2s"
         }},flip7?"+15":"±0")
       ),
+
+      // ── CARTAS DE ACCIÓN DETECTADAS (informativo, no afectan el total —
+      // su efecto se resuelve en la mesa) ───────────────────────────
+      actionCardNames.length>0&&React.createElement("div",{style:{
+        background:"rgba(123,45,139,.08)",border:"1px solid rgba(123,45,139,.25)",
+        borderRadius:12,padding:"10px 12px",marginBottom:12
+      }},
+        React.createElement("div",{style:{
+          fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
+          color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:7,textAlign:"center"
+        }},"CARTAS DE ACCIÓN DETECTADAS — toca para quitar si no aplica"),
+        React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center"}},
+          actionCardNames.map(name=>{
+            const count=actionCardCounts[name];
+            return React.createElement("button",{
+              key:name,
+              onClick:()=>removeActionCard(name),
+              style:{
+                background:"linear-gradient(135deg,#7B2D8B,#5A1F70)",
+                border:"2px solid rgba(200,100,255,.8)",
+                borderRadius:20,padding:"8px 14px",cursor:"pointer",
+                fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+                color:"#fff",letterSpacing:.5,
+                boxShadow:"0 0 16px rgba(123,45,139,.6)",
+                display:"inline-flex",alignItems:"center",gap:5
+              }
+            },(count>1?count+"× ":"")+name," ✕");
+          })
+        )
+      ),
+
       // Paleta rápida — cartas disponibles (1 clic para agregar)
       React.createElement("div",{style:{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"10px 12px",marginBottom:12}},
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8,textAlign:"center"}},"➕ AGREGAR CARTA — toca para sumar"),
@@ -4156,7 +4264,7 @@ function ResultEditor({res,onResult,onRetake,currentTotal}){
               )
             : availableCards.map(n=>
                 React.createElement("button",{key:n,className:"avail-card",onClick:()=>addCard(n),
-                  style:{color:CARD_TEXT_MAP[n]||"white",borderColor:CARD_TEXT_MAP[n]+"44"}},
+                  style:{color:colorFor(n),borderColor:colorFor(n)+"44"}},
                   n
                 )
               )
@@ -4172,7 +4280,13 @@ function ResultEditor({res,onResult,onRetake,currentTotal}){
       // Botones confirm/retake
       React.createElement("div",{className:"mr2"},
         React.createElement("button",{className:"mc",onClick:()=>{snd("tap");onRetake();}},"📷 Repetir foto"),
-        React.createElement("button",{className:"mo",onClick:()=>{snd("score");onResult(total);},disabled:cards.length===0},"✓ Confirmar "+total+(flip7?" (incl. +15 Flip 7)":"")+" pts")
+        React.createElement("button",{className:"mo",onClick:()=>{
+          snd("score");
+          const bd=isVenganza
+            ?{cards:cards.slice(),flip7,divTwo:hasDivTwo,negMods:negMods.slice(),actionCards:actionCards.slice()}
+            :{cards:cards.slice(),flip7,multiplier,plusCards:plusCards.slice(),actionCards:actionCards.slice()};
+          onResult(total,bd);
+        },disabled:cards.length===0},"✓ Confirmar "+total+(flip7?" (incl. +15 Flip 7)":"")+" pts")
       )
     )
   );
