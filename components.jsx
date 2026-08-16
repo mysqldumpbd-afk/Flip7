@@ -468,7 +468,7 @@ function RoundChangeOverlay({round,color}){
         ))}
       </div>
       <div style={{position:"relative",zIndex:1}}>
-        <div className="roundbig-icon">🎴</div>
+        <img src="score7-logo.png" alt="" className="roundbig-logo"/>
         <div className="roundbig-title" style={{color:color}}>RONDA {round}</div>
       </div>
     </div>
@@ -3552,6 +3552,30 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
   const[showRematch,setShowRematch]=React.useState(false);
   React.useEffect(()=>{snd('spec_join');setTimeout(()=>setShowJoinAnim(false),2800);},[]);
   React.useEffect(()=>{if(winner)setShowWinnerOverlay(true);},[winner]);
+  // Mismo aviso de "cambio de ronda" a pantalla completa que ya está en la
+  // partida (RoundTab) — antes esta pantalla no lo tenía, y es justo la
+  // que más se beneficia (es la que se deja abierta en una tablet). El
+  // primer valor de room.round que llega al conectarse NO cuenta como
+  // cambio — es solo alcanzar el estado actual de la sala.
+  const prevSpecRoundRef=React.useRef(null);
+  const[roundToast,setRoundToast]=React.useState(false);
+  const[roundColor,setRoundColor]=React.useState(ROUND_BADGE_COLORS[0]);
+  React.useEffect(()=>{
+    if(!room)return;
+    if(prevSpecRoundRef.current===null){prevSpecRoundRef.current=room.round;return;}
+    if(prevSpecRoundRef.current!==room.round){
+      prevSpecRoundRef.current=room.round;
+      if(!room.finished){
+        setRoundToast(true);
+        setRoundColor(prev=>{
+          const pool=ROUND_BADGE_COLORS.filter(c=>c!==prev);
+          return pool[Math.floor(Math.random()*pool.length)];
+        });
+        snd('roundchange');
+        setTimeout(()=>setRoundToast(false),2400);
+      }
+    }
+  },[room?.round]);
   // Detectar rematchPending en el room para espectador
   React.useEffect(()=>{
     if(room&&room.rematchPending){setShowRematch(true);setShowWinnerOverlay(false);}
@@ -3578,6 +3602,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
           <div style={{animation:"slidePill .5s .4s both",fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)",letterSpacing:3,background:"rgba(255,255,255,.06)",padding:"8px 20px",borderRadius:30,border:"1px solid rgba(255,255,255,.1)"}}>SALA <span className="code-mono">{roomCode}</span> · LIVE</div>
         </div>
       </div>}
+      {roundToast&&<RoundChangeOverlay round={room.round} color={roundColor}/>}
       {showWinnerOverlay&&winner&&(
         <div style={{position:"fixed",inset:0,zIndex:400,background:"radial-gradient(circle at 50% 35%,#2a1800 0%,#0F0F1A 65%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:28,overflow:"hidden"}}>
           {Array.from({length:40},(_,i)=>({c:["#F5C800","#E63946","#2EC4B6","#FF6B35","#fff","#3BB273"][i%6],l:Math.random()*100+"%",dl:Math.random()*2.5+"s",dr:2.5+Math.random()*2.5+"s",sz:7+Math.random()*10+"px",sh:Math.random()>.5?"2px":"50%"})).map((d,i)=>(
@@ -3652,7 +3677,10 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
           </div>
           {maxRound>0&&(<>
             <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"4px 0 12px"}}/>
-            <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>AVANCE POR RONDAS</p>
+            <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>{T.roundProgress||"AVANCE POR RONDA"}</p>
+            <RoundProgressChart sorted={sorted} target={target} mr={maxRound}/>
+            <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"12px 0"}}/>
+            <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>TABLA DE RONDAS</p>
             <div className="tw">
               <table>
                 <thead><tr><th>Jugador</th>{Array.from({length:maxRound},(_,i)=><th key={i}>R{i+1}</th>)}<th>Total</th></tr></thead>
