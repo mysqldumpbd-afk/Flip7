@@ -856,9 +856,17 @@ function App(){
       var r=await db.get("rooms/"+code);
       if(!r){try{localStorage.removeItem("f7lastCode");}catch(e){}return;}
       setDemoMode(false);setRoomCode(code);
-      // Si entra como host (sin playerId) reconecta con control total
+      // BUG FIX: antes esto ponía myPlayerId en null al reconectar como
+      // host, asumiendo "sos host si no tenés playerId" — pero isHost ya
+      // no funciona así: desde que existe la transferencia de admin,
+      // isHost compara myPlayerId contra room.hostPlayerId (un id de
+      // jugador real) cada vez que ese campo existe. Reconectar con
+      // myPlayerId=null nunca coincidía con room.hostPlayerId, así que
+      // "Reconectarme como Admin" te dejaba sin ningún control (isHost
+      // quedaba en false), como si solo pudieras ver la partida. Ahora se
+      // usa el hostPlayerId real que ya trae la sala.
       setIsSpectator(false);
-      setMyPlayerId(asHost?null:(r.hostName?null:null));
+      setMyPlayerId(asHost?(r.hostPlayerId!=null?r.hostPlayerId:null):null);
       subscribe(code,db);
       if(asHost){
         var hostRef=_db.ref("rooms/"+code+"/hostOnline");
@@ -3924,6 +3932,18 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
       var parsed;
       try{ parsed=JSON.parse(clean); }
       catch(pe){ throw new Error("El Árbitro tuvo un momento confuso. Intenta de nuevo."); }
+      // BUG FIX — pantalla en negro al analizar: la IA a veces devuelve
+      // "cards"/"plus_cards" en un formato distinto al esperado (string,
+      // objeto, o ausente) en vez de un array. ResultEditor asume que son
+      // arrays y llama .map()/.filter() directamente sobre ellos — si no
+      // lo son, React lanza una excepción DURANTE EL RENDER (no dentro de
+      // este try/catch, que solo cubre la llamada a la IA), y como la app
+      // no tiene un Error Boundary, todo el árbol de React se desmonta y
+      // queda la página en negro (el fondo oscuro de <body> sin nada
+      // encima). Se sanea acá, en el único lugar que arma "res".
+      if(!Array.isArray(parsed.cards))parsed.cards=[];
+      if(parsed.base_cards!==undefined&&!Array.isArray(parsed.base_cards))parsed.base_cards=[];
+      if(parsed.plus_cards!==undefined&&!Array.isArray(parsed.plus_cards))parsed.plus_cards=[];
       snd("score");setRes(parsed);setPhase("result");
     }catch(e){
       var m=e.message||"";
@@ -4005,7 +4025,10 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
 // ── RESULTEDITOR — cartas grandes + paleta rápida + regla 1 carta/número ──
 function ResultEditor({res,onResult,onRetake}){
   // Regla: máximo 1 de cada número. Si IA detectó duplicados, filtrar y avisar.
-  const rawCards=(res.cards||res.base_cards||[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=12);
+  // Blindaje extra (además del saneo en analyze()): si "cards"/"base_cards"
+  // llegara en un formato no-array por cualquier otra vía, no truena el render.
+  const rawSrc=res.cards||res.base_cards||[];
+  const rawCards=(Array.isArray(rawSrc)?rawSrc:[]).map(v=>Number(v)).filter(n=>!isNaN(n)&&n>=0&&n<=12);
   const seen=new Set();
   const dedupCards=[];
   const duplicatesFound=[];
@@ -4016,7 +4039,7 @@ function ResultEditor({res,onResult,onRetake}){
 
   const[cards,setCards]=React.useState(dedupCards);
   const[multiplier,setMultiplier]=React.useState(res.multiplier||null);
-  const[plusCards,setPlusCards]=React.useState((res.plus_cards||[]).map(Number).filter(n=>n>0));
+  const[plusCards,setPlusCards]=React.useState((Array.isArray(res.plus_cards)?res.plus_cards:[]).map(Number).filter(n=>n>0));
   // Flip 7 bonus: se deriva ÚNICAMENTE de tener las 7 cartas — no es algo
   // que se pueda activar/desactivar a mano, solo se gana completando el Flip 7.
   const flip7=cards.length===MAX_CARDS;
@@ -6996,4 +7019,42 @@ function WinnerScreen({winner,celebrationType,players,target,onClose,onRematch,i
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+// ── ERRORBOUNDARY — red de seguridad ───────────────────────────
+// La app no tenía ningún Error Boundary: cualquier excepción sin capturar
+// durante un render (por ejemplo, una respuesta de la IA con un formato
+// inesperado) tumbaba TODO el árbol de React sin avisar — como el fondo
+// de <body> es casi negro (#0F0F1A), eso se veía literalmente como una
+// "pantalla en negro", sin ningún mensaje ni forma de recuperarse salvo
+// recargar a ciegas. Ahora, si algo se rompe durante el render, se
+// muestra una pantalla de error real con botón para reintentar.
+class ErrorBoundary extends React.Component{
+  constructor(props){
+    super(props);
+    this.state={hasError:false,msg:""};
+  }
+  static getDerivedStateFromError(err){
+    return{hasError:true,msg:(err&&err.message)||"Error desconocido"};
+  }
+  componentDidCatch(err,info){
+    console.error("Flip7 — error no capturado:",err,info&&info.componentStack);
+  }
+  render(){
+    if(this.state.hasError){
+      return React.createElement("div",{style:{minHeight:"100vh",display:"flex",flexDirection:"column",
+        alignItems:"center",justifyContent:"center",padding:28,textAlign:"center",background:"var(--dark)"}},
+        React.createElement("div",{style:{fontSize:"2.8rem",marginBottom:14}},"😵"),
+        React.createElement("div",{style:{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",
+          marginBottom:10,letterSpacing:1}},"Algo salió mal"),
+        React.createElement("div",{style:{color:"rgba(255,255,255,.45)",fontSize:".78rem",marginBottom:8,
+          maxWidth:320,lineHeight:1.5}},"La app tuvo un error inesperado y no puede seguir en esta pantalla."),
+        React.createElement("div",{style:{color:"rgba(255,255,255,.3)",fontSize:".68rem",marginBottom:24,
+          maxWidth:320,wordBreak:"break-word",fontFamily:"monospace"}},this.state.msg),
+        React.createElement("button",{className:"btn btn-y",style:{maxWidth:260},
+          onClick:()=>{window.location.reload();}},"🔄 Recargar la app")
+      );
+    }
+    return this.props.children;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(ErrorBoundary,null,React.createElement(App)));
