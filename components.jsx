@@ -904,6 +904,16 @@ function App(){
 
   // Cuando el no-host termina la animación, la sala ya fue reseteada
   function onRematchAnimDone(){
+    // BUG FIX: a los no-host (jugadores normales Y espectadores) nunca se
+    // les reseteaba winnerShown tras una revancha — solo el host lo hacía
+    // (dentro de startRematch). Como el listener de arriba solo dispara la
+    // celebración/guardado de stats cuando "!winnerShown.current", cualquier
+    // cliente que NO fuera host se quedaba con winnerShown en true para
+    // siempre después de la partida 1, y silenciosamente dejaba de detectar
+    // el fin de la partida 2, 3, etc. (sin celebración, sin sonido). Esto es
+    // justo lo que reportaste en "Marcador en vivo": la 2ª celebración en
+    // adelante no aparecía porque nunca se resetaba en ese cliente.
+    winnerShown.current=false;
     setRematchPending(false);setWinner(null);setTab("round");
   }
 
@@ -1083,7 +1093,7 @@ function App(){
     )}
     <HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>
   </>;
-  if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} T={T}/>;
+  if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} onRematchAnimDone={onRematchAnimDone} T={T}/>;
 
   // Animación revancha para TODOS (host la ve también para sincronía visual)
   if(rematchPending){
@@ -3546,8 +3556,6 @@ function ScoreTab({sorted,room,T}){
                   title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
                     ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(hasFlip?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}>
                   {r.score===0?"💀":(r.score>0?"+":"")+r.score}
-                  {hasFlip&&<span style={{fontSize:".55rem",position:"absolute",top:1,right:2,lineHeight:1}}>🃏</span>}
-                  {hasMod&&<span style={{fontSize:".55rem",position:"absolute",bottom:1,right:2,lineHeight:1,opacity:.6}}>✱</span>}
                 </td>);
               })}
               {Array.from({length:mr-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
@@ -3568,7 +3576,7 @@ function ScoreTab({sorted,room,T}){
 }
 
 // ── SPECTATORSCREEN — con revancha animación ──────────────────
-function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
+function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchAnimDone,T}){
   // Misma corrección que en RoundTab/ScoreTab: usar la meta real de la
   // sala en vez de 200 fijo, para que el % y "faltan X pts" cuadren con
   // partidas creadas a 100/150/250/300.
@@ -3614,7 +3622,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
   const maxRound=(room?.round||1)-1;
 
   if(showRematch){
-    return<RematchOverlay onDone={()=>setShowRematch(false)}/>;
+    return<RematchOverlay onDone={()=>{setShowRematch(false);onRematchAnimDone&&onRematchAnimDone();}}/>;
   }
 
   return(
@@ -3719,8 +3727,6 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
                   title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
                     ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(hasFlip?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}>
                   {r.score===0?"💀":(r.score>0?"+":"")+r.score}
-                  {hasFlip&&<span style={{fontSize:".55rem",position:"absolute",top:1,right:2,lineHeight:1}}>🃏</span>}
-                  {hasMod&&<span style={{fontSize:".55rem",position:"absolute",bottom:1,right:2,lineHeight:1,opacity:.6}}>✱</span>}
                 </td>);
               })}
                     {Array.from({length:maxRound-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
@@ -5953,8 +5959,6 @@ function GameRoundsTable({gameId,highlightId}){
                     title={r.breakdown&&r.breakdown.cards&&r.breakdown.cards.length>0
                       ?"["+r.breakdown.cards.slice().sort((a,b)=>a-b).join(",")+"]"+(hasFlip?" +15🃏":"")+(r.breakdown.multiplier?" x"+r.breakdown.multiplier:"")+(r.breakdown.divTwo?" /2":"")+(r.breakdown.negMods&&r.breakdown.negMods.length>0?" "+r.breakdown.negMods.join(""):""): ""}>
                     {r.score===0?"💀":(r.score>0?"+":"")+r.score}
-                    {hasFlip&&<span style={{fontSize:".55rem",position:"absolute",top:1,right:2,lineHeight:1}}>🃏</span>}
-                    {hasMod&&<span style={{fontSize:".55rem",position:"absolute",bottom:1,right:2,lineHeight:1,opacity:.6}}>✱</span>}
                   </td>);
                 })}
                 {Array.from({length:maxRounds-(p.rounds||[]).length},(_,i)=><td key={"e"+i}></td>)}
