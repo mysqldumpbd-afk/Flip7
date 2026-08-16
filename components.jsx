@@ -3825,11 +3825,18 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
   var useState=React.useState,useRef=React.useRef,useEffect=React.useEffect;
   var ph=useState("pick"),img_=useState(null),b64_=useState(null),mime_=useState("image/jpeg");
   var res_=useState(null),err_=useState(""),keyLoaded_=useState(false),claudeKey_=useState("");
+  var attempt_=useState(0);
   var phase=ph[0],setPhase=ph[1],img=img_[0],setImg=img_[1],b64=b64_[0],setB64=b64_[1];
   var mime=mime_[0],setMime=mime_[1],res=res_[0],setRes=res_[1];
   var errMsg=err_[0],setErrMsg=err_[1];
   var keyLoaded=keyLoaded_[0],setKeyLoaded=keyLoaded_[1];
   var claudeKey=claudeKey_[0],setClaudeKey=claudeKey_[1];
+  // scanAttempt se incrementa en cada retake() y se usa como "key" del
+  // ResultEditor mas abajo -- esto obliga a React a desmontar/remontar el
+  // componente por completo en vez de reutilizar la instancia anterior,
+  // garantizando que ningun estado (modificadores, cartas de accion, etc.)
+  // sobreviva entre una foto y la siguiente.
+  var scanAttempt=attempt_[0],setScanAttempt=attempt_[1];
   var fileRef=useRef();
 
   // Cargar Claude key de Firebase al abrir — silencioso, sin UI de config
@@ -3854,8 +3861,8 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
   // pide identificarlas tambien, con un prompt distinto segun el modo de
   // la sala (los modificadores y las cartas de accion son diferentes en
   // Clasico vs. Venganza).
-  var PROMPT_CLASSIC="Mira esta foto de cartas del juego Flip 7 (version Clasica).\n\nIdentifica TODO lo que hay en la foto, en 3 categorias:\n\n1) CARTAS NUMERICAS (fondo blanco/crema, numeros del 0 al 12; el 0 es rosa/magenta): lista cada numero que veas.\n2) CARTAS MODIFICADORAS (fondo AMARILLO/DORADO): indica si hay una carta \"x2\", y por separado cuales de estas cartas de sumar estan presentes: +2, +4, +6, +8, +10.\n3) CARTAS DE ACCION (ilustradas, sin numero): indica si aparece alguna de: \"Freeze\", \"Flip Three\", \"Second Chance\". Si aparece mas de una vez, incluyela una vez por cada aparicion.\n\nIGNORA cartas bocabajo o que no se lean con claridad.\n\nNOTA: si hay exactamente 7 cartas numericas distintas, el jugador hizo Flip 7 (bonus +15).\n\nResponde UNICAMENTE con JSON sin markdown:\n{\"cards\":[<numeros enteros 0-12>],\"multiplier\":<2 si hay carta x2, si no null>,\"plus_cards\":[<subconjunto de 2,4,6,8,10 presentes>],\"action_cards\":[<nombres, uno por cada aparicion>],\"flip7\":<true si hay 7 cartas unicas>,\"note\":\"<que viste>\"}";
-  var PROMPT_VENGANZA="Mira esta foto de cartas del juego Flip 7: With a Vengeance (Venganza).\n\nIdentifica TODO lo que hay en la foto, en 3 categorias:\n\n1) CARTAS NUMERICAS (fondo blanco/crema, numeros del 0 al 13, cada numero con un color distinto): lista cada numero que veas.\nCOLORES DE REFERENCIA: 0=rosa/magenta, 1=gris, 2=amarillo-verde, 3=rojo-rosa, 4=cyan, 5=verde, 6=morado, 7=salmon, 8=verde claro, 9=naranja, 10=rojo oscuro, 11=azul, 12=gris-cafe, 13=azul brillante.\n2) CARTAS MODIFICADORAS NEGATIVAS (fondo oscuro/rojo): indica si hay una carta \"/2\", y por separado cuales de estas cartas de restar estan presentes: -2, -4, -6, -8, -10.\n3) CARTAS DE ACCION (ilustradas, sin numero): indica si aparece alguna de: \"Just One More\", \"Swap\", \"Steal\", \"Discard\", \"Flip Four\", \"Lucky 13\", \"Unlucky 7\". Si aparece mas de una vez, incluyela una vez por cada aparicion.\n\nIGNORA cartas bocabajo o que no se lean con claridad.\n\nNOTA: si hay exactamente 7 cartas numericas distintas, el jugador hizo Flip 7 (bonus +15).\n\nResponde UNICAMENTE con JSON sin markdown:\n{\"cards\":[<numeros enteros 0-13>],\"divide\":<true si hay carta /2, si no false>,\"minus_cards\":[<subconjunto de 2,4,6,8,10 presentes, solo la magnitud>],\"action_cards\":[<nombres, uno por cada aparicion>],\"flip7\":<true si hay 7 cartas unicas>,\"note\":\"<que viste>\"}";
+  var PROMPT_CLASSIC="Mira esta foto de cartas del juego Flip 7 (version Clasica).\n\nIdentifica TODO lo que hay en la foto, en 3 categorias:\n\n1) CARTAS NUMERICAS (fondo blanco/crema, numeros del 0 al 12; el 0 es rosa/magenta): lista cada numero que veas.\n2) CARTAS MODIFICADORAS (fondo AMARILLO/DORADO): indica si hay una carta \"x2\", y por separado cuales de estas cartas de sumar estan presentes: +2, +4, +6, +8, +10.\n3) CARTAS DE ACCION (ilustradas, sin numero): indica si aparece alguna de: \"Freeze\", \"Flip Three\", \"Second Chance\". Si aparece mas de una vez, incluyela una vez por cada aparicion.\n\nIGNORA cartas bocabajo o que no se lean con claridad.\n\nNOTA: si hay exactamente 7 cartas numericas distintas, el jugador hizo Flip 7 (bonus +15).\n\nREGLAS DE CONTEO -- muy importante:\n- Cuenta cada carta FISICA una sola vez. No repitas un numero, un modificador ni una carta de accion en tu respuesta a menos que puedas ver, con TOTAL certeza, dos copias separadas de esa misma carta en la foto.\n- Ante la duda entre ver 1 o 2 copias de la misma carta, responde 1 -- es mejor subcontar que inventar una copia que no esta ahi.\n- No asumas que un modificador esta presente si no ves su carta con claridad -- no marques el multiplicador/divisor ni ninguna carta de sumar o restar a menos que la veas fisicamente en la foto.\n- Cuenta las cartas de accion (Freeze, Flip Three, etc.) una por una, contando cada carta fisica distinta que veas -- no asumas que hay mas copias de las que realmente puedes distinguir en la imagen.\n\nResponde UNICAMENTE con JSON sin markdown:\n{\"cards\":[<numeros enteros 0-12>],\"multiplier\":<2 si hay carta x2, si no null>,\"plus_cards\":[<subconjunto de 2,4,6,8,10 presentes>],\"action_cards\":[<nombres, uno por cada aparicion>],\"flip7\":<true si hay 7 cartas unicas>,\"note\":\"<que viste>\"}";
+  var PROMPT_VENGANZA="Mira esta foto de cartas del juego Flip 7: With a Vengeance (Venganza).\n\nIdentifica TODO lo que hay en la foto, en 3 categorias:\n\n1) CARTAS NUMERICAS (fondo blanco/crema, numeros del 0 al 13, cada numero con un color distinto): lista cada numero que veas.\nCOLORES DE REFERENCIA: 0=rosa/magenta, 1=gris, 2=amarillo-verde, 3=rojo-rosa, 4=cyan, 5=verde, 6=morado, 7=salmon, 8=verde claro, 9=naranja, 10=rojo oscuro, 11=azul, 12=gris-cafe, 13=azul brillante.\n2) CARTAS MODIFICADORAS NEGATIVAS (fondo oscuro/rojo): indica si hay una carta \"/2\", y por separado cuales de estas cartas de restar estan presentes: -2, -4, -6, -8, -10.\n3) CARTAS DE ACCION (ilustradas, sin numero): indica si aparece alguna de: \"Just One More\", \"Swap\", \"Steal\", \"Discard\", \"Flip Four\", \"Lucky 13\", \"Unlucky 7\". Si aparece mas de una vez, incluyela una vez por cada aparicion.\n\nIGNORA cartas bocabajo o que no se lean con claridad.\n\nNOTA: si hay exactamente 7 cartas numericas distintas, el jugador hizo Flip 7 (bonus +15).\n\nREGLAS DE CONTEO -- muy importante:\n- Cuenta cada carta FISICA una sola vez. No repitas un numero, un modificador ni una carta de accion en tu respuesta a menos que puedas ver, con TOTAL certeza, dos copias separadas de esa misma carta en la foto.\n- Ante la duda entre ver 1 o 2 copias de la misma carta, responde 1 -- es mejor subcontar que inventar una copia que no esta ahi.\n- No asumas que un modificador esta presente si no ves su carta con claridad -- no marques el multiplicador/divisor ni ninguna carta de sumar o restar a menos que la veas fisicamente en la foto.\n- Cuenta las cartas de accion (Freeze, Flip Three, etc.) una por una, contando cada carta fisica distinta que veas -- no asumas que hay mas copias de las que realmente puedes distinguir en la imagen.\n\nResponde UNICAMENTE con JSON sin markdown:\n{\"cards\":[<numeros enteros 0-13>],\"divide\":<true si hay carta /2, si no false>,\"minus_cards\":[<subconjunto de 2,4,6,8,10 presentes, solo la magnitud>],\"action_cards\":[<nombres, uno por cada aparicion>],\"flip7\":<true si hay 7 cartas unicas>,\"note\":\"<que viste>\"}";
   var PROMPT=isVenganza?PROMPT_VENGANZA:PROMPT_CLASSIC;
 
   function handleFile(e){
@@ -3902,7 +3909,7 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
         resp=await fetch(proxyUrl,{
           method:"POST",
           headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({messages:messages})
+          body:JSON.stringify({messages:messages,temperature:0})
         });
       } else {
         // MODO FALLBACK: llamada directa (insegura — usar solo en desarrollo)
@@ -3919,7 +3926,7 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
         resp=await fetch("https://api.anthropic.com/v1/messages",{
           method:"POST",
           headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-          body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:400,messages:messages})
+          body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:400,temperature:0,messages:messages})
         });
       }
 
@@ -3968,6 +3975,7 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
     setImg(null);setB64(null);setRes(null);setErrMsg("");
     setMime("image/jpeg");
     setPhase("pick");
+    setScanAttempt(function(n){return n+1;});
     if(fileRef.current)fileRef.current.value="";
   }
 
@@ -4016,7 +4024,7 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
           )
         ),
 
-        phase==="result"&&res&&React.createElement(ResultEditor,{res:res,onResult:onResult,onRetake:retake,currentTotal:currentTotal,gameMode:gameMode}),
+        phase==="result"&&res&&React.createElement(ResultEditor,{key:scanAttempt,res:res,onResult:onResult,onRetake:retake,onClose:onClose,currentTotal:currentTotal,gameMode:gameMode}),
 
         phase==="error"&&React.createElement(React.Fragment,null,
           React.createElement("div",{style:{textAlign:"center",padding:"16px 0"}},
@@ -4034,7 +4042,7 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
 }
 
 // ── RESULTEDITOR — cartas grandes + paleta rápida + regla 1 carta/número ──
-function ResultEditor({res,onResult,onRetake,currentTotal,gameMode}){
+function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
   const isVenganza=gameMode==="venganza";
   const NUM_MAX=isVenganza?13:12;
   // Regla: máximo 1 de cada número. Si IA detectó duplicados, filtrar y avisar.
@@ -4093,6 +4101,15 @@ function ResultEditor({res,onResult,onRetake,currentTotal,gameMode}){
       if(i<0)return list;
       const next=list.slice();next.splice(i,1);return next;
     });
+  }
+  // Marcar Cero directo -- para cuando el jugador se "reventó" (repitió
+  // número) y quiere anotar 0 sin tener que ajustar manualmente las cartas.
+  function handleZero(){
+    snd("zero");
+    const bd=isVenganza
+      ?{cards:[],flip7:false,divTwo:false,negMods:[],actionCards:[]}
+      :{cards:[],flip7:false,multiplier:null,plusCards:[],actionCards:[]};
+    onResult(0,bd);
   }
 
   const CLASSIC_ACTION_CARDS=["Freeze","Flip Three","Second Chance"];
@@ -4287,6 +4304,24 @@ function ResultEditor({res,onResult,onRetake,currentTotal,gameMode}){
             :{cards:cards.slice(),flip7,multiplier,plusCards:plusCards.slice(),actionCards:actionCards.slice()};
           onResult(total,bd);
         },disabled:cards.length===0},"✓ Confirmar "+total+(flip7?" (incl. +15 Flip 7)":"")+" pts")
+      ),
+      // Cancelar (cierra el modal sin anotar) + Cero directo -- para cuando
+      // el jugador se reventó y no necesita ajustar cartas, solo anotar 0.
+      onClose&&React.createElement("div",{style:{display:"flex",gap:8,marginTop:8}},
+        React.createElement("button",{className:"mc",style:{flex:1},
+          onClick:()=>{snd("tap");onClose();}
+        },"Salir sin anotar"),
+        React.createElement("button",{
+          onClick:handleZero,
+          style:{
+            flex:1,background:"rgba(255,255,255,.06)",
+            border:"2px solid rgba(255,255,255,.25)",borderRadius:11,
+            padding:"12px",cursor:"pointer",
+            fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
+            color:"rgba(255,255,255,.75)",letterSpacing:.5,
+            transition:"all .2s",fontWeight:700
+          }
+        },"💀 Cero esta ronda")
       )
     )
   );
