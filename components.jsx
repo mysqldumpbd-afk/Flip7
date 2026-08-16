@@ -2625,6 +2625,17 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         <div className="hero-logo" style={{fontSize:"2.4rem"}}>{joinIntent==="spectate"?"VER MARCADOR":"UNIRSE"}</div>
         <div className="hero-tag">Código de sala</div>
       </div>
+      {/* Movido aquí (antes solo aparecía DENTRO de la pantalla en vivo) —
+          la idea es invitar a usarlo ANTES de que decidan cómo van a ver
+          la partida, no explicárselo cuando ya están adentro. */}
+      {joinIntent==="spectate"&&(
+        <div style={{textAlign:"center",background:"rgba(46,196,182,.06)",border:"1px solid rgba(46,196,182,.25)",
+          borderRadius:13,padding:"10px 14px",marginBottom:14,fontFamily:"'Righteous',sans-serif",
+          fontSize:".68rem",color:"rgba(255,255,255,.6)",lineHeight:1.6}}>
+          💡 Ideal para dejar abierta en una tablet o pantalla en medio de la mesa — todos ven los puntajes
+          actualizarse en vivo, sin que nadie tenga que pasarse el celular.
+        </div>
+      )}
       {!pickingPlayer&&(<>
         <p className="sec">CÓDIGO DE SALA</p>
         <input className="inp code-inp" placeholder="XXXX" maxLength={4} value={jcode}
@@ -3518,13 +3529,6 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
         <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:5,color:"var(--t)"}}>📡 MARCADOR EN VIVO</div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.3)",letterSpacing:2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:3}}>
           <span className="dot"/>SALA <span className="code-mono">{roomCode}</span> · RONDA {room?.round||""}
-        </div>
-        {/* Este modo está pensado justo para esto: dejarlo abierto en una
-            tablet o pantalla compartida y que muestre los resultados a
-            todos en tiempo real, sin que nadie tenga que ir tocando nada. */}
-        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.28)",
-          letterSpacing:.5,marginTop:6,lineHeight:1.4}}>
-          💡 Ideal para dejar abierta en una tablet o pantalla compartida — se actualiza sola
         </div>
       </div>
       {!room?(
