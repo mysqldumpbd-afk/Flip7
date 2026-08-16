@@ -1099,7 +1099,7 @@ function App(){
         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",color:"#fff",letterSpacing:1}}>{homeNotice}</span>
       </div>
     )}
-    <HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>
+    <HomeScreen onEnter={enterGame} onLobby={createLobby} sessions={sessions} setSessions={setSessions} aiConfig={aiConfig} setAiConfig={setAiConfig} lang={lang} setLang={setLang} T={T} authUser={authUser} reconnectReady={reconnectReady} lastKnownCode={lastKnownCode} onReconnect={reconnectToLastRoom} onDismissReconnect={()=>{setReconnectReady(false);try{localStorage.removeItem('f7lastCode');}catch(e){};}}/>
   </>;
   if(isSpectator)return<SpectatorScreen room={room} sorted={sorted} roomCode={roomCode} demoMode={demoMode} onBack={leaveGame} winner={winner} onRematchAnimDone={onRematchAnimDone} T={T}/>;
 
@@ -1812,7 +1812,7 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
 }
 
 // ── HOMESCREEN ────────────────────────────────────────────────
-function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUser,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
+function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setLang,T,authUser,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
   const[view,setView]=useState("main");
   const[showSecondaryMenu,setShowSecondaryMenu]=React.useState(false);
   const[upgradeModal,setUpgradeModal]=React.useState(null); // {label} | null
@@ -4005,7 +4005,7 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
           )
         ),
 
-        phase==="result"&&res&&React.createElement(ResultEditor,{res:res,onResult:onResult,onRetake:retake}),
+        phase==="result"&&res&&React.createElement(ResultEditor,{res:res,onResult:onResult,onRetake:retake,currentTotal:currentTotal}),
 
         phase==="error"&&React.createElement(React.Fragment,null,
           React.createElement("div",{style:{textAlign:"center",padding:"16px 0"}},
@@ -4023,7 +4023,7 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig}){
 }
 
 // ── RESULTEDITOR — cartas grandes + paleta rápida + regla 1 carta/número ──
-function ResultEditor({res,onResult,onRetake}){
+function ResultEditor({res,onResult,onRetake,currentTotal}){
   // Regla: máximo 1 de cada número. Si IA detectó duplicados, filtrar y avisar.
   // Blindaje extra (además del saneo en analyze()): si "cards"/"base_cards"
   // llegara en un formato no-array por cualquier otra vía, no truena el render.
