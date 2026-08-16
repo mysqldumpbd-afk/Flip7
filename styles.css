@@ -545,6 +545,21 @@ tbody tr:last-child td{border-bottom:none}
 @keyframes counterPop{0%{transform:scale(2);opacity:0}100%{transform:scale(1);opacity:1}}
 .rematch-sparks{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 
+/* ── 17b. CAMBIO DE RONDA — animación de pantalla completa ────
+   Antes era un pill chiquito pegado al header y se perdía. Ahora ocupa
+   toda la pantalla un par de segundos, mismo criterio visual que la
+   animación de Revancha de arriba. */
+.roundbig-overlay{position:fixed;inset:0;z-index:550;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;overflow:hidden;pointer-events:none;
+  animation:roundBigIn .5s cubic-bezier(.34,1.56,.64,1) both,
+            roundBigOut .5s ease-in 1.9s both}
+@keyframes roundBigIn{0%{opacity:0;transform:scale(.7)}100%{opacity:1;transform:scale(1)}}
+@keyframes roundBigOut{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.08)}}
+.roundbig-icon{font-size:5rem;margin-bottom:10px;animation:fl 1s ease-in-out infinite}
+.roundbig-title{font-family:'Anton',sans-serif;font-size:4.6rem;letter-spacing:6px;line-height:1;
+  text-shadow:0 0 40px currentColor;animation:rematchPulse .6s ease-in-out infinite alternate}
+
 /* ── 18. PENDING / ME-DONE STATES ───────────────────────────── */
 /* Card del jugador cuando YA confirmó su puntuación */
 .pr.me-done{

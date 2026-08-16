@@ -444,6 +444,37 @@ function RematchOverlay({onDone}){
   );
 }
 
+// ── AVISO DE RONDA NUEVA — pantalla completa (antes era un pill chiquito
+// que quedaba tapado por el header y no se notaba). Usa el mismo color
+// aleatorio que la insignia "RONDA N" persistente, para que se vea como
+// una sola cosa y no dos avisos con colores distintos.
+function RoundChangeOverlay({round,color}){
+  const sparks=React.useMemo(()=>Array.from({length:24},(_,i)=>({
+    c:[color,"#F5C800","#ffffff"][i%3],
+    l:Math.round(Math.random()*100)+"%",
+    t:Math.round(Math.random()*100)+"%",
+    s:Math.round(6+Math.random()*10)+"px",
+    dl:Math.round(Math.random()*20)/10+"s",
+    dr:Math.round((1.5+Math.random()*2)*10)/10+"s",
+    sh:Math.random()>.5?"2px":"50%"
+  })),[round,color]);
+  return(
+    <div className="roundbig-overlay" style={{background:"radial-gradient(circle at 50% 45%,"+color+"3a 0%,#0a0a18 70%)"}}>
+      <div className="rematch-sparks">
+        {sparks.map((s,i)=>(
+          <div key={i} style={{position:"absolute",background:s.c,width:s.s,height:s.s,
+            left:s.l,top:s.t,borderRadius:s.sh,opacity:.5,
+            animation:"cf "+s.dr+" "+s.dl+" linear infinite"}}/>
+        ))}
+      </div>
+      <div style={{position:"relative",zIndex:1}}>
+        <div className="roundbig-icon">🎴</div>
+        <div className="roundbig-title" style={{color:color}}>RONDA {round}</div>
+      </div>
+    </div>
+  );
+}
+
 // ── PLAYERROW — dropdowns emoji y color ──────────────────────
 function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemove,onName,onEmoji,onColor,onRemove,T}){
   const[emojiOpen,setEmojiOpen]=React.useState(false);
@@ -2989,7 +3020,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           return pool[Math.floor(Math.random()*pool.length)];
         });
         snd('roundchange');
-        setTimeout(()=>setRoundToast(false),2200);
+        setTimeout(()=>setRoundToast(false),2400);
       }
     }
   },[room.round]);
@@ -3106,23 +3137,9 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           </div>
         );
       })()}
-      {roundToast&&(
-        // Antes quedaba pegado justo debajo del header fijo (top:70) — con
-        // el header más alto que tiene ahora el logo, se veía tapado a
-        // medias y no se notaba. Bajado más, y más grande/con más brillo
-        // (usa el mismo color aleatorio que la insignia RONDA de abajo).
-        <div style={{position:"fixed",top:130,left:"50%",transform:"translateX(-50%)",zIndex:300,
-          background:"linear-gradient(135deg,"+roundColor+",#000000cc)",borderRadius:22,
-          padding:"14px 30px",border:"2px solid rgba(255,255,255,.25)",
-          boxShadow:"0 10px 40px "+roundColor+"99",
-          animation:"roundToastIn .4s cubic-bezier(.34,1.56,.64,1) both, roundToastOut .4s ease-in 1.8s both",
-          pointerEvents:"none"}}>
-          <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:"#fff",letterSpacing:2,
-            textShadow:"0 2px 10px rgba(0,0,0,.5)"}}>
-            🎴 RONDA {room.round}
-          </span>
-        </div>
-      )}
+      {/* Antes era un pill chiquito pegado al header y se perdía — ahora
+          es una animación de pantalla completa (ver RoundChangeOverlay). */}
+      {roundToast&&<RoundChangeOverlay round={room.round} color={roundColor}/>}
       {/* Meta de la partida — visible arriba de todo para que quede claro
           a cuánto se está jugando, sin tener que ir a la pestaña Tabla. */}
       <div style={{textAlign:"center",marginBottom:10}}>
@@ -3391,6 +3408,71 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
   );
 }
 
+// ── GRÁFICA DE AVANCE — línea de puntaje acumulado por ronda para cada
+// jugador, escalando hasta la meta de la partida (la "montaña" a subir).
+// SVG a mano, sin librería — mismo criterio del resto del proyecto (sin
+// paso de build, todo corre directo en el navegador vía Babel-standalone).
+function RoundProgressChart({sorted,target,mr}){
+  if(mr<=0||!sorted||sorted.length===0)return null;
+  const W=300,H=160,padL=6,padR=6,padT=10,padB=18;
+  const innerW=W-padL-padR,innerH=H-padT-padB;
+  // Puntaje acumulado ronda a ronda por jugador — arranca en 0 (ronda 0),
+  // así la línea siempre sale del piso, como el arranque de una subida.
+  const series=sorted.map(p=>{
+    let acc=0;
+    const pts=[0];
+    for(let i=0;i<mr;i++){
+      const r=(p.rounds||[])[i];
+      acc+=r?(r.score||0):0;
+      pts.push(acc);
+    }
+    return{p,pts};
+  });
+  const maxVal=Math.max(target,1,...series.flatMap(s=>s.pts));
+  const x=i=>padL+innerW*(i/mr);
+  const y=v=>padT+innerH-innerH*(Math.max(0,Math.min(v,maxVal))/maxVal);
+  const targetY=y(target);
+  // El líder actual (mayor puntaje) se resalta con un relleno debajo de su
+  // línea — da la sensación de "pico de la montaña" sin saturar la gráfica
+  // si hay muchos jugadores (los demás quedan solo como línea).
+  const leader=series.reduce((a,b)=>b.pts[b.pts.length-1]>a.pts[a.pts.length-1]?b:a,series[0]);
+  const floorY=padT+innerH;
+  return(
+    <div style={{marginBottom:4}}>
+      <svg viewBox={"0 0 "+W+" "+H} style={{width:"100%",height:"auto",display:"block"}}>
+        <line x1={padL} y1={targetY} x2={W-padR} y2={targetY}
+          stroke="rgba(245,200,0,.45)" strokeWidth="1" strokeDasharray="3,3"/>
+        <text x={W-padR} y={Math.max(8,targetY-4)} textAnchor="end" fontSize="6.5"
+          fill="rgba(245,200,0,.7)" fontFamily="'Righteous',sans-serif">META {target}</text>
+        <path d={"M"+x(0)+","+floorY+" L"+leader.pts.map((v,i)=>x(i)+","+y(v)).join(" L")+" L"+x(mr)+","+floorY+" Z"}
+          fill={leader.p.color} opacity=".1"/>
+        {series.map(({p,pts})=>(
+          <g key={p.id}>
+            <polyline points={pts.map((v,i)=>x(i)+","+y(v)).join(" ")}
+              fill="none" stroke={p.color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+              opacity={p.id===leader.p.id?1:.85}/>
+            {pts.map((v,i)=>i>0&&(
+              <circle key={i} cx={x(i)} cy={y(v)} r={i===mr?3:1.6} fill={p.color}/>
+            ))}
+          </g>
+        ))}
+        {Array.from({length:mr},(_,i)=>(
+          <text key={i} x={x(i+1)} y={H-5} textAnchor="middle" fontSize="6.5"
+            fill="rgba(255,255,255,.32)" fontFamily="'Righteous',sans-serif">R{i+1}</text>
+        ))}
+      </svg>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"5px 12px",justifyContent:"center",marginTop:4}}>
+        {sorted.map(p=>(
+          <div key={p.id} style={{display:"flex",alignItems:"center",gap:4}}>
+            <span style={{width:8,height:8,borderRadius:"50%",background:p.color,display:"inline-block",flexShrink:0}}/>
+            <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.5)"}}>{p.emoji} {p.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── SCORETAB — nombre con color del jugador ───────────────────
 function ScoreTab({sorted,room,T}){
   const mr=room.finished?room.round:room.round-1; // finished=last round shown
@@ -3421,6 +3503,9 @@ function ScoreTab({sorted,room,T}){
       })}
     </div>
     {mr>0&&(<>
+      <div className="div"/>
+      <p className="sec">{T.roundProgress||"AVANCE POR RONDA"}</p>
+      <RoundProgressChart sorted={sorted} target={target} mr={mr}/>
       <div className="div"/>
       <p className="sec">TABLA DE RONDAS</p>
       <div className="tw">
