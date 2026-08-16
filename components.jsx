@@ -3412,6 +3412,32 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
 // jugador, escalando hasta la meta de la partida (la "montaña" a subir).
 // SVG a mano, sin librería — mismo criterio del resto del proyecto (sin
 // paso de build, todo corre directo en el navegador vía Babel-standalone).
+// Anima el trazo de una línea SVG "dibujándose" desde el inicio, con
+// velocidad uniforme (no lineal-por-tramos como sería con un dasharray
+// fijo a ojo) usando la longitud real del path — getTotalLength().
+// Se redispara solo cuando cambia "d" (es decir, cada vez que arranca
+// una ronda nueva y la serie de puntos crece).
+function AnimatedChartLine({d,color,delay}){
+  const ref=React.useRef(null);
+  React.useEffect(()=>{
+    const el=ref.current;
+    if(!el)return;
+    let len=0;
+    try{len=el.getTotalLength();}catch(e){}
+    el.style.transition="none";
+    el.style.strokeDasharray=len;
+    el.style.strokeDashoffset=len;
+    void el.getBoundingClientRect(); // fuerza reflow para que el navegador registre el estado inicial
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        el.style.transition="stroke-dashoffset 1.7s cubic-bezier(.4,0,.2,1) "+delay+"s";
+        el.style.strokeDashoffset="0";
+      });
+    });
+  },[d]);
+  return<path ref={ref} d={d} fill="none" stroke={color} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
+    style={{filter:"drop-shadow(0 0 3px "+color+") drop-shadow(0 0 7px "+color+"aa)"}}/>;
+}
 function RoundProgressChart({sorted,target,mr}){
   if(mr<=0||!sorted||sorted.length===0)return null;
   const W=300,H=160,padL=6,padR=6,padT=10,padB=18;
@@ -3439,20 +3465,20 @@ function RoundProgressChart({sorted,target,mr}){
   const floorY=padT+innerH;
   return(
     <div style={{marginBottom:4}}>
-      <svg viewBox={"0 0 "+W+" "+H} style={{width:"100%",height:"auto",display:"block"}}>
+      <svg viewBox={"0 0 "+W+" "+H} style={{width:"100%",height:"auto",display:"block",overflow:"visible"}}>
         <line x1={padL} y1={targetY} x2={W-padR} y2={targetY}
           stroke="rgba(245,200,0,.45)" strokeWidth="1" strokeDasharray="3,3"/>
         <text x={W-padR} y={Math.max(8,targetY-4)} textAnchor="end" fontSize="6.5"
           fill="rgba(245,200,0,.7)" fontFamily="'Righteous',sans-serif">META {target}</text>
         <path d={"M"+x(0)+","+floorY+" L"+leader.pts.map((v,i)=>x(i)+","+y(v)).join(" L")+" L"+x(mr)+","+floorY+" Z"}
-          fill={leader.p.color} opacity=".1"/>
-        {series.map(({p,pts})=>(
+          fill={leader.p.color} className="chart-area-fade"/>
+        {series.map(({p,pts},pi)=>(
           <g key={p.id}>
-            <polyline points={pts.map((v,i)=>x(i)+","+y(v)).join(" ")}
-              fill="none" stroke={p.color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
-              opacity={p.id===leader.p.id?1:.85}/>
+            <AnimatedChartLine d={"M"+pts.map((v,i)=>x(i)+","+y(v)).join(" L")} color={p.color} delay={pi*.12}/>
             {pts.map((v,i)=>i>0&&(
-              <circle key={i} cx={x(i)} cy={y(v)} r={i===mr?3:1.6} fill={p.color}/>
+              <circle key={i} cx={x(i)} cy={y(v)} r={i===mr?3.2:1.6} fill={p.color}
+                className={i===mr?"chart-dot-pulse":""}
+                style={i===mr?{filter:"drop-shadow(0 0 5px "+p.color+")"}:undefined}/>
             ))}
           </g>
         ))}
@@ -3504,9 +3530,6 @@ function ScoreTab({sorted,room,T}){
     </div>
     {mr>0&&(<>
       <div className="div"/>
-      <p className="sec">{T.roundProgress||"AVANCE POR RONDA"}</p>
-      <RoundProgressChart sorted={sorted} target={target} mr={mr}/>
-      <div className="div"/>
       <p className="sec">TABLA DE RONDAS</p>
       <div className="tw">
         <table>
@@ -3537,6 +3560,9 @@ function ScoreTab({sorted,room,T}){
         fontSize:"1rem",letterSpacing:3,textShadow:"0 0 14px rgba(245,200,0,.35)",marginTop:2}}>
         🏆 META: {target} PUNTOS
       </p>
+      <div className="div"/>
+      <p className="sec">{T.roundProgress||"AVANCE POR RONDA"}</p>
+      <RoundProgressChart key={mr} sorted={sorted} target={target} mr={mr}/>
     </>)}
   </>);
 }
@@ -3677,9 +3703,6 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
           </div>
           {maxRound>0&&(<>
             <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"4px 0 12px"}}/>
-            <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>{T.roundProgress||"AVANCE POR RONDA"}</p>
-            <RoundProgressChart sorted={sorted} target={target} mr={maxRound}/>
-            <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"12px 0"}}/>
             <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>TABLA DE RONDAS</p>
             <div className="tw">
               <table>
@@ -3707,7 +3730,12 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
               </table>
             </div>
           </>)}
-          <p style={{textAlign:"center",color:"var(--y)",fontFamily:"'Anton',sans-serif",fontSize:".9rem",letterSpacing:2,paddingBottom:10,textShadow:"0 0 12px rgba(245,200,0,.3)"}}>🏆 META: {target} PUNTOS</p>
+          <p style={{textAlign:"center",color:"var(--y)",fontFamily:"'Anton',sans-serif",fontSize:".9rem",letterSpacing:2,textShadow:"0 0 12px rgba(245,200,0,.3)",marginBottom:maxRound>0?0:10}}>🏆 META: {target} PUNTOS</p>
+          {maxRound>0&&(<>
+            <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"12px 0"}}/>
+            <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>{T.roundProgress||"AVANCE POR RONDA"}</p>
+            <RoundProgressChart key={maxRound} sorted={sorted} target={target} mr={maxRound}/>
+          </>)}
         </div>
       )}
     </div>
