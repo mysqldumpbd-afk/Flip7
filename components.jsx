@@ -3123,19 +3123,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
       </div>
       <div className="rsb" style={{marginBottom:10}}>
         <p className="sec" style={{margin:0}}>{T.players2}</p>
-        <div style={{display:"flex",alignItems:"center",gap:6}}>
-          <div
-            style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,color:"var(--y)",background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.25)",padding:"3px 10px 3px 10px",borderRadius:20,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}
-            title="Toca para copiar"
-            onClick={()=>{try{navigator.clipboard.writeText(roomCode);snd("score");}catch(e){}}}
-          >SALA: <span className="code-mono" style={{fontSize:".9rem",letterSpacing:1}}>{roomCode}</span></div>
-          {/* Palabra completa (antes solo "R1") + color aleatorio que
-              cambia cada ronda — ver efecto de arriba — para que el
-              avance se note de un vistazo, no solo con la animación. */}
-          <div className="rbd" style={{background:"linear-gradient(135deg,"+roundColor+","+roundColor+"cc)",
-            boxShadow:"0 2px 10px "+roundColor+"55",transition:"background .3s"}}>
-            RONDA {room.round}
-          </div>
+        {/* El código de sala ya se ve arriba en el header — repetirlo aquí
+            al lado de RONDA era redundante, así que se quitó de este renglón. */}
+        <div className="rbd" style={{background:"linear-gradient(135deg,"+roundColor+","+roundColor+"cc)",
+          boxShadow:"0 2px 10px "+roundColor+"55",transition:"background .3s"}}>
+          RONDA {room.round}
         </div>
       </div>
       {/* Controles de host — solo visibles para quien tiene el rol */}
@@ -3502,18 +3494,22 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
             {winner.emoji} {winner.name}
           </div>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:"1.1rem",color:"var(--y)",marginBottom:30,letterSpacing:2}}>
-            {winner.total} PUNTOS · RACE TO 200!
+            {winner.total} PUNTOS · META A {target} PUNTOS
           </div>
           <button className="btn btn-y" onClick={()=>setShowWinnerOverlay(false)} style={{maxWidth:260,marginBottom:10}}>🏆 Ver marcador final</button>
           <button className="btn btn-g" onClick={onBack} style={{maxWidth:260}}>Salir</button>
         </div>
       )}
-      <div className="hdr">
-        <div>
-          <div style={{display:"flex",alignItems:"baseline",gap:4}}><span className="logo-f">FLIP</span><span className="logo-7">7</span></div>
-          <span className="logo-sub">Race to 200!</span>
+      <div className="hdr" style={{alignItems:"center"}}>
+        <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0,overflow:"hidden"}}>
+          <HeroLogoCompact/>
+          {room&&room.gameMode&&GAME_MODES[room.gameMode]&&GAME_MODES[room.gameMode].image&&(
+            <img src={GAME_MODES[room.gameMode].image} alt="" style={{height:22,width:"auto",flexShrink:0,
+              filter:"drop-shadow(0 0 5px "+GAME_MODES[room.gameMode].glow+") drop-shadow(0 2px 4px rgba(0,0,0,.4))"}}
+              onError={e=>{e.target.style.display="none";}}/>
+          )}
         </div>
-        <div style={{display:"flex",gap:6}}>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
           <div className="badge spec"><span className="dot"/> <span className="code-mono">{roomCode}</span></div>
           <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>Salir</button>
         </div>
@@ -3522,6 +3518,13 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,T}){
         <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:5,color:"var(--t)"}}>📡 MARCADOR EN VIVO</div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.3)",letterSpacing:2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:3}}>
           <span className="dot"/>SALA <span className="code-mono">{roomCode}</span> · RONDA {room?.round||""}
+        </div>
+        {/* Este modo está pensado justo para esto: dejarlo abierto en una
+            tablet o pantalla compartida y que muestre los resultados a
+            todos en tiempo real, sin que nadie tenga que ir tocando nada. */}
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.28)",
+          letterSpacing:.5,marginTop:6,lineHeight:1.4}}>
+          💡 Ideal para dejar abierta en una tablet o pantalla compartida — se actualiza sola
         </div>
       </div>
       {!room?(
@@ -6773,7 +6776,7 @@ const CELEBRATIONS=[
     bg:"radial-gradient(circle at 50% 40%,#2a0a30 0%,#0F0F1A 60%)",
     confetti:["#F5C800","#ffffff","#cc88ff","#FF6B35"],
     iconAnim:"celPulse 1.5s ease-in-out infinite",accent:"#cc88ff"},
-  {icon:"🐒",label:"¡REY DE LA SELVA!",labelTie:"¡SELVA COMPARTIDA!",
+  {icon:"🐒",image:"icons/monkey.gif",label:"¡REY DE LA SELVA!",labelTie:"¡SELVA COMPARTIDA!",
     bg:"radial-gradient(circle at 50% 40%,#0e2a12 0%,#0F0F1A 60%)",
     confetti:["#3BB273","#F5C800","#8B5E34","#ffffff"],
     iconAnim:"celSwing 1.4s ease-in-out infinite",accent:"#3BB273"}
@@ -6817,7 +6820,9 @@ function WinnerScreen({winner,celebrationType,players,target,onClose,onRematch,i
   return(
     React.createElement("div",{className:"wb",style:{background:cel.bg}},
       dots.map(d=>React.createElement("div",{key:d.id,style:{position:"absolute",background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:d.sh,animation:"cf "+d.dr+" "+d.dl+" linear infinite"}})),
-      React.createElement("div",{className:"wc",style:{animation:cel.iconAnim}},isTie?"🎊":cel.icon),
+      (cel.image&&!isTie)
+        ? React.createElement("img",{src:cel.image,alt:"",className:"wc-img",style:{animation:cel.iconAnim},onError:e=>{e.target.style.display="none";}})
+        : React.createElement("div",{className:"wc",style:{animation:cel.iconAnim}},isTie?"🎊":cel.icon),
       React.createElement("div",{className:"wl",style:{color:cel.accent}},isTie?cel.labelTie:cel.label),
       React.createElement("div",{className:"wbig"},"FLIP 7"),
       isTie?React.createElement(React.Fragment,null,
