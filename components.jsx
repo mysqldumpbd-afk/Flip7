@@ -178,21 +178,32 @@ async function saveGameStats(session, roomData){
   }
 
   // Guardar por jugador — la CLAVE de almacenamiento ahora es el uid de
-  // cuenta cuando existe (resuelto vía /userIndex, igual que en amigos).
-  // Solo se usa el nombre como clave de respaldo para jugadores sin cuenta
-  // (anónimos) — antes SIEMPRE se usaba el nombre, lo que mezclaba a dos
-  // personas distintas si compartían el mismo nombre de jugador.
+  // cuenta cuando existe. Solo se usa el nombre como clave de respaldo para
+  // jugadores sin cuenta (anónimos) — antes SIEMPRE se usaba el nombre, lo
+  // que mezclaba a dos personas distintas si compartían el mismo nombre.
   for(const p of roomData.players){
     const nameKey = p.name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_").slice(0,30);
     const position = sorted.findIndex(s=>s.id===p.id)+1;
     const won = !!(realWinnerId && p.id===realWinnerId);
 
-    let resolvedUid=null;
-    try{
-      const idxSnap=await _db.ref("userIndex/"+fbKey(p.name)).once("value");
-      const idxVal=idxSnap.val();
-      if(idxVal&&idxVal.uid)resolvedUid=idxVal.uid;
-    }catch(e){}
+    // El uid ya viene guardado en el jugador desde que se creó/se unió a
+    // la sala (ver enterGame/joinAsNew) — es la fuente confiable. Antes se
+    // adivinaba SIEMPRE buscando /userIndex por el NOMBRE mostrado en la
+    // partida, lo que se rompía en cuanto ese nombre era un seudónimo
+    // distinto al nombre real de la cuenta (quedaban las estadísticas del
+    // dueño de la cuenta guardadas bajo una llave de nombre, invisibles
+    // tanto en "Mis estadísticas" como en las comparativas de amistad).
+    // El lookup por /userIndex queda solo como respaldo para partidas
+    // viejas creadas antes de este cambio, o jugadores agregados a mano
+    // cuyo nombre coincide exacto con su cuenta.
+    let resolvedUid=p.uid||null;
+    if(!resolvedUid){
+      try{
+        const idxSnap=await _db.ref("userIndex/"+fbKey(p.name)).once("value");
+        const idxVal=idxSnap.val();
+        if(idxVal&&idxVal.uid)resolvedUid=idxVal.uid;
+      }catch(e){}
+    }
     const key = resolvedUid || nameKey; // clave real de almacenamiento
 
     await _db.ref("stats/players/"+key+"/games/"+gameId).set({
@@ -244,6 +255,23 @@ async function saveGameStats(session, roomData){
     }
   }
   console.log("Stats: guardadas correctamente para gameId",gameId);
+}
+
+// Trae el perfil GUARDADO (seudónimo/emoji/color de Perfil) de cada jugador
+// elegido por uid — así una partida creada por otra persona (ej. eligiéndote
+// desde Amigos o un Grupo) respeta TU personalización real en vez de tu
+// nombre de cuenta y un emoji/color genérico asignado por orden. También es
+// lo que permite guardar el uid real en cada jugador de la sala, para que
+// las estadísticas no dependan de adivinar por nombre (ver saveGameStats).
+async function enrichPickedPlayers(list){
+  return Promise.all((list||[]).map(async f=>{
+    if(!f||!f.uid)return{name:(f&&f.name)||"",uid:null,emoji:null,color:null};
+    try{
+      const snap=await _db.ref('users/'+f.uid).once('value');
+      const v=snap.val()||{};
+      return{name:v.nickname||f.name,uid:f.uid,emoji:v.defaultEmoji||null,color:v.defaultColor||null};
+    }catch(e){return{name:f.name,uid:f.uid,emoji:null,color:null};}
+  }));
 }
 
 // ── FIREBASE CONFIG SETUP — escribe config/ai y config/claude si no existen ──
@@ -698,10 +726,11 @@ function App(){
         // perfil, se usa esa — si no, se sortea igual que siempre.
         const iAmWinner=!data.winner.tied&&myPlayerIdRef.current&&data.winner.id===myPlayerIdRef.current;
         const preferred=iAmWinner?myPreferredCelebrationRef.current:null;
-        const ct=(preferred===0||preferred===1||preferred===2)?preferred:Math.floor(Math.random()*3);
+        const ct=(preferred===0||preferred===1||preferred===2||preferred===3)?preferred:Math.floor(Math.random()*4);
         setCelebrationType(ct);
         if(ct===0){snd('winner');setTimeout(()=>snd('victory'),400);}
         else if(ct===1){snd('fanfare');}
+        else if(ct===3){snd('jungle');}
         else{snd('victory');setTimeout(()=>snd('winner'),350);}
         const sessionObj={id:uid(),date:data.gameStartedAt||data.createdAt||Date.now(),players:data.players,rounds:data.round,winner:data.winner.name,code:data.code,demo:demoMode};
         setSessions(prev=>{
@@ -860,7 +889,7 @@ function App(){
     await dbRef.current.update("rooms/"+roomCode,{players:newPlayers,roundScores:{},round:isFinished?room.round:room.round+1,finished:isFinished,winner:isFinished?winner:null,lastActivityAt:Date.now()});
   }
 
-  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,hostName,asHost,gameMode,groupId,winTarget,autoCloseRound}){
+  async function enterGame({names,demo,spectator,code,playerId,customEmojis,customColors,customUids,hostName,asHost,gameMode,groupId,winTarget,autoCloseRound}){
     const db=makeDB(demo);dbRef.current=db;
     let roomCode2=code;
     let resolvedMyPlayerId=playerId; // por default, el playerId que ya te pasaron (reconectar, unirte, etc.)
@@ -873,6 +902,10 @@ function App(){
         id:uid(),name:name.trim(),
         emoji:(customEmojis&&customEmojis[i])||EMOJIS[i%EMOJIS.length],
         color:(customColors&&customColors[i])||COLORS[i%COLORS.length],
+        // uid de cuenta real (si se conoce) — clave para que las estadísticas
+        // de fin de partida se guarden bajo TU cuenta, no adivinando por
+        // nombre (ver saveGameStats más abajo).
+        uid:(customUids&&customUids[i])||null,
         total:0,rounds:[]
       }));
       // Ligar al creador a su propia fila (si su nombre está en la lista de
@@ -1678,6 +1711,7 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
             {v:0,icon:'🏆',label:'Original',sub:'Dorado — confeti clásico'},
             {v:1,icon:'🎆',label:'Victoria Explosiva',sub:'Teal / morado'},
             {v:2,icon:'👑',label:'Coronado',sub:'Morado claro'},
+            {v:3,icon:'🐒',label:'Selva',sub:'Verde — hojas y tambores'},
           ].map(opt=>(
             <button key={opt.v} onClick={()=>{snd('tap');setCelebration(opt.v);}}
               style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",borderRadius:12,cursor:"pointer",
@@ -1727,6 +1761,18 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   const[names,setNames]=useState([myDisplayName,"",""]);
   const[playerEmojis,setPlayerEmojis]=useState(EMOJIS.slice(0,3));
   const[playerColors,setPlayerColors]=useState(COLORS.slice(0,3));
+  // uid de cuenta real por jugador (índice a índice con names/emojis/colores) —
+  // cuando se conoce, guardar-estadísticas lo usa DIRECTO en vez de adivinar
+  // por nombre. Esto es lo que hace que "mis estadísticas" y las comparativas
+  // de amistad encuentren tu partida aunque juegues con un seudónimo distinto
+  // a tu nombre de cuenta. null = sin cuenta conocida en ese puesto.
+  const[playerUids,setPlayerUids]=useState([null,null,null]);
+  // Tu propio puesto (índice 0) siempre sos vos — se sincroniza apenas se
+  // conoce tu sesión, sin esperar a que cargue el resto del perfil.
+  React.useEffect(()=>{
+    const myUid=(authUser&&!authUser.isAnonymous)?authUser.uid:null;
+    setPlayerUids(u=>{const c=[...u];c[0]=myUid;return c;});
+  },[authUser]);
   // Perfil guardado (emoji/color por defecto, celebración favorita) — se
   // carga una vez al entrar y se usa para pre-llenar TU fila (índice 0,
   // que siempre sos vos) al crear una partida nueva, en vez de siempre
@@ -1890,6 +1936,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   React.useEffect(()=>{
     setPlayerEmojis(p=>{const a=[...p];while(a.length<names.length){const next=EMOJIS.find(e=>!a.includes(e))||EMOJIS[a.length%EMOJIS.length];a.push(next);}return a.slice(0,names.length);});
     setPlayerColors(p=>{const a=[...p];while(a.length<names.length){const next=COLORS.find(c=>!a.includes(c))||COLORS[a.length%COLORS.length];a.push(next);}return a.slice(0,names.length);});
+    setPlayerUids(p=>{const a=[...p];while(a.length<names.length)a.push(null);return a.slice(0,names.length);});
   },[names.length]);
 
   const isAnonHome=authUser&&authUser.isAnonymous;
@@ -1959,11 +2006,20 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
   };
 
   async function createReal(){
-    const ns=names.filter(n=>n.trim());
+    // Filtrar nombres en blanco preservando el índice original para
+    // emoji/color/uid — antes se filtraba solo `names` y se mandaban
+    // playerEmojis/playerColors completos (sin filtrar), así que un
+    // espacio en blanco en medio de la lista desalineaba los colores de
+    // todos los que venían después.
+    const idxs=names.map((n,i)=>i).filter(i=>names[i].trim());
+    const ns=idxs.map(i=>names[i]);
     if(ns.length<2){setErr({msg:"Necesitas al menos 2 jugadores.",steps:[]});return;}
     setBusy(true);setErr(null);
     try{
-      await onEnter({names:ns,demo:false,customEmojis:playerEmojis,customColors:playerColors,
+      await onEnter({names:ns,demo:false,
+        customEmojis:idxs.map(i=>playerEmojis[i]),
+        customColors:idxs.map(i=>playerColors[i]),
+        customUids:idxs.map(i=>playerUids[i]),
         hostName:jname.trim()||ns[0],gameMode:gameMode,groupId:selectedGroup?selectedGroup.id:null,winTarget:winTarget,autoCloseRound:autoCloseRound});
     }
     catch(e){setErr(classifyError(e));}
@@ -2019,7 +2075,14 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
     setBusy(true);setErr(null);
     try{
       const r=await makeDB(false).get("rooms/"+jcode.toUpperCase());
-      const newP={id:uid(),name:jname.trim(),emoji:EMOJIS[r.players.length%EMOJIS.length],color:COLORS[r.players.length%COLORS.length],total:0,rounds:[]};
+      // Si tenés cuenta, tu emoji/color guardados en Perfil (si los
+      // definiste) y tu uid real — así tus estadísticas de esta partida
+      // quedan atadas a tu cuenta en vez de adivinarse por tu nombre.
+      const myUidJoin=(authUser&&!authUser.isAnonymous)?authUser.uid:null;
+      const newP={id:uid(),name:jname.trim(),
+        emoji:(myProfile&&myProfile.defaultEmoji)||EMOJIS[r.players.length%EMOJIS.length],
+        color:(myProfile&&myProfile.defaultColor)||COLORS[r.players.length%COLORS.length],
+        uid:myUidJoin,total:0,rounds:[]};
       r.players=[...r.players,newP];
       await _db.ref("rooms/"+jcode.toUpperCase()).set(r);
       snd('join');await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:newP.id});
@@ -2281,32 +2344,33 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
         </div>
       )}
       {createStep==="players"&&(()=>{
-        // Sincroniza names/emojis/colores a partir de una lista de nombres
-        // elegidos. Deduplica por nombre (sin mayúsculas/espacios) — evita
-        // que aparezcas dos veces si algún dato de grupo quedó con un
-        // rastro duplicado de tu propio nombre.
-        function applyPicked(pickedNames){
-          // Tu propio nombre en la lista: preferir el seudónimo guardado en
-          // Perfil sobre el nombre real de la cuenta — antes esto siempre
-          // caía en myDisplayName (tu nombre de Google/correo) y pisaba el
-          // seudónimo cada vez que elegías jugadores desde Amigos o Grupo.
+        // Sincroniza names/emojis/colores/uids a partir de una lista de
+        // jugadores elegidos ({name,uid}). Deduplica por nombre (sin
+        // mayúsculas/espacios) — evita que aparezcas dos veces si algún
+        // dato de grupo quedó con un rastro duplicado de tu propio nombre.
+        // Trae en vivo el seudónimo/emoji/color GUARDADO de cada amigo o
+        // integrante elegido (en vez de su nombre de cuenta y un color
+        // genérico por orden), y guarda su uid real para que las
+        // estadísticas de fin de partida se asocien a su cuenta y no a
+        // una llave adivinada por nombre.
+        async function applyPicked(pickedList){
           const myName=(myProfile&&myProfile.nickname)||myDisplayName;
+          const myUid=(authUser&&!authUser.isAnonymous)?authUser.uid:null;
+          const myEmoji=(myProfile&&myProfile.defaultEmoji)||null;
+          const myColor=(myProfile&&myProfile.defaultColor)||null;
+          const enriched=await enrichPickedPlayers(pickedList);
+          const all=[{name:myName,uid:myUid,emoji:myEmoji,color:myColor},...enriched];
           const seen=new Set();
           const list=[];
-          [myName,...pickedNames].filter(Boolean).forEach(n=>{
-            const k=n.trim().toLowerCase();
-            if(k&&!seen.has(k)){seen.add(k);list.push(n);}
+          all.forEach(p=>{
+            const k=(p.name||"").trim().toLowerCase();
+            if(k&&!seen.has(k)){seen.add(k);list.push(p);}
           });
-          const finalList=list.length>=2?list:[...list,""];
-          setNames(finalList);
-          // Mantener tu emoji/color por defecto (índice 0 = vos) en vez de
-          // resetear siempre al primero de la lista general.
-          const emojis=EMOJIS.slice(0,finalList.length);
-          const colors=COLORS.slice(0,finalList.length);
-          if(myProfile&&myProfile.defaultEmoji)emojis[0]=myProfile.defaultEmoji;
-          if(myProfile&&myProfile.defaultColor)colors[0]=myProfile.defaultColor;
-          setPlayerEmojis(emojis);
-          setPlayerColors(colors);
+          const finalList=list.length>=2?list:[...list,{name:"",uid:null,emoji:null,color:null}];
+          setNames(finalList.map(p=>p.name));
+          setPlayerUids(finalList.map(p=>p.uid));
+          setPlayerEmojis(finalList.map((p,i)=>p.emoji||EMOJIS[i%EMOJIS.length]));
+          setPlayerColors(finalList.map((p,i)=>p.color||COLORS[i%COLORS.length]));
         }
         return(
         <div className="create-body" style={{paddingTop:0}}>
@@ -2380,7 +2444,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                       );
                     })}
                     <button className="btn btn-t" onClick={()=>{
-                      const chosen=friendsHome.filter(f=>pickedFriends[f.uid]).map(f=>f.name);
+                      const chosen=friendsHome.filter(f=>pickedFriends[f.uid]).map(f=>({name:f.name,uid:f.uid}));
                       applyPicked(chosen);snd('join');
                     }} disabled={!Object.values(pickedFriends).some(Boolean)}
                       style={{marginTop:6,fontSize:".82rem",padding:"10px",
@@ -2470,7 +2534,7 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
                     {pickedGroupForPlayers&&(
                       <button className="btn btn-t" onClick={()=>{
                         const chosen=Object.entries(pickedGroupForPlayers.members||{})
-                          .filter(([muid])=>pickedGroupMembers[muid]).map(([,m])=>m.name);
+                          .filter(([muid])=>pickedGroupMembers[muid]).map(([muid,m])=>({name:m.name,uid:muid}));
                         applyPicked(chosen);snd('join');
                       }} disabled={!Object.values(pickedGroupMembers).some(Boolean)}
                         style={{marginTop:6,fontSize:".82rem",padding:"10px",
@@ -2489,10 +2553,15 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
               name={n} emoji={playerEmojis[i]||EMOJIS[i%EMOJIS.length]} color={playerColors[i]||COLORS[i%COLORS.length]}
               allEmojis={EMOJIS} allColors={COLORS} usedColors={playerColors.filter((_,j)=>j!==i)}
               canRemove={names.length>2}
-              onName={v=>setNames(p=>p.map((x,j)=>j===i?v:x))}
+              onName={v=>{setNames(p=>p.map((x,j)=>j===i?v:x));
+                // Editar el nombre a mano invalida el uid que traíamos de
+                // Amigos/Grupo para ese puesto — ya no podemos asumir que
+                // sigue siendo la misma cuenta. Tu propio puesto (0) no se
+                // toca: siempre sos vos.
+                if(i!==0)setPlayerUids(p=>p.map((x,j)=>j===i?null:x));}}
               onEmoji={v=>setPlayerEmojis(p=>p.map((x,j)=>j===i?v:x))}
               onColor={v=>setPlayerColors(p=>p.map((x,j)=>j===i?v:x))}
-              onRemove={()=>{snd('tap');setNames(p=>p.filter((_,j)=>j!==i));setPlayerEmojis(p=>p.filter((_,j)=>j!==i));setPlayerColors(p=>p.filter((_,j)=>j!==i));}}
+              onRemove={()=>{snd('tap');setNames(p=>p.filter((_,j)=>j!==i));setPlayerEmojis(p=>p.filter((_,j)=>j!==i));setPlayerColors(p=>p.filter((_,j)=>j!==i));setPlayerUids(p=>p.filter((_,j)=>j!==i));}}
             />
           ))}
           {names.length<18&&<button className="btn-add" onClick={()=>{snd('tap');setNames(p=>[...p,""]);}}>+ {T.addPlayer}</button>}
@@ -2606,15 +2675,21 @@ function HomeScreen({onEnter,sessions,aiConfig,setAiConfig,lang,setLang,T,authUs
       const g=myGroupsHome.find(x=>x.currentRoom===code)||{currentRoom:code,name:"tu grupo"};
       quickJoinGroup(g);
     }}
-    onPlay={({names,groupId,groupName})=>{
+    onPlay={async({names,groupId,groupName})=>{
       snd("round");
-      // Pre-fill names with selected players + empty slots for others to join
-      const filled=names.slice(0,8);
-      const padded=[...filled,"",""].slice(0,Math.max(filled.length+1,3));
-      setNames(padded);
-      // Set emojis/colors for filled slots
-      setPlayerEmojis(EMOJIS.slice(0,padded.length));
-      setPlayerColors(COLORS.slice(0,padded.length));
+      // names llega como [{name,uid}] — traer el seudónimo/emoji/color
+      // GUARDADO de cada quien (mismo criterio que applyPicked) en vez de
+      // su nombre de cuenta y un color genérico por orden, y conservar su
+      // uid real para que las estadísticas de fin de partida no dependan
+      // de adivinar por nombre.
+      const enriched=await enrichPickedPlayers(names);
+      const filled=enriched.slice(0,8);
+      const padded=[...filled,{name:"",uid:null,emoji:null,color:null},{name:"",uid:null,emoji:null,color:null}]
+        .slice(0,Math.max(filled.length+1,3));
+      setNames(padded.map(p=>p.name));
+      setPlayerUids(padded.map(p=>p.uid));
+      setPlayerEmojis(padded.map((p,i)=>p.emoji||EMOJIS[i%EMOJIS.length]));
+      setPlayerColors(padded.map((p,i)=>p.color||COLORS[i%COLORS.length]));
       // Associate with the group
       setSelectedGroup(myGroupsHome.find(g=>g.id===groupId)||{id:groupId,name:groupName,code:""});
       go("create");
@@ -5173,8 +5248,10 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
               <button
                 onClick={()=>{
                   snd("round");
-                  // Build player list: selected members as named players
-                  const names=selList.map(m=>m.name||"?");
+                  // Build player list: selected members as {name,uid} —
+                  // el uid deja que Home traiga su seudónimo/emoji/color
+                  // guardado y asocie sus estadísticas a su cuenta real.
+                  const names=selList.map(m=>({name:m.name||"?",uid:m.uid}));
                   onPlay({
                     names,
                     groupId:activeGroup.id,
@@ -6638,7 +6715,11 @@ const CELEBRATIONS=[
   {icon:"👑",label:"¡CORONADO!",labelTie:"¡CORONA COMPARTIDA!",
     bg:"radial-gradient(circle at 50% 40%,#2a0a30 0%,#0F0F1A 60%)",
     confetti:["#F5C800","#ffffff","#cc88ff","#FF6B35"],
-    iconAnim:"celPulse 1.5s ease-in-out infinite",accent:"#cc88ff"}
+    iconAnim:"celPulse 1.5s ease-in-out infinite",accent:"#cc88ff"},
+  {icon:"🐒",label:"¡REY DE LA SELVA!",labelTie:"¡SELVA COMPARTIDA!",
+    bg:"radial-gradient(circle at 50% 40%,#0e2a12 0%,#0F0F1A 60%)",
+    confetti:["#3BB273","#F5C800","#8B5E34","#ffffff"],
+    iconAnim:"celSwing 1.4s ease-in-out infinite",accent:"#3BB273"}
 ];
 
 // Frases de margen — según qué tan grande fue la diferencia de puntos entre

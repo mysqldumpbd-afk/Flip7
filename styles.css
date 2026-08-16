@@ -449,6 +449,13 @@ tbody tr:last-child td{border-bottom:none}
 @keyframes fl{0%,100%{transform:translateY(0) rotate(-5deg)}50%{transform:translateY(-16px) rotate(5deg)}}
 @keyframes celSpin{0%{transform:rotate(-10deg) scale(.92)}50%{transform:rotate(10deg) scale(1.12)}100%{transform:rotate(-10deg) scale(.92)}}
 @keyframes celPulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 10px rgba(204,136,255,.5))}50%{transform:scale(1.18);filter:drop-shadow(0 0 34px rgba(204,136,255,.95))}}
+/* Celebración Selva — el mono se columpia de lado a lado, como colgado de una liana */
+@keyframes celSwing{
+  0%,100%{transform:rotate(-14deg) translateY(0)}
+  25%{transform:rotate(4deg) translateY(-6px)}
+  50%{transform:rotate(14deg) translateY(0)}
+  75%{transform:rotate(-4deg) translateY(-6px)}
+}
 @keyframes roundToastIn{0%{opacity:0;transform:translateX(-50%) translateY(-16px) scale(.9)}100%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
 @keyframes roundToastOut{0%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-10px)}}
 .wl{font-family:'Righteous',sans-serif;font-size:.76rem;letter-spacing:5px;color:var(--t);text-transform:uppercase;margin-bottom:5px}

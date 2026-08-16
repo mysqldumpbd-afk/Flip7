@@ -184,6 +184,14 @@ function snd(t){
   else if(t==='spec_join'){
     [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.15,'sine',.3),i*180));
   }
+  else if(t==='jungle'){
+    // Celebración Selva — tambores graves y rápidos, cierre con un chillido agudo
+    const beat=[100,80,100,120,80,100,140];
+    const dur=[.09,.07,.09,.09,.07,.09,.15];
+    let t2=0;
+    beat.forEach((f,i)=>{setTimeout(()=>beep(f,dur[i],'triangle',.4),t2*1000);t2+=dur[i]+.03;});
+    setTimeout(()=>{beep(900,.08,'sawtooth',.25);setTimeout(()=>beep(700,.1,'sawtooth',.22),90);},t2*1000+80);
+  }
 }
 
 // ── CALCULADORA — evaluación segura ────────────────────────────
