@@ -1811,10 +1811,91 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
   );
 }
 
+// ── BUZÓN DE BUGS Y SUGERENCIAS ─────────────────────────────────
+// Modal accesible desde el menú de Home. Cualquier jugador (con cuenta o
+// anónimo) puede reportar un bug o sugerir un juego nuevo -- se guarda en
+// Firebase y aparece en el panel administrativo (admin.html).
+function FeedbackModal({onClose,authUser}){
+  const[type,setType]=React.useState("bug"); // bug | suggestion
+  const[text,setText]=React.useState("");
+  const[name,setName]=React.useState((authUser&&!authUser.isAnonymous)?(authUser.displayName||(authUser.email||"").split("@")[0]||""):"");
+  const[sending,setSending]=React.useState(false);
+  const[sent,setSent]=React.useState(false);
+  const[err,setErr]=React.useState("");
+
+  async function handleSubmit(){
+    if(!text.trim()){setErr("Escribe algo antes de enviar.");return;}
+    setSending(true);setErr("");
+    try{
+      var path=type==="bug"?"feedback/bugs":"feedback/suggestions";
+      var ref=_db.ref(path).push();
+      await ref.set({
+        text:text.trim().slice(0,2000),
+        name:(name||"Anónimo").trim().slice(0,40)||"Anónimo",
+        uid:(authUser&&!authUser.isAnonymous)?authUser.uid:null,
+        status:"new",
+        createdAt:Date.now(),
+        userAgent:(navigator.userAgent||"").slice(0,200)
+      });
+      snd("score");
+      setSent(true);
+    }catch(e){
+      setErr("No se pudo enviar. Revisa tu conexión e intenta de nuevo.");
+    }finally{
+      setSending(false);
+    }
+  }
+
+  return(
+    <div className="mbg" onClick={onClose}>
+      <div className="ms" onClick={e=>e.stopPropagation()}>
+        <div className="mh"></div>
+        {sent ? (
+          <div style={{textAlign:"center",padding:"18px 6px"}}>
+            <div style={{fontSize:"2.5rem",marginBottom:10}}>✅</div>
+            <div style={{fontWeight:900,fontSize:"1rem",marginBottom:6}}>¡Gracias!</div>
+            <div style={{color:"rgba(255,255,255,.6)",fontSize:".82rem",marginBottom:16,lineHeight:1.4}}>
+              {type==="bug"
+                ? "Ya lo tenemos anotado, lo revisamos pronto."
+                : "Tu idea quedó guardada, la consideramos para futuras versiones."}
+            </div>
+            <button className="mo" style={{width:"100%"}} onClick={onClose}>Cerrar</button>
+          </div>
+        ) : (
+          <>
+            <div className="mt2">🗳️ Buzón de Flip 7</div>
+            <div style={{display:"flex",gap:8,marginBottom:12,marginTop:10}}>
+              <button className={type==="bug"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("bug");}}>🐞 Reportar bug</button>
+              <button className={type==="suggestion"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("suggestion");}}>💡 Sugerir juego</button>
+            </div>
+            <textarea value={text} onChange={e=>setText(e.target.value)} rows={5}
+              placeholder={type==="bug"
+                ? "Cuéntanos qué pasó, en qué pantalla, y qué esperabas que pasara..."
+                : "¿Qué juego o función te gustaría ver en la app?"}
+              style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+                borderRadius:10,padding:10,color:"#fff",fontFamily:"'Nunito',sans-serif",fontSize:".85rem",
+                resize:"vertical",marginBottom:10,boxSizing:"border-box"}}/>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Tu nombre (opcional)"
+              style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+                borderRadius:10,padding:10,color:"#fff",fontFamily:"'Nunito',sans-serif",fontSize:".85rem",
+                marginBottom:10,boxSizing:"border-box"}}/>
+            {err&&<div style={{color:"#FF5A5A",fontSize:".75rem",marginBottom:8,textAlign:"center"}}>{err}</div>}
+            <div className="mr2">
+              <button className="mc" onClick={()=>{snd("tap");onClose();}}>Cancelar</button>
+              <button className="mo" disabled={sending} onClick={handleSubmit}>{sending?"Enviando...":"Enviar"}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── HOMESCREEN ────────────────────────────────────────────────
 function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setLang,T,authUser,reconnectReady,lastKnownCode,onReconnect,onDismissReconnect}){
   const[view,setView]=useState("main");
   const[showSecondaryMenu,setShowSecondaryMenu]=React.useState(false);
+  const[showFeedbackModal,setShowFeedbackModal]=React.useState(false);
   const[upgradeModal,setUpgradeModal]=React.useState(null); // {label} | null
   const[myGroupsHome,setMyGroupsHome]=React.useState([]); // for presence banner
   const[presenceHome,setPresenceHome]=React.useState({});  // uid → {online,status}
@@ -2835,8 +2916,16 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
                   color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",gap:8}}>
                 👤 Perfil
               </button>
+              <button onClick={()=>{snd('tap');setShowSecondaryMenu(false);setShowFeedbackModal(true);}}
+                style={{width:"100%",textAlign:"left",background:"none",border:"none",
+                  padding:"9px 10px",borderRadius:8,cursor:"pointer",
+                  fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
+                  color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",gap:8}}>
+                🗳️ Reportar bug / sugerir
+              </button>
             </div>
           )}
+          {showFeedbackModal&&<FeedbackModal authUser={authUser} onClose={()=>setShowFeedbackModal(false)}/>}
         </div>
         {HERO_LOGO_TEST?<HeroLogo/>:<>
         <div style={{fontSize:"3.5rem",marginBottom:8}}>🎴</div>
@@ -3985,6 +4074,9 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
       if(parsed.plus_cards!==undefined&&!Array.isArray(parsed.plus_cards))parsed.plus_cards=[];
       if(parsed.minus_cards!==undefined&&!Array.isArray(parsed.minus_cards))parsed.minus_cards=[];
       if(parsed.action_cards!==undefined&&!Array.isArray(parsed.action_cards))parsed.action_cards=[];
+      // Contador global de escaneos exitosos -- alimenta el panel admin para
+      // ver cuanto se esta usando el Árbitro y estimar el gasto real de IA.
+      _db.ref("stats/aiScans").transaction(function(cur){return(cur||0)+1;}).catch(function(){});
       snd("score");setRes(parsed);setPhase("result");
     }catch(e){
       var m=e.message||"";
