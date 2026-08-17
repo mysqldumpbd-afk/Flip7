@@ -4076,7 +4076,13 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
       if(parsed.action_cards!==undefined&&!Array.isArray(parsed.action_cards))parsed.action_cards=[];
       // Contador global de escaneos exitosos -- alimenta el panel admin para
       // ver cuanto se esta usando el Árbitro y estimar el gasto real de IA.
-      _db.ref("stats/aiScans").transaction(function(cur){return(cur||0)+1;}).catch(function(){});
+      // OJO: vive en "adminStats" (no "stats") a propósito -- "stats" tiene
+      // reglas de Firebase abiertas (".read":true,".write":true) para todo
+      // el árbol, así que un contador anidado ahí no se puede proteger por
+      // más restrictiva que se ponga su regla individual (una regla más
+      // permisiva en un nodo padre no se puede revocar en un hijo). "adminStats"
+      // es su propio nodo raíz con reglas que solo dejan leerlo a la cuenta admin.
+      _db.ref("adminStats/aiScans").transaction(function(cur){return(cur||0)+1;}).catch(function(){});
       snd("score");setRes(parsed);setPhase("result");
     }catch(e){
       var m=e.message||"";

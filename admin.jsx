@@ -120,7 +120,10 @@ function AdminApp(){
     const gamesRef=_db.ref("stats/games");
     const playersRef=_db.ref("stats/players");
     const usersRef=_db.ref("users");
-    const scansRef=_db.ref("stats/aiScans");
+    // Vive en "adminStats" (no "stats") -- ver nota en components.jsx: "stats"
+    // tiene reglas de Firebase abiertas para todo el árbol, así que un
+    // contador ahí no se puede proteger a nivel de nodo individual.
+    const scansRef=_db.ref("adminStats/aiScans");
 
     const hBugs=bugsRef.on("value",snap=>setBugs(toList(snap.val())));
     const hSug=sugRef.on("value",snap=>setSuggestions(toList(snap.val())));
