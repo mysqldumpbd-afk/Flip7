@@ -56,6 +56,57 @@ const STATUS_COLOR={
   reviewed:{bg:"rgba(245,200,0,.15)",border:"rgba(245,200,0,.4)"},
   resolved:{bg:"rgba(59,178,115,.15)",border:"rgba(59,178,115,.4)"}
 };
+// Mismas listas que FEEDBACK_SCREENS/FEEDBACK_CATEGORIES en components.jsx --
+// admin.jsx es un archivo aparte (sin build step, no puede importar del
+// otro), así que se duplican solo los labels para mostrar el texto en vez
+// del id crudo ("scanner" -> "📷 Escáner de cartas (IA)").
+const SCREEN_LABEL={
+  home:"🏠 Inicio",create:"➕ Crear sala",join:"🔑 Unirse a una sala",
+  round:"🎲 Ronda / Marcador",table:"📋 Tabla de rondas",
+  spectator:"📺 Marcador en vivo",scanner:"📷 Escáner de cartas (IA)",
+  stats:"📊 Estadísticas",profile:"👤 Perfil",groups:"👥 Grupos",other:"❓ Otra"
+};
+const CATEGORY_LABEL={
+  crash:"🖤 Se puso en negro / se cerró",notsaved:"💾 No se guardó el puntaje",
+  ai:"🤖 Escáner de cartas (IA) falló",connection:"📡 No pudo conectarse",
+  visual:"🎨 Error visual",other:"❓ Otro"
+};
+
+function FeedbackCard({it,onCycleStatus}){
+  const[expanded,setExpanded]=React.useState(false);
+  const st=it.status||"new";
+  const col=STATUS_COLOR[st]||STATUS_COLOR.new;
+  return(
+    <div style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
+      borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.45)"}}>
+          {it.name||"Anónimo"} · {fmtDate(it.createdAt)}
+          {it.email && <div style={{color:"rgba(255,255,255,.3)",marginTop:2}}>{it.email}</div>}
+        </div>
+        <button onClick={()=>onCycleStatus(it)} style={{
+          background:col.bg,border:"1px solid "+col.border,borderRadius:20,padding:"4px 10px",
+          fontSize:".65rem",fontFamily:"'Righteous',sans-serif",color:"#fff",cursor:"pointer",whiteSpace:"nowrap"
+        }}>{STATUS_LABEL[st]}</button>
+      </div>
+      {(it.screen||it.category) && (
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+          {it.screen && <span style={{fontSize:".64rem",background:"rgba(255,255,255,.07)",borderRadius:8,
+            padding:"3px 8px",color:"rgba(255,255,255,.6)"}}>{SCREEN_LABEL[it.screen]||it.screen}</span>}
+          {it.category && <span style={{fontSize:".64rem",background:"rgba(255,255,255,.07)",borderRadius:8,
+            padding:"3px 8px",color:"rgba(255,255,255,.6)"}}>{CATEGORY_LABEL[it.category]||it.category}</span>}
+        </div>
+      )}
+      <div style={{fontSize:".85rem",lineHeight:1.4,whiteSpace:"pre-wrap",marginBottom:it.imageBase64?8:0}}>{it.text}</div>
+      {it.imageBase64 && (
+        <img src={"data:"+(it.imageMime||"image/jpeg")+";base64,"+it.imageBase64} alt="captura"
+          onClick={()=>setExpanded(v=>!v)}
+          style={{width:expanded?"100%":90,height:expanded?"auto":90,objectFit:"cover",
+            borderRadius:8,cursor:"pointer",border:"1px solid rgba(255,255,255,.15)"}}/>
+      )}
+    </div>
+  );
+}
 
 function FeedbackList({title,icon,items,onCycleStatus}){
   return(
@@ -67,25 +118,7 @@ function FeedbackList({title,icon,items,onCycleStatus}){
       {items.length===0 && (
         <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",padding:"10px 0"}}>Nada por aquí todavía.</div>
       )}
-      {items.map(it=>{
-        const st=it.status||"new";
-        const col=STATUS_COLOR[st]||STATUS_COLOR.new;
-        return(
-          <div key={it.id} style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
-            borderRadius:12,padding:"12px 14px",marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
-              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.45)"}}>
-                {it.name||"Anónimo"} · {fmtDate(it.createdAt)}
-              </div>
-              <button onClick={()=>onCycleStatus(it)} style={{
-                background:col.bg,border:"1px solid "+col.border,borderRadius:20,padding:"4px 10px",
-                fontSize:".65rem",fontFamily:"'Righteous',sans-serif",color:"#fff",cursor:"pointer",whiteSpace:"nowrap"
-              }}>{STATUS_LABEL[st]}</button>
-            </div>
-            <div style={{fontSize:".85rem",lineHeight:1.4,whiteSpace:"pre-wrap"}}>{it.text}</div>
-          </div>
-        );
-      })}
+      {items.map(it=><FeedbackCard key={it.id} it={it} onCycleStatus={onCycleStatus}/>)}
     </div>
   );
 }

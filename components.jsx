@@ -1813,15 +1813,71 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
 
 // ── BUZÓN DE BUGS Y SUGERENCIAS ─────────────────────────────────
 // Modal accesible desde el menú de Home. Cualquier jugador (con cuenta o
-// anónimo) puede reportar un bug o sugerir un juego nuevo -- se guarda en
+// anónimo) puede reportar un error o sugerir un juego nuevo -- se guarda en
 // Firebase y aparece en el panel administrativo (admin.html).
+const FEEDBACK_SCREENS=[
+  {v:"home",l:"🏠 Inicio"},
+  {v:"create",l:"➕ Crear sala"},
+  {v:"join",l:"🔑 Unirse a una sala"},
+  {v:"round",l:"🎲 Ronda / Marcador"},
+  {v:"table",l:"📋 Tabla de rondas"},
+  {v:"spectator",l:"📺 Marcador en vivo (espectador)"},
+  {v:"scanner",l:"📷 Escáner de cartas (IA)"},
+  {v:"stats",l:"📊 Estadísticas"},
+  {v:"profile",l:"👤 Perfil"},
+  {v:"groups",l:"👥 Grupos"},
+  {v:"other",l:"❓ Otra / no estoy seguro"}
+];
+const FEEDBACK_CATEGORIES=[
+  {v:"crash",l:"🖤 Se puso en negro / se cerró"},
+  {v:"notsaved",l:"💾 No se guardó mi puntaje"},
+  {v:"ai",l:"🤖 El escáner de cartas (IA) falló"},
+  {v:"connection",l:"📡 No pude entrar o conectarme a la sala"},
+  {v:"visual",l:"🎨 Algo se ve mal (visual)"},
+  {v:"other",l:"❓ Otro"}
+];
+
 function FeedbackModal({onClose,authUser}){
   const[type,setType]=React.useState("bug"); // bug | suggestion
   const[text,setText]=React.useState("");
-  const[name,setName]=React.useState((authUser&&!authUser.isAnonymous)?(authUser.displayName||(authUser.email||"").split("@")[0]||""):"");
+  const[screen,setScreen]=React.useState("home");
+  const[category,setCategory]=React.useState("crash");
+  const[image,setImage]=React.useState(null); // {b64,mime,preview} | null
+  const[imgErr,setImgErr]=React.useState("");
   const[sending,setSending]=React.useState(false);
   const[sent,setSent]=React.useState(false);
   const[err,setErr]=React.useState("");
+  const fileRef=React.useRef();
+
+  // Identidad FIJA, tomada de la misma cuenta con la que se inició sesión
+  // (el mismo nombre que se ve en el pill del encabezado) -- ya no es un
+  // campo de texto libre, así nadie puede escribir un nombre de broma.
+  const identityLabel = (authUser&&!authUser.isAnonymous)
+    ? (authUser.displayName||(authUser.email||"").split("@")[0]||"Sin nombre")
+    : "Jugador anónimo (sin cuenta)";
+
+  // Comprime la captura igual que las fotos del escáner de cartas (mismo
+  // patrón que ScanModal.handleFile): máx 1024px de lado, JPEG calidad .7.
+  function handleImageFile(e){
+    var f=e.target.files[0];if(!f)return;
+    setImgErr("");
+    var r=new FileReader();
+    r.onload=function(ev){
+      var imgEl=new Image();
+      imgEl.onload=function(){
+        var MAX=1024,w=imgEl.width,h=imgEl.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        var canvas=document.createElement("canvas");
+        canvas.width=w;canvas.height=h;
+        canvas.getContext("2d").drawImage(imgEl,0,0,w,h);
+        var compressed=canvas.toDataURL("image/jpeg",.7);
+        setImage({b64:compressed.split(",")[1],mime:"image/jpeg",preview:compressed});
+      };
+      imgEl.onerror=function(){setImgErr("No se pudo leer esa imagen. Intenta con otra.");};
+      imgEl.src=ev.target.result;
+    };
+    r.readAsDataURL(f);
+  }
 
   async function handleSubmit(){
     if(!text.trim()){setErr("Escribe algo antes de enviar.");return;}
@@ -1829,14 +1885,21 @@ function FeedbackModal({onClose,authUser}){
     try{
       var path=type==="bug"?"feedback/bugs":"feedback/suggestions";
       var ref=_db.ref(path).push();
-      await ref.set({
+      var payload={
         text:text.trim().slice(0,2000),
-        name:(name||"Anónimo").trim().slice(0,40)||"Anónimo",
+        name:identityLabel,
+        // Correo real solo para que el admin pueda dar seguimiento -- no se
+        // muestra a otros jugadores, y el usuario nunca lo escribe a mano.
+        email:(authUser&&!authUser.isAnonymous)?(authUser.email||null):null,
         uid:(authUser&&!authUser.isAnonymous)?authUser.uid:null,
+        screen:screen,
         status:"new",
         createdAt:Date.now(),
         userAgent:(navigator.userAgent||"").slice(0,200)
-      });
+      };
+      if(type==="bug")payload.category=category;
+      if(image){payload.imageBase64=image.b64;payload.imageMime=image.mime;}
+      await ref.set(payload);
       snd("score");
       setSent(true);
     }catch(e){
@@ -1845,6 +1908,10 @@ function FeedbackModal({onClose,authUser}){
       setSending(false);
     }
   }
+
+  const selectStyle={width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+    borderRadius:10,padding:10,color:"#fff",fontFamily:"'Nunito',sans-serif",fontSize:".85rem",
+    marginBottom:10,boxSizing:"border-box"};
 
   return(
     <div className="mbg" onClick={onClose}>
@@ -1863,22 +1930,58 @@ function FeedbackModal({onClose,authUser}){
           </div>
         ) : (
           <>
-            <div className="mt2">🗳️ Buzón de Flip 7</div>
+            <div className="mt2">🗳️ Buzón de Score 7</div>
             <div style={{display:"flex",gap:8,marginBottom:12,marginTop:10}}>
-              <button className={type==="bug"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("bug");}}>🐞 Reportar bug</button>
+              <button className={type==="bug"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("bug");}}>✍️ Reportar un error</button>
               <button className={type==="suggestion"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("suggestion");}}>💡 Sugerir juego</button>
             </div>
+
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:5}}>¿EN QUÉ PANTALLA?</div>
+            <select value={screen} onChange={e=>setScreen(e.target.value)} style={selectStyle}>
+              {FEEDBACK_SCREENS.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+
+            {type==="bug" && (<>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:5}}>¿QUÉ TIPO DE ERROR?</div>
+              <select value={category} onChange={e=>setCategory(e.target.value)} style={selectStyle}>
+                {FEEDBACK_CATEGORIES.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+              </select>
+            </>)}
+
             <textarea value={text} onChange={e=>setText(e.target.value)} rows={5}
               placeholder={type==="bug"
-                ? "Cuéntanos qué pasó, en qué pantalla, y qué esperabas que pasara..."
+                ? "Cuéntanos qué pasó y qué esperabas que pasara..."
                 : "¿Qué juego o función te gustaría ver en la app?"}
               style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
                 borderRadius:10,padding:10,color:"#fff",fontFamily:"'Nunito',sans-serif",fontSize:".85rem",
                 resize:"vertical",marginBottom:10,boxSizing:"border-box"}}/>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Tu nombre (opcional)"
-              style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
-                borderRadius:10,padding:10,color:"#fff",fontFamily:"'Nunito',sans-serif",fontSize:".85rem",
-                marginBottom:10,boxSizing:"border-box"}}/>
+
+            {/* Adjuntar captura -- opcional, comprimida igual que las fotos del escáner de cartas */}
+            <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImageFile}/>
+            {!image ? (
+              <button type="button" onClick={()=>{snd("tap");fileRef.current&&fileRef.current.click();}}
+                style={{width:"100%",background:"rgba(255,255,255,.04)",border:"1px dashed rgba(255,255,255,.25)",
+                  borderRadius:10,padding:10,color:"rgba(255,255,255,.55)",fontFamily:"'Nunito',sans-serif",
+                  fontSize:".8rem",marginBottom:10,cursor:"pointer"}}>
+                📎 Adjuntar captura de pantalla (opcional)
+              </button>
+            ) : (
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,
+                background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",borderRadius:10,padding:8}}>
+                <img src={image.preview} alt="captura" style={{width:52,height:52,objectFit:"cover",borderRadius:8}}/>
+                <div style={{flex:1,fontSize:".72rem",color:"rgba(255,255,255,.6)"}}>Captura adjunta</div>
+                <button type="button" onClick={()=>{snd("tap");setImage(null);if(fileRef.current)fileRef.current.value="";}}
+                  style={{background:"none",border:"none",color:"rgba(255,255,255,.5)",fontSize:"1rem",cursor:"pointer"}}>✕</button>
+              </div>
+            )}
+            {imgErr&&<div style={{color:"#FF5A5A",fontSize:".72rem",marginBottom:8,textAlign:"center"}}>{imgErr}</div>}
+
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,
+              background:"rgba(255,255,255,.04)",borderRadius:10,padding:"8px 10px"}}>
+              <span style={{fontSize:".7rem",color:"rgba(255,255,255,.4)"}}>Enviando como:</span>
+              <span style={{fontSize:".78rem",fontWeight:800,color:"#fff"}}>{identityLabel}</span>
+            </div>
+
             {err&&<div style={{color:"#FF5A5A",fontSize:".75rem",marginBottom:8,textAlign:"center"}}>{err}</div>}
             <div className="mr2">
               <button className="mc" onClick={()=>{snd("tap");onClose();}}>Cancelar</button>
