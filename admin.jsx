@@ -85,6 +85,37 @@ const MOD_COLOR={
   banned:{bg:"rgba(230,57,70,.15)",border:"rgba(230,57,70,.4)"}
 };
 
+// Tipo de cuenta (proveedor de Firebase Auth) -- providerId real que guarda
+// saveUserProfile en app.js: "google.com", "password" o "anonymous".
+const PROVIDER_LABEL={"google.com":"🟢 Gmail / Google","password":"✉️ Correo y contraseña",anonymous:"👻 Anónimo"};
+function providerOf(u){
+  if(!u) return "anonymous";
+  if(u.isAnon) return "anonymous";
+  return u.provider||"password";
+}
+// Comparador numérico genérico para filtros tipo "días de inactividad
+// mayor/menor/igual a N" -- target vacío = sin filtro (deja pasar todo).
+function cmpMatch(value,op,target){
+  if(target===""||target===null||target===undefined) return true;
+  const t=Number(target);
+  if(isNaN(t)) return true;
+  if(op==="lte") return value<=t;
+  if(op==="eq") return value===t;
+  if(op==="gt") return value>t;
+  if(op==="lt") return value<t;
+  return value>=t; // "gte" por default
+}
+const CMP_OPTIONS=[["gte","≥ mayor o igual"],["lte","≤ menor o igual"],["eq","= igual a"],["gt","> mayor que"],["lt","< menor que"]];
+function CmpSelect({value,onChange}){
+  return(
+    <select value={value} onChange={e=>onChange(e.target.value)} style={{
+      background:"#1a1a2e",color:"#fff",border:"1px solid rgba(255,255,255,.15)",
+      borderRadius:10,padding:9,fontFamily:"'Nunito',sans-serif"}}>
+      {CMP_OPTIONS.map(function(o){ return <option key={o[0]} style={OPTION_STYLE} value={o[0]}>{o[1]}</option>; })}
+    </select>
+  );
+}
+
 // Prioridad de tickets del buzón (vive en /feedbackMeta/{bugs|suggestions}/{id}).
 const PRIORITY_LABEL={low:"🔵 Baja",medium:"🟡 Media",high:"🟠 Alta",critical:"🔴 Crítica"};
 const PRIORITY_COLOR={
@@ -194,10 +225,34 @@ function FeedbackCard({it,onCycleStatus,onSetPriority,onSetNotes,picked,onToggle
   );
 }
 
-function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,onBulkResolve}){
+function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,onBulkResolve,usersByUid}){
   const[picked,setPicked]=React.useState({});
+  const[q,setQ]=React.useState("");
+  const[from,setFrom]=React.useState("");
+  const[to,setTo]=React.useState("");
+  const[providerF,setProviderF]=React.useState("all");
   const pickedIds=Object.keys(picked).filter(function(id){ return picked[id]; });
   const[busy,setBusy]=React.useState(false);
+
+  const filtered=React.useMemo(function(){
+    let list=items.slice();
+    const qq=q.trim().toLowerCase();
+    if(qq) list=list.filter(function(it){
+      return (it.name||"").toLowerCase().indexOf(qq)>=0 || (it.email||"").toLowerCase().indexOf(qq)>=0;
+    });
+    if(from){
+      const fromTs=new Date(from+"T00:00:00").getTime();
+      list=list.filter(function(it){ return (it.createdAt||0)>=fromTs; });
+    }
+    if(to){
+      const toTs=new Date(to+"T23:59:59").getTime();
+      list=list.filter(function(it){ return (it.createdAt||0)<=toTs; });
+    }
+    if(providerF!=="all") list=list.filter(function(it){
+      return providerOf((usersByUid||{})[it.uid])===providerF;
+    });
+    return list;
+  },[items,q,from,to,providerF,usersByUid]);
 
   async function runBulkResolve(){
     setBusy(true);
@@ -205,12 +260,33 @@ function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,o
     finally{ setBusy(false); }
   }
 
+  const inputStyle={background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+    borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"};
+  const selectStyle={background:"#1a1a2e",color:"#fff",border:"1px solid rgba(255,255,255,.15)",
+    borderRadius:10,padding:9,fontFamily:"'Nunito',sans-serif"};
+
   return(
     <div style={{marginBottom:24}}>
       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".82rem",color:"#fff",
         letterSpacing:1,marginBottom:10}}>
-        {icon} {title} <span style={{color:"rgba(255,255,255,.4)"}}>({items.length})</span>
+        {icon} {title} <span style={{color:"rgba(255,255,255,.4)"}}>({filtered.length} de {items.length})</span>
       </div>
+
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar por nombre o correo..."
+          style={Object.assign({flex:"1 1 180px"},inputStyle)}/>
+        <select value={providerF} onChange={e=>setProviderF(e.target.value)} style={selectStyle}>
+          <option style={OPTION_STYLE} value="all">Todos los tipos de cuenta</option>
+          <option style={OPTION_STYLE} value="google.com">🟢 Gmail / Google</option>
+          <option style={OPTION_STYLE} value="password">✉️ Correo y contraseña</option>
+          <option style={OPTION_STYLE} value="anonymous">👻 Anónimo</option>
+        </select>
+        <input type="date" value={from} onChange={e=>setFrom(e.target.value)}
+          style={Object.assign({colorScheme:"dark"},inputStyle)}/>
+        <input type="date" value={to} onChange={e=>setTo(e.target.value)}
+          style={Object.assign({colorScheme:"dark"},inputStyle)}/>
+      </div>
+
       {pickedIds.length>0 && (
         <div style={{background:"rgba(59,178,115,.1)",border:"1px solid rgba(59,178,115,.35)",borderRadius:12,
           padding:"10px 12px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
@@ -218,10 +294,10 @@ function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,o
           <button className="btn btn-g btn-sm" disabled={busy} onClick={runBulkResolve}>✅ Marcar resueltos</button>
         </div>
       )}
-      {items.length===0 && (
-        <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",padding:"10px 0"}}>Nada por aquí todavía.</div>
+      {filtered.length===0 && (
+        <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",padding:"10px 0"}}>Nada por aquí con esos filtros.</div>
       )}
-      {items.map(it=><FeedbackCard key={it.id} it={it} onCycleStatus={onCycleStatus}
+      {filtered.map(it=><FeedbackCard key={it.id} it={it} onCycleStatus={onCycleStatus}
         onSetPriority={onSetPriority} onSetNotes={onSetNotes}
         picked={!!picked[it.id]} onTogglePick={function(item){ setPicked(p=>Object.assign({},p,{[item.id]:!p[item.id]})); }}/>)}
     </div>
@@ -232,7 +308,8 @@ function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,o
 function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
   const[q,setQ]=React.useState("");
   const[statusF,setStatusF]=React.useState("all");
-  const[ageF,setAgeF]=React.useState("all");
+  const[inactOp,setInactOp]=React.useState("gte");
+  const[inactDays,setInactDays]=React.useState("");
   const[roundMin,setRoundMin]=React.useState("");
   const[roundMax,setRoundMax]=React.useState("");
   const[picked,setPicked]=React.useState({});
@@ -245,7 +322,7 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
     if(!r.finished && (Date.now()-activityTs(r)>3*86400000)) return "abandoned";
     return r.finished ? "finished" : "active";
   }
-  const AGE_DAYS={today:1,d1:1,d3:3,d7:7,d14:14};
+  function inactivityDays(r){ return Math.floor((Date.now()-activityTs(r))/86400000); }
 
   const STATUS_L={active:"🟢 Activa",finished:"🏁 Finalizada",abandoned:"👻 Abandonada"};
   const STATUS_C={
@@ -263,15 +340,12 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
       return (r.players||[]).some(function(p){ return (p.name||"").toUpperCase().indexOf(qq)>=0; });
     });
     if(statusF!=="all") list=list.filter(function(r){ return statusOf(r)===statusF; });
-    if(ageF!=="all"){
-      const days=AGE_DAYS[ageF]||0;
-      list=list.filter(function(r){ return (Date.now()-activityTs(r))>=days*86400000; });
-    }
+    if(inactDays!=="") list=list.filter(function(r){ return cmpMatch(inactivityDays(r),inactOp,inactDays); });
     if(roundMin!=="") list=list.filter(function(r){ return (r.round||1)>=Number(roundMin); });
     if(roundMax!=="") list=list.filter(function(r){ return (r.round||1)<=Number(roundMax); });
     list.sort(function(a,b){ return activityTs(b)-activityTs(a); });
     return list;
-  },[rooms,q,statusF,ageF,roundMin,roundMax]);
+  },[rooms,q,statusF,inactOp,inactDays,roundMin,roundMax]);
 
   const pickedCodes=Object.keys(picked).filter(function(c){ return picked[c]; });
   const allVisibleChecked=filtered.length>0 && filtered.every(function(r){ return picked[r.code]; });
@@ -304,14 +378,11 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
           <option style={OPTION_STYLE} value="finished">🏁 Finalizadas</option>
           <option style={OPTION_STYLE} value="abandoned">👻 Abandonadas (+3 días)</option>
         </select>
-        <select value={ageF} onChange={e=>setAgeF(e.target.value)} style={selectStyle}>
-          <option style={OPTION_STYLE} value="all">Cualquier antigüedad</option>
-          <option style={OPTION_STYLE} value="today">Sin actividad hoy</option>
-          <option style={OPTION_STYLE} value="d1">+1 día sin actividad</option>
-          <option style={OPTION_STYLE} value="d3">+3 días sin actividad</option>
-          <option style={OPTION_STYLE} value="d7">+7 días sin actividad</option>
-          <option style={OPTION_STYLE} value="d14">+14 días sin actividad</option>
-        </select>
+        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",alignSelf:"center"}}>Días sin actividad:</span>
+        <CmpSelect value={inactOp} onChange={setInactOp}/>
+        <input type="number" min="0" value={inactDays} onChange={e=>setInactDays(e.target.value)} placeholder="días"
+          style={{width:90,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
         <input type="number" min="1" value={roundMin} onChange={e=>setRoundMin(e.target.value)} placeholder="Ronda mín."
           style={{width:100,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
           borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
@@ -391,7 +462,9 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
 // ── GRUPOS: listado + buscador + actividad real + eliminación masiva ────
 function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
   const[q,setQ]=React.useState("");
-  const[activityF,setActivityF]=React.useState("all");
+  const[neverOnly,setNeverOnly]=React.useState(false);
+  const[inactOp,setInactOp]=React.useState("gte");
+  const[inactDays,setInactDays]=React.useState("");
   const[from,setFrom]=React.useState("");
   const[to,setTo]=React.useState("");
   const[picked,setPicked]=React.useState({});
@@ -404,6 +477,13 @@ function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
     let max=0;
     Object.keys(games).forEach(function(id){ if((games[id].date||0)>max) max=games[id].date; });
     return max;
+  }
+  // Días desde la última partida -- si nunca jugó, cuenta desde que se
+  // creó el grupo (más útil que "días desde 1970" para decidir si ya se
+  // puede considerar abandonado).
+  function inactivityDays(g){
+    const ts=lastActivity(g.id)||g.createdAt||0;
+    return ts ? Math.floor((Date.now()-ts)/86400000) : 999999;
   }
 
   const filtered=React.useMemo(function(){
@@ -420,19 +500,11 @@ function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
       const toTs=new Date(to+"T23:59:59").getTime();
       list=list.filter(function(g){ return (g.createdAt||0)<=toTs; });
     }
-    if(activityF!=="all"){
-      list=list.filter(function(g){
-        const count=gameIds(g.id).length;
-        const last=lastActivity(g.id);
-        if(activityF==="never") return count===0;
-        if(activityF==="active") return count>0 && (Date.now()-last)<=30*86400000;
-        if(activityF==="stale30") return count>0 && (Date.now()-last)>30*86400000;
-        return true;
-      });
-    }
+    if(neverOnly) list=list.filter(function(g){ return gameIds(g.id).length===0; });
+    if(inactDays!=="") list=list.filter(function(g){ return cmpMatch(inactivityDays(g),inactOp,inactDays); });
     list.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
     return list;
-  },[groups,statsGroups,q,activityF,from,to]);
+  },[groups,statsGroups,q,neverOnly,inactOp,inactDays,from,to]);
 
   const pickedIds=Object.keys(picked).filter(function(id){ return picked[id]; });
   async function runBulkDelete(){
@@ -452,16 +524,19 @@ function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
       <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar grupo o código..."
           style={Object.assign({flex:"1 1 180px"},inputStyle)}/>
-        <select value={activityF} onChange={e=>setActivityF(e.target.value)} style={selectStyle}>
-          <option style={OPTION_STYLE} value="all">Cualquier actividad</option>
-          <option style={OPTION_STYLE} value="never">👻 Nunca jugó</option>
-          <option style={OPTION_STYLE} value="active">🟢 Activo (últimos 30 días)</option>
-          <option style={OPTION_STYLE} value="stale30">⏳ Inactivo (+30 días)</option>
-        </select>
         <input type="date" value={from} onChange={e=>setFrom(e.target.value)}
           style={Object.assign({colorScheme:"dark"},inputStyle)}/>
         <input type="date" value={to} onChange={e=>setTo(e.target.value)}
           style={Object.assign({colorScheme:"dark"},inputStyle)}/>
+        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",alignSelf:"center"}}>Días de inactividad:</span>
+        <CmpSelect value={inactOp} onChange={setInactOp}/>
+        <input type="number" min="0" value={inactDays} onChange={e=>setInactDays(e.target.value)} placeholder="días"
+          style={{width:90,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
+        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:".72rem",color:"rgba(255,255,255,.6)"}}>
+          <input type="checkbox" checked={neverOnly} onChange={e=>setNeverOnly(e.target.checked)}/>
+          👻 Solo los que nunca jugaron
+        </label>
       </div>
 
       {pickedIds.length>0 && (
@@ -508,13 +583,21 @@ function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
 function UsersTable({users,moderationMap,onSelect,onBulkBan}){
   const[q,setQ]=React.useState("");
   const[statusF,setStatusF]=React.useState("all");
+  const[providerF,setProviderF]=React.useState("all");
   const[from,setFrom]=React.useState("");
   const[to,setTo]=React.useState("");
+  const[inactOp,setInactOp]=React.useState("gte");
+  const[inactDays,setInactDays]=React.useState("");
   const[sort,setSort]=React.useState("recent");
   const[picked,setPicked]=React.useState({});
   const[bulkReason,setBulkReason]=React.useState("");
   const[bulkConfirm,setBulkConfirm]=React.useState("");
   const[bulkBusy,setBulkBusy]=React.useState(false);
+
+  function inactivityDays(u){
+    const ts=u.lastLogin||u.createdAt||0;
+    return ts ? Math.floor((Date.now()-ts)/86400000) : 999999;
+  }
 
   const filtered=React.useMemo(function(){
     let list=users.slice();
@@ -528,10 +611,12 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan}){
     }
     if(statusF!=="all"){
       list=list.filter(function(u){
-        if(statusF==="anon") return !!u.isAnon;
         const st=(moderationMap[u.uid]&&moderationMap[u.uid].status)||"ok";
         return st===statusF;
       });
+    }
+    if(providerF!=="all"){
+      list=list.filter(function(u){ return providerOf(u)===providerF; });
     }
     if(from){
       const fromTs=new Date(from+"T00:00:00").getTime();
@@ -541,6 +626,9 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan}){
       const toTs=new Date(to+"T23:59:59").getTime();
       list=list.filter(function(u){ return (u.createdAt||0)<=toTs; });
     }
+    if(inactDays!==""){
+      list=list.filter(function(u){ return cmpMatch(inactivityDays(u),inactOp,inactDays); });
+    }
     list.sort(function(a,b){
       if(sort==="recent") return (b.createdAt||0)-(a.createdAt||0);
       if(sort==="oldest") return (a.createdAt||0)-(b.createdAt||0);
@@ -548,7 +636,7 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan}){
       return 0;
     });
     return list;
-  },[users,moderationMap,q,statusF,from,to,sort]);
+  },[users,moderationMap,q,statusF,providerF,from,to,inactOp,inactDays,sort]);
 
   const inputStyle={background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
     borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"};
@@ -588,7 +676,12 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan}){
           <option style={OPTION_STYLE} value="warned">⚠️ Advertidos</option>
           <option style={OPTION_STYLE} value="suspended">⏳ Suspendidos</option>
           <option style={OPTION_STYLE} value="banned">🚫 Baneados</option>
-          <option style={OPTION_STYLE} value="anon">👻 Anónimos</option>
+        </select>
+        <select value={providerF} onChange={e=>setProviderF(e.target.value)} style={selectStyle}>
+          <option style={OPTION_STYLE} value="all">Todos los tipos de cuenta</option>
+          <option style={OPTION_STYLE} value="google.com">🟢 Gmail / Google</option>
+          <option style={OPTION_STYLE} value="password">✉️ Correo y contraseña</option>
+          <option style={OPTION_STYLE} value="anonymous">👻 Anónimo</option>
         </select>
         <select value={sort} onChange={e=>setSort(e.target.value)} style={selectStyle}>
           <option style={OPTION_STYLE} value="recent">Más recientes</option>
@@ -599,6 +692,11 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan}){
           style={Object.assign({colorScheme:"dark"},inputStyle)}/>
         <input type="date" value={to} onChange={e=>setTo(e.target.value)}
           style={Object.assign({colorScheme:"dark"},inputStyle)}/>
+        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",alignSelf:"center"}}>Días de inactividad:</span>
+        <CmpSelect value={inactOp} onChange={setInactOp}/>
+        <input type="number" min="0" value={inactDays} onChange={e=>setInactDays(e.target.value)} placeholder="días"
+          style={{width:90,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
       </div>
 
       <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:8}}>
@@ -620,7 +718,7 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan}){
                 {u.displayName||"Sin nombre"} {u.isAnon && <span style={{color:"rgba(255,255,255,.35)"}}>(anónimo)</span>}
               </div>
               <div style={{fontSize:".68rem",color:"rgba(255,255,255,.45)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {u.email||"—"} · alta {fmtDate(u.createdAt)}
+                {u.email||"—"} · alta {fmtDate(u.createdAt)} · {PROVIDER_LABEL[providerOf(u)]||providerOf(u)}
               </div>
             </div>
             <span onClick={()=>onSelect(u)} style={{background:col.bg,border:"1px solid "+col.border,borderRadius:20,
@@ -1078,12 +1176,12 @@ function AdminApp(){
         <GroupsTab groups={groups} statsGroups={statsGroups} onDelete={handleDeleteGroup} onBulkDelete={handleBulkDeleteGroups}/>
       )}
 
-      {tab==="bugs" && <FeedbackList title="Bugs reportados" icon="🐞" items={bugs}
+      {tab==="bugs" && <FeedbackList title="Bugs reportados" icon="🐞" items={bugs} usersByUid={usersByUid}
         onCycleStatus={it=>cycleStatus(it,"bugs")}
         onSetPriority={(it,p)=>setTicketPriority(it,"bugs",p)}
         onSetNotes={(it,n)=>setTicketNotes(it,"bugs",n)}
         onBulkResolve={ids=>handleBulkResolve("bugs",ids)}/>}
-      {tab==="sugerencias" && <FeedbackList title="Sugerencias de juegos" icon="💡" items={suggestions}
+      {tab==="sugerencias" && <FeedbackList title="Sugerencias de juegos" icon="💡" items={suggestions} usersByUid={usersByUid}
         onCycleStatus={it=>cycleStatus(it,"suggestions")}
         onSetPriority={(it,p)=>setTicketPriority(it,"suggestions",p)}
         onSetNotes={(it,n)=>setTicketNotes(it,"suggestions",n)}
