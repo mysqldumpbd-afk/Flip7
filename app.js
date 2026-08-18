@@ -283,6 +283,45 @@ async function banUsersBulk(uids, reason){
   await _db.ref().update(updates);
   await logAdminAction('bulk_ban', null, {count: uids.length, reason: reason||''});
 }
+async function warnUsersBulk(uids, reason){
+  const updates={};
+  const admin=_auth.currentUser;
+  uids.forEach(function(uid){
+    updates['moderation/'+uid+'/status']='warned';
+    updates['moderation/'+uid+'/reason']=reason||'';
+    updates['moderation/'+uid+'/until']=null;
+    updates['moderation/'+uid+'/updatedAt']=Date.now();
+    updates['moderation/'+uid+'/updatedBy']=(admin&&admin.email)||'?';
+  });
+  await _db.ref().update(updates);
+  await logAdminAction('bulk_warn', null, {count: uids.length, reason: reason||''});
+}
+async function suspendUsersBulk(uids, reason, untilTs){
+  const updates={};
+  const admin=_auth.currentUser;
+  uids.forEach(function(uid){
+    updates['moderation/'+uid+'/status']='suspended';
+    updates['moderation/'+uid+'/reason']=reason||'';
+    updates['moderation/'+uid+'/until']=untilTs||null;
+    updates['moderation/'+uid+'/updatedAt']=Date.now();
+    updates['moderation/'+uid+'/updatedBy']=(admin&&admin.email)||'?';
+  });
+  await _db.ref().update(updates);
+  await logAdminAction('bulk_suspend', null, {count: uids.length, reason: reason||'', until: untilTs||null});
+}
+async function unbanUsersBulk(uids){
+  const updates={};
+  const admin=_auth.currentUser;
+  uids.forEach(function(uid){
+    updates['moderation/'+uid+'/status']='ok';
+    updates['moderation/'+uid+'/reason']='';
+    updates['moderation/'+uid+'/until']=null;
+    updates['moderation/'+uid+'/updatedAt']=Date.now();
+    updates['moderation/'+uid+'/updatedBy']=(admin&&admin.email)||'?';
+  });
+  await _db.ref().update(updates);
+  await logAdminAction('bulk_unban', null, {count: uids.length});
+}
 async function resolveTicketsBulk(type, ids){
   const updates={};
   ids.forEach(function(id){

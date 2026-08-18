@@ -132,7 +132,9 @@ const AUDIT_ACTION_LABEL={
   bulk_delete_rooms:"🗑️ Salas eliminadas en lote",delete_group:"🗑️ Grupo eliminado",
   bulk_delete_groups:"🗑️ Grupos eliminados en lote",
   bulk_ban:"🚫 Baneo en lote",bulk_resolve_bugs:"✅ Bugs resueltos en lote",
-  bulk_resolve_suggestions:"✅ Sugerencias resueltas en lote"
+  bulk_resolve_suggestions:"✅ Sugerencias resueltas en lote",
+  bulk_warn:"⚠️ Advertencia en lote",bulk_suspend:"⏳ Suspensión en lote",
+  bulk_unban:"✅ Sanciones levantadas en lote"
 };
 
 function daysAgo(ts){
@@ -305,9 +307,10 @@ function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,o
 }
 
 // ── SALAS: listado en vivo con estado, expulsión y eliminación masiva ───
-function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
+function RoomsTab({rooms,groups,onCloseRoom,onKick,onBulkDelete}){
   const[q,setQ]=React.useState("");
   const[statusF,setStatusF]=React.useState("all");
+  const[groupF,setGroupF]=React.useState("all"); // all | none | any | {groupId}
   const[inactOp,setInactOp]=React.useState("gte");
   const[inactDays,setInactDays]=React.useState("");
   const[roundMin,setRoundMin]=React.useState("");
@@ -323,6 +326,11 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
     return r.finished ? "finished" : "active";
   }
   function inactivityDays(r){ return Math.floor((Date.now()-activityTs(r))/86400000); }
+  const groupsById=React.useMemo(function(){
+    const m={};
+    (groups||[]).forEach(function(g){ m[g.id]=g; });
+    return m;
+  },[groups]);
 
   const STATUS_L={active:"🟢 Activa",finished:"🏁 Finalizada",abandoned:"👻 Abandonada"};
   const STATUS_C={
@@ -340,12 +348,15 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
       return (r.players||[]).some(function(p){ return (p.name||"").toUpperCase().indexOf(qq)>=0; });
     });
     if(statusF!=="all") list=list.filter(function(r){ return statusOf(r)===statusF; });
+    if(groupF==="none") list=list.filter(function(r){ return !r.groupId; });
+    else if(groupF==="any") list=list.filter(function(r){ return !!r.groupId; });
+    else if(groupF!=="all") list=list.filter(function(r){ return r.groupId===groupF; });
     if(inactDays!=="") list=list.filter(function(r){ return cmpMatch(inactivityDays(r),inactOp,inactDays); });
     if(roundMin!=="") list=list.filter(function(r){ return (r.round||1)>=Number(roundMin); });
     if(roundMax!=="") list=list.filter(function(r){ return (r.round||1)<=Number(roundMax); });
     list.sort(function(a,b){ return activityTs(b)-activityTs(a); });
     return list;
-  },[rooms,q,statusF,inactOp,inactDays,roundMin,roundMax]);
+  },[rooms,q,statusF,groupF,inactOp,inactDays,roundMin,roundMax]);
 
   const pickedCodes=Object.keys(picked).filter(function(c){ return picked[c]; });
   const allVisibleChecked=filtered.length>0 && filtered.every(function(r){ return picked[r.code]; });
@@ -377,6 +388,12 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
           <option style={OPTION_STYLE} value="active">🟢 Activas</option>
           <option style={OPTION_STYLE} value="finished">🏁 Finalizadas</option>
           <option style={OPTION_STYLE} value="abandoned">👻 Abandonadas (+3 días)</option>
+        </select>
+        <select value={groupF} onChange={e=>setGroupF(e.target.value)} style={selectStyle}>
+          <option style={OPTION_STYLE} value="all">Cualquier sala</option>
+          <option style={OPTION_STYLE} value="any">🔗 Vinculadas a un grupo</option>
+          <option style={OPTION_STYLE} value="none">Sin grupo</option>
+          {(groups||[]).map(function(g){ return <option key={g.id} style={OPTION_STYLE} value={g.id}>👪 {g.name}</option>; })}
         </select>
         <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",alignSelf:"center"}}>Días sin actividad:</span>
         <CmpSelect value={inactOp} onChange={setInactOp}/>
@@ -425,6 +442,7 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
                   <span style={{color:"rgba(255,255,255,.4)",fontWeight:400}}> · {r.hostName||"?"}</span></div>
                 <div style={{fontSize:".68rem",color:"rgba(255,255,255,.45)"}}>
                   {(r.players||[]).length} jugadores · ronda {r.round||1} · {daysAgo(activityTs(r))}
+                  {r.groupId && <span> · 🔗 {(groupsById[r.groupId]&&groupsById[r.groupId].name)||"grupo eliminado"}</span>}
                 </div>
               </div>
               <span style={{background:col.bg,border:"1px solid "+col.border,borderRadius:20,
@@ -460,16 +478,30 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
 }
 
 // ── GRUPOS: listado + buscador + actividad real + eliminación masiva ────
-function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
+function GroupsTab({groups,statsGroups,usersByUid,onDelete,onBulkDelete}){
   const[q,setQ]=React.useState("");
   const[neverOnly,setNeverOnly]=React.useState(false);
   const[inactOp,setInactOp]=React.useState("gte");
   const[inactDays,setInactDays]=React.useState("");
   const[from,setFrom]=React.useState("");
   const[to,setTo]=React.useState("");
+  const[memberTypeF,setMemberTypeF]=React.useState("all");
   const[picked,setPicked]=React.useState({});
   const[confirmText,setConfirmText]=React.useState("");
   const[busy,setBusy]=React.useState(false);
+
+  // Tipos de cuenta presentes entre los miembros del grupo -- cruza los
+  // uids guardados en members contra /users (usersByUid) para saber el
+  // provider real de cada uno; "?" si el usuario ya no existe en /users.
+  function memberProviders(g){
+    const uids=Object.keys(g.members||{});
+    const set={};
+    uids.forEach(function(uid){
+      const u=(usersByUid||{})[uid];
+      set[u?providerOf(u):"?"]=true;
+    });
+    return set;
+  }
 
   function gameIds(gid){ return Object.keys((statsGroups[gid]||{}).games||{}); }
   function lastActivity(gid){
@@ -502,9 +534,17 @@ function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
     }
     if(neverOnly) list=list.filter(function(g){ return gameIds(g.id).length===0; });
     if(inactDays!=="") list=list.filter(function(g){ return cmpMatch(inactivityDays(g),inactOp,inactDays); });
+    if(memberTypeF==="mixed"){
+      list=list.filter(function(g){
+        const set=memberProviders(g);
+        return set["google.com"] && set["password"] && set["anonymous"];
+      });
+    } else if(memberTypeF!=="all"){
+      list=list.filter(function(g){ return !!memberProviders(g)[memberTypeF]; });
+    }
     list.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
     return list;
-  },[groups,statsGroups,q,neverOnly,inactOp,inactDays,from,to]);
+  },[groups,statsGroups,usersByUid,q,neverOnly,inactOp,inactDays,memberTypeF,from,to]);
 
   const pickedIds=Object.keys(picked).filter(function(id){ return picked[id]; });
   async function runBulkDelete(){
@@ -537,6 +577,13 @@ function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
           <input type="checkbox" checked={neverOnly} onChange={e=>setNeverOnly(e.target.checked)}/>
           👻 Solo los que nunca jugaron
         </label>
+        <select value={memberTypeF} onChange={e=>setMemberTypeF(e.target.value)} style={selectStyle}>
+          <option style={OPTION_STYLE} value="all">Cualquier tipo de cuenta</option>
+          <option style={OPTION_STYLE} value="google.com">🟢 Incluye Gmail/Google</option>
+          <option style={OPTION_STYLE} value="password">✉️ Incluye correo y contraseña</option>
+          <option style={OPTION_STYLE} value="anonymous">👻 Incluye anónimos</option>
+          <option style={OPTION_STYLE} value="mixed">🎭 Mezcla los 3 tipos</option>
+        </select>
       </div>
 
       {pickedIds.length>0 && (
@@ -557,6 +604,7 @@ function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
         const memberCount=Object.keys(g.members||{}).length;
         const games=gameIds(g.id).length;
         const last=lastActivity(g.id);
+        const providers=memberProviders(g);
         return(
           <div key={g.id} style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
             borderRadius:12,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
@@ -566,7 +614,8 @@ function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
               <div style={{fontWeight:700,fontSize:".85rem"}}>{g.name}
                 <span style={{color:"rgba(255,255,255,.4)",fontWeight:400}}> · {g.code}</span></div>
               <div style={{fontSize:".68rem",color:"rgba(255,255,255,.45)"}}>
-                {memberCount} miembro(s) · creado {fmtDate(g.createdAt)} · {games} partida(s)
+                {memberCount} miembro(s) {providers["google.com"]&&"🟢"}{providers["password"]&&"✉️"}{providers["anonymous"]&&"👻"}
+                {" "}· creado {fmtDate(g.createdAt)} · {games} partida(s)
                 {last?" · última "+daysAgo(last):""}{g.currentRoom?" · partida activa: "+g.currentRoom:""}
               </div>
             </div>
@@ -580,7 +629,7 @@ function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
 }
 
 // ── USUARIOS: tabla con filtros + ficha de usuario con acciones ─────────
-function UsersTable({users,moderationMap,onSelect,onBulkBan}){
+function UsersTable({users,moderationMap,onSelect,onBulkBan,onBulkWarn,onBulkSuspend,onBulkUnban}){
   const[q,setQ]=React.useState("");
   const[statusF,setStatusF]=React.useState("all");
   const[providerF,setProviderF]=React.useState("all");
@@ -591,6 +640,7 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan}){
   const[sort,setSort]=React.useState("recent");
   const[picked,setPicked]=React.useState({});
   const[bulkReason,setBulkReason]=React.useState("");
+  const[bulkDays,setBulkDays]=React.useState(7);
   const[bulkConfirm,setBulkConfirm]=React.useState("");
   const[bulkBusy,setBulkBusy]=React.useState(false);
 
@@ -644,10 +694,12 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan}){
     borderRadius:10,padding:9,fontFamily:"'Nunito',sans-serif"};
 
   const pickedUids=Object.keys(picked).filter(function(u){ return picked[u]; });
-  async function runBulkBan(){
-    if(bulkConfirm.trim().toUpperCase()!=="CONFIRMAR")return;
+  // Advertir y suspender no son irreversibles -- no piden "CONFIRMAR".
+  // Banear y quitar sanción sobre un lote grande sí, por si acaso.
+  async function runBulk(fn,needsConfirm){
+    if(needsConfirm && bulkConfirm.trim().toUpperCase()!=="CONFIRMAR")return;
     setBulkBusy(true);
-    try{ await onBulkBan(pickedUids,bulkReason); setPicked({});setBulkReason("");setBulkConfirm(""); }
+    try{ await fn(); setPicked({});setBulkReason("");setBulkConfirm(""); }
     finally{ setBulkBusy(false); }
   }
 
@@ -656,15 +708,31 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan}){
       {pickedUids.length>0 && (
         <div style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.35)",borderRadius:12,
           padding:"10px 12px",marginBottom:12}}>
-          <div style={{fontSize:".78rem",marginBottom:6}}>{pickedUids.length} usuario(s) seleccionados para banear.</div>
-          <textarea value={bulkReason} onChange={e=>setBulkReason(e.target.value)} rows={2} placeholder="Motivo del baneo en lote"
+          <div style={{fontSize:".78rem",marginBottom:6}}>{pickedUids.length} usuario(s) seleccionados.</div>
+          <textarea value={bulkReason} onChange={e=>setBulkReason(e.target.value)} rows={2} placeholder="Motivo (para advertir/suspender/banear)"
             style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
             borderRadius:8,padding:8,color:"#fff",marginBottom:6,fontFamily:"'Nunito',sans-serif",boxSizing:"border-box",resize:"vertical"}}/>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center",marginBottom:6}}>
+            <button className="btn btn-y btn-sm" disabled={bulkBusy}
+              onClick={()=>runBulk(()=>onBulkWarn(pickedUids,bulkReason),false)}>⚠️ Advertir</button>
+            <select value={bulkDays} onChange={e=>setBulkDays(Number(e.target.value))} style={{
+              background:"#1a1a2e",color:"#fff",border:"1px solid rgba(255,255,255,.15)",
+              borderRadius:8,padding:"7px 8px",fontFamily:"'Nunito',sans-serif"}}>
+              <option style={OPTION_STYLE} value={1}>1 día</option>
+              <option style={OPTION_STYLE} value={3}>3 días</option>
+              <option style={OPTION_STYLE} value={7}>7 días</option>
+              <option style={OPTION_STYLE} value={30}>30 días</option>
+            </select>
+            <button className="btn btn-t btn-sm" disabled={bulkBusy}
+              onClick={()=>runBulk(()=>onBulkSuspend(pickedUids,bulkReason,Date.now()+bulkDays*86400000),false)}>⏳ Suspender</button>
+            <button className="btn btn-g btn-sm" disabled={bulkBusy}
+              onClick={()=>runBulk(()=>onBulkUnban(pickedUids),false)}>✅ Quitar sanción</button>
+          </div>
           <input value={bulkConfirm} onChange={e=>setBulkConfirm(e.target.value)} placeholder='Escribe "CONFIRMAR" para banear'
             style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
             borderRadius:8,padding:8,color:"#fff",marginBottom:6,fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
           <button className="btn btn-r btn-sm" disabled={bulkBusy||bulkConfirm.trim().toUpperCase()!=="CONFIRMAR"}
-            onClick={runBulkBan}>🚫 Banear seleccionados</button>
+            onClick={()=>runBulk(()=>onBulkBan(pickedUids,bulkReason),true)}>🚫 Banear seleccionados</button>
         </div>
       )}
       <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
@@ -846,6 +914,110 @@ function AuditList({items,usersByUid}){
   );
 }
 
+// ── SEGURIDAD: solicitudes de amistad en exceso + patrones sospechosos ──
+// Firebase Realtime Database no es SQL, así que no hay "inyección SQL"
+// real posible -- lo que sí puede pasar es que alguien meta ese tipo de
+// texto (u otros intentos de script/plantilla) en un campo libre (nombre,
+// sala, grupo, buzón) probando si algo se rompe. Este escaneo es un
+// chequeo de patrones sobre lo que ya está cargado, no un firewall.
+const SUSPICIOUS_PATTERNS=[
+  {label:"Posible SQL",re:/(\bunion\b[\s\S]{0,20}\bselect\b)|('\s*or\s*'?1'?\s*=\s*'?1)|(\bdrop\s+table\b)|(;\s*--)|(\bselect\b[\s\S]{0,20}\bfrom\b)|(\binsert\s+into\b)/i},
+  {label:"Posible script / XSS",re:/<script|onerror\s*=|onload\s*=|javascript:/i},
+  {label:"Posible plantilla / inyección",re:/\$\{|\{\{/},
+  {label:"Ruta sospechosa",re:/\.\.\//}
+];
+function scanText(value){
+  if(!value||typeof value!=="string") return null;
+  for(let i=0;i<SUSPICIOUS_PATTERNS.length;i++){
+    if(SUSPICIOUS_PATTERNS[i].re.test(value)) return SUSPICIOUS_PATTERNS[i].label;
+  }
+  return null;
+}
+
+function SecurityTab({users,usersByUid,rooms,groups,bugs,suggestions,onSelectUser}){
+  const requestCounts=React.useMemo(function(){
+    const counts={};
+    users.forEach(function(u){
+      const reqs=u.friendRequests||{};
+      Object.keys(reqs).forEach(function(fromUid){ counts[fromUid]=(counts[fromUid]||0)+1; });
+    });
+    return counts;
+  },[users]);
+  const topRequesters=React.useMemo(function(){
+    return Object.keys(requestCounts)
+      .map(function(uid){ return {uid:uid,count:requestCounts[uid],user:usersByUid[uid]}; })
+      .sort(function(a,b){ return b.count-a.count; })
+      .slice(0,20);
+  },[requestCounts,usersByUid]);
+
+  const flags=React.useMemo(function(){
+    const out=[];
+    users.forEach(function(u){
+      const m=scanText(u.displayName);
+      if(m) out.push({source:"Usuario",label:m,value:u.displayName,ref:u.email||u.uid,uid:u.uid});
+    });
+    rooms.forEach(function(r){
+      const mh=scanText(r.hostName);
+      if(mh) out.push({source:"Sala "+r.code,label:mh,value:r.hostName,ref:r.code});
+      (r.players||[]).forEach(function(p){
+        const mp=scanText(p.name);
+        if(mp) out.push({source:"Sala "+r.code,label:mp,value:p.name,ref:r.code,uid:p.uid});
+      });
+    });
+    groups.forEach(function(g){
+      const m=scanText(g.name);
+      if(m) out.push({source:"Grupo",label:m,value:g.name,ref:g.code});
+    });
+    (bugs||[]).concat(suggestions||[]).forEach(function(it){
+      const m=scanText(it.text)||scanText(it.name);
+      if(m) out.push({source:"Buzón",label:m,value:(it.text||it.name||"").slice(0,140),ref:it.email||it.name,uid:it.uid});
+    });
+    return out;
+  },[users,rooms,groups,bugs,suggestions]);
+
+  return(
+    <div>
+      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",color:"#fff",marginBottom:6}}>
+        🕵️ Top solicitantes de amistad
+      </div>
+      <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:10}}>
+        Suma cuántas solicitudes de amistad ha ENVIADO cada quien (entre todos los destinatarios) -- útil para detectar a alguien agregando gente al por mayor. Clic para abrir su ficha.
+      </div>
+      {topRequesters.length===0 && (
+        <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",marginBottom:20}}>Sin solicitudes registradas todavía.</div>
+      )}
+      {topRequesters.map(function(r){
+        return(
+          <div key={r.uid} onClick={()=>r.user&&onSelectUser(r.user)} style={{
+            background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,
+            padding:"9px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center",
+            cursor:r.user?"pointer":"default"}}>
+            <span style={{fontSize:".8rem"}}>{(r.user&&(r.user.displayName||r.user.email))||("uid: "+r.uid)}</span>
+            <span style={{fontSize:".72rem",color:"rgba(255,255,255,.5)"}}>{r.count} solicitudes enviadas</span>
+          </div>
+        );
+      })}
+
+      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",color:"#fff",margin:"22px 0 6px"}}>
+        🚨 Patrones sospechosos
+      </div>
+      <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:10}}>
+        Firebase no usa SQL, así que no hay inyección SQL real posible aquí -- esto detecta a alguien probando ese tipo de texto (u otros intentos de script) en campos libres, más como señal de comportamiento raro que como vulnerabilidad real.
+      </div>
+      {flags.length===0 && <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem"}}>No se detectó nada sospechoso.</div>}
+      {flags.map(function(f,i){
+        return(
+          <div key={i} style={{background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.3)",
+            borderRadius:12,padding:"9px 12px",marginBottom:6,fontSize:".76rem"}}>
+            <b>{f.label}</b> · {f.source}{f.ref?" ("+f.ref+")":""}
+            <div style={{marginTop:3,color:"rgba(255,255,255,.6)",wordBreak:"break-word"}}>{f.value}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AdminApp(){
   const[authUser,setAuthUser]=React.useState(undefined); // undefined=cargando, null=sin sesión
   const[email,setEmail]=React.useState("");
@@ -968,6 +1140,18 @@ function AdminApp(){
   async function handleBulkBanUsers(uids,reason){
     try{ await banUsersBulk(uids,reason); }
     catch(e){ console.warn("No se pudo banear en lote:",e.message); }
+  }
+  async function handleBulkWarnUsers(uids,reason){
+    try{ await warnUsersBulk(uids,reason); }
+    catch(e){ console.warn("No se pudo advertir en lote:",e.message); }
+  }
+  async function handleBulkSuspendUsers(uids,reason,untilTs){
+    try{ await suspendUsersBulk(uids,reason,untilTs); }
+    catch(e){ console.warn("No se pudo suspender en lote:",e.message); }
+  }
+  async function handleBulkUnbanUsers(uids){
+    try{ await unbanUsersBulk(uids); }
+    catch(e){ console.warn("No se pudo quitar la sanción en lote:",e.message); }
   }
   async function handleCloseRoom(code){
     try{ await closeRoom(code); }
@@ -1119,7 +1303,8 @@ function AdminApp(){
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
         {[["resumen","📊 Resumen"],["usuarios","👥 Usuarios"],["salas","🎮 Salas ("+activeRooms+")"],
           ["grupos","👪 Grupos"],["bugs","🐞 Bugs ("+pendingBugs+")"],
-          ["sugerencias","💡 Sugerencias ("+pendingSug+")"],["auditoria","📜 Auditoría"]].map(function(pair){
+          ["sugerencias","💡 Sugerencias ("+pendingSug+")"],["seguridad","🕵️ Seguridad"],
+          ["auditoria","📜 Auditoría"]].map(function(pair){
           const k=pair[0],label=pair[1];
           return(
             <button key={k} onClick={()=>setTab(k)} style={{
@@ -1165,15 +1350,17 @@ function AdminApp(){
       )}
 
       {tab==="usuarios" && (
-        <UsersTable users={users} moderationMap={moderationMap} onSelect={setSelectedUser} onBulkBan={handleBulkBanUsers}/>
+        <UsersTable users={users} moderationMap={moderationMap} onSelect={setSelectedUser}
+          onBulkBan={handleBulkBanUsers} onBulkWarn={handleBulkWarnUsers}
+          onBulkSuspend={handleBulkSuspendUsers} onBulkUnban={handleBulkUnbanUsers}/>
       )}
 
       {tab==="salas" && (
-        <RoomsTab rooms={rooms} onCloseRoom={handleCloseRoom} onKick={handleKickPlayer} onBulkDelete={handleBulkDeleteRooms}/>
+        <RoomsTab rooms={rooms} groups={groups} onCloseRoom={handleCloseRoom} onKick={handleKickPlayer} onBulkDelete={handleBulkDeleteRooms}/>
       )}
 
       {tab==="grupos" && (
-        <GroupsTab groups={groups} statsGroups={statsGroups} onDelete={handleDeleteGroup} onBulkDelete={handleBulkDeleteGroups}/>
+        <GroupsTab groups={groups} statsGroups={statsGroups} usersByUid={usersByUid} onDelete={handleDeleteGroup} onBulkDelete={handleBulkDeleteGroups}/>
       )}
 
       {tab==="bugs" && <FeedbackList title="Bugs reportados" icon="🐞" items={bugs} usersByUid={usersByUid}
@@ -1186,6 +1373,11 @@ function AdminApp(){
         onSetPriority={(it,p)=>setTicketPriority(it,"suggestions",p)}
         onSetNotes={(it,n)=>setTicketNotes(it,"suggestions",n)}
         onBulkResolve={ids=>handleBulkResolve("suggestions",ids)}/>}
+
+      {tab==="seguridad" && (
+        <SecurityTab users={users} usersByUid={usersByUid} rooms={rooms} groups={groups}
+          bugs={bugs} suggestions={suggestions} onSelectUser={setSelectedUser}/>
+      )}
 
       {tab==="auditoria" && <AuditList items={audit} usersByUid={usersByUid}/>}
 
