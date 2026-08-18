@@ -588,18 +588,53 @@ function App(){
   // escucha en vivo (no solo al entrar) para que un baneo hecho mientras
   // la app ya está abierta también saque al usuario, no hasta que recargue.
   const[modBlock,setModBlock]=useState(undefined);
+  // Advertencia ('warned') sin reconocer todavía -- no bloquea la app, pero
+  // se muestra como aviso la próxima vez que el usuario entra (o mientras
+  // sigue en Home). Se limpia sola cuando el usuario la reconoce (dismissWarnAlert)
+  // guardando moderation/{uid}/seenAt = updatedAt de esa advertencia puntual;
+  // si el admin advierte de nuevo más adelante, updatedAt cambia y vuelve a
+  // aparecer aunque la anterior ya se hubiera reconocido.
+  const[warnAlert,setWarnAlert]=useState(null);
   React.useEffect(()=>{
-    if(!authUser){ setModBlock(undefined); return; }
+    if(!authUser){ setModBlock(undefined); setWarnAlert(null); return; }
     const ref=_db.ref("moderation/"+authUser.uid);
     const h=ref.on("value",function(snap){
       const m=snap.val();
-      if(!m){ setModBlock(null); return; }
-      if(m.status==="banned"){ setModBlock(m); return; }
+      if(!m){ setModBlock(null); setWarnAlert(null); return; }
+      if(m.status==="banned"){ setModBlock(m); setWarnAlert(null); return; }
       if(m.status==="suspended"){
         setModBlock(m.until&&Date.now()>m.until ? null : m);
+        setWarnAlert(null);
         return;
       }
       setModBlock(null); // 'ok', 'warned' -- no bloquea
+      if(m.status==="warned"&&m.updatedAt&&m.seenAt!==m.updatedAt){
+        setWarnAlert(m);
+      }else{
+        setWarnAlert(null);
+      }
+    });
+    return function(){ ref.off("value",h); };
+  },[authUser]);
+  function dismissWarnAlert(){
+    if(!authUser||!warnAlert)return;
+    _db.ref("moderation/"+authUser.uid+"/seenAt").set(warnAlert.updatedAt||Date.now()).catch(function(){});
+    setWarnAlert(null);
+  }
+  // Cierre remoto de sesión (forceLogoutAt) -- si un admin fuerza el cierre
+  // mientras esta pestaña sigue abierta, se detecta en vivo y se hace signOut().
+  // sessionStartRef marca cuándo empezó ESTA sesión para no cerrar sesión con
+  // una marca vieja de una vez anterior.
+  const sessionStartRef=React.useRef(null);
+  React.useEffect(()=>{
+    if(!authUser){ sessionStartRef.current=null; return; }
+    if(sessionStartRef.current===null) sessionStartRef.current=Date.now();
+    const ref=_db.ref("users/"+authUser.uid+"/forceLogoutAt");
+    const h=ref.on("value",function(snap){
+      const ts=snap.val();
+      if(ts&&sessionStartRef.current&&ts>sessionStartRef.current){
+        signOut().catch(function(){});
+      }
     });
     return function(){ ref.off("value",h); };
   },[authUser]);
@@ -1112,6 +1147,7 @@ function App(){
   if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}/>;
   if(modBlock)return<AccountBlockedScreen mod={modBlock}/>;
   if(screen==="home")return<>
+    {warnAlert&&<WarnAlertModal mod={warnAlert} onDismiss={dismissWarnAlert}/>}
     {homeNotice&&(
       <div onClick={()=>setHomeNotice(null)} style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",
         zIndex:400,maxWidth:"min(92vw,420px)",background:"linear-gradient(135deg,rgba(230,57,70,.95),rgba(123,45,139,.95))",
@@ -1297,6 +1333,33 @@ function HeroLogoCompact(){
 // /moderation/{uid} indica un baneo permanente o una suspensión que
 // todavía no vence (ver el efecto que la revisa en App, justo después
 // del AUTH GATE).
+// Aviso NO bloqueante de advertencia ('warned') -- a diferencia de
+// AccountBlockedScreen, esto es un modal flotante sobre Home: el usuario
+// puede seguir usando la app con normalidad, solo se le informa que un
+// admin le llamó la atención y por qué, y lo reconoce con un botón.
+function WarnAlertModal({mod,onDismiss}){
+  return(
+    <div className="mbg" style={{zIndex:500}}>
+      <div className="ms" style={{maxWidth:380,textAlign:"center"}}>
+        <div style={{fontSize:"2.4rem",marginBottom:10}}>⚠️</div>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"var(--or)",marginBottom:8}}>
+          ADVERTENCIA DEL ADMINISTRADOR
+        </div>
+        <div style={{color:"rgba(255,255,255,.75)",fontSize:".85rem",lineHeight:1.5,marginBottom:14}}>
+          {mod&&mod.reason
+            ? mod.reason
+            : "Recibiste una advertencia por parte del equipo de administración. Revisa que tu comportamiento cumpla las reglas de la comunidad."}
+        </div>
+        {mod&&mod.warnCount>1&&(
+          <div style={{color:"rgba(255,255,255,.4)",fontSize:".7rem",marginBottom:14}}>
+            Advertencias acumuladas: {mod.warnCount}. Si continúan, tu cuenta puede ser suspendida o bloqueada.
+          </div>
+        )}
+        <button className="btn btn-y" onClick={onDismiss} style={{width:"100%"}}>Entendido</button>
+      </div>
+    </div>
+  );
+}
 function AccountBlockedScreen({mod}){
   const banned=mod&&mod.status==="banned";
   return(

@@ -133,6 +133,25 @@ function fbKey(str){
   return (str||'').toString().trim().toLowerCase().replace(/[.#$\[\]\/]/g,'_');
 }
 
+// ── HUELLA DE DISPOSITIVO (best-effort, no bloquea nada) ──────────
+// Un id aleatorio persistente en localStorage -- NO es un fingerprint real
+// de hardware ni una medida de seguridad dura, solo permite reconocer "este
+// mismo navegador ya estuvo aquí" para detectar reincidencia tras un baneo
+// (ver pestaña Seguridad del panel admin). Si el usuario borra localStorage,
+// usa modo incógnito o cambia de navegador, deja de coincidir -- es una
+// señal para el admin, no un bloqueo técnico (eso requeriría Cloud Functions
+// de pago, fuera del plan gratuito elegido para este proyecto).
+function getOrCreateDeviceId(){
+  try{
+    let id=localStorage.getItem('f7deviceId');
+    if(!id){
+      id='dev_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,10);
+      localStorage.setItem('f7deviceId', id);
+    }
+    return id;
+  }catch(e){ return null; }
+}
+
 // Guarda/actualiza perfil del usuario autenticado en /users/{uid}
 // y su(s) clave(s) de búsqueda en /userIndex/{clave} -> uid
 // (evita tener que leer el nodo /users completo para buscar amigos)
@@ -154,6 +173,7 @@ async function saveUserProfile(user, extraData={}){
     isAnon: user.isAnonymous||false,
     lastLogin: Date.now(),
     createdAt: prev.createdAt||Date.now(),
+    deviceId: getOrCreateDeviceId()||prev.deviceId||null,
     ...extraData
   });
 
@@ -187,26 +207,49 @@ function logAdminAction(action, targetUid, extra){
     at: Date.now()
   }, extra||{})).catch(function(e){ console.warn('No se pudo registrar en la bitácora:', e.message); });
 }
-async function warnUser(uid, reason){
+async function warnUser(uid, reason, source){
+  // seenAt:null reinicia el "ya la vi" del usuario -- si ya había reconocido
+  // una advertencia anterior, esta nueva vuelve a mostrarse la próxima vez
+  // que abra la app (ver listener de moderation/{uid} en components.jsx).
   await _db.ref('moderation/'+uid).update({
-    status:'warned', reason: reason||'', until:null,
+    status:'warned', reason: reason||'', until:null, seenAt:null,
+    sourceType:(source&&source.type)||null, sourceId:(source&&source.id)||null,
     updatedAt: Date.now(), updatedBy:(_auth.currentUser&&_auth.currentUser.email)||'?'
   });
-  await logAdminAction('warn', uid, {reason: reason||''});
+  // Contador acumulado de advertencias -- transaction para que sea atómico
+  // aunque se adviertan varios usuarios casi al mismo tiempo.
+  await _db.ref('moderation/'+uid+'/warnCount').transaction(function(cur){ return (cur||0)+1; });
+  await logAdminAction('warn', uid, {reason: reason||'', sourceType:(source&&source.type)||null, sourceId:(source&&source.id)||null});
 }
-async function suspendUser(uid, reason, untilTs){
+async function suspendUser(uid, reason, untilTs, source){
   await _db.ref('moderation/'+uid).update({
     status:'suspended', reason: reason||'', until: untilTs||null,
+    sourceType:(source&&source.type)||null, sourceId:(source&&source.id)||null,
     updatedAt: Date.now(), updatedBy:(_auth.currentUser&&_auth.currentUser.email)||'?'
   });
-  await logAdminAction('suspend', uid, {reason: reason||'', until: untilTs||null});
+  await logAdminAction('suspend', uid, {reason: reason||'', until: untilTs||null, sourceType:(source&&source.type)||null, sourceId:(source&&source.id)||null});
 }
-async function banUser(uid, reason){
+async function banUser(uid, reason, source){
+  // Guarda un snapshot del deviceId actual del usuario -- permite detectar
+  // en Seguridad si vuelve a aparecer el mismo navegador con otra cuenta
+  // (ver getOrCreateDeviceId arriba). No bloquea nada, solo avisa.
+  const devSnap=await _db.ref('users/'+uid+'/deviceId').once('value').catch(function(){return null;});
+  const deviceId=devSnap?devSnap.val():null;
   await _db.ref('moderation/'+uid).update({
-    status:'banned', reason: reason||'', until:null,
+    status:'banned', reason: reason||'', until:null, deviceId: deviceId||null,
+    sourceType:(source&&source.type)||null, sourceId:(source&&source.id)||null,
     updatedAt: Date.now(), updatedBy:(_auth.currentUser&&_auth.currentUser.email)||'?'
   });
-  await logAdminAction('ban', uid, {reason: reason||''});
+  await logAdminAction('ban', uid, {reason: reason||'', sourceType:(source&&source.type)||null, sourceId:(source&&source.id)||null});
+}
+// Cierra remotamente la sesión activa de un usuario -- escribe una marca de
+// tiempo que components.jsx escucha en vivo; si es más reciente que el
+// inicio de la sesión actual del usuario, la app hace signOut() sola.
+// No es una revocación real a nivel de Firebase Auth (eso requiere Admin
+// SDK / Cloud Functions), pero funciona mientras la pestaña siga abierta.
+async function forceLogoutUser(uid){
+  await _db.ref('users/'+uid+'/forceLogoutAt').set(Date.now());
+  await logAdminAction('force_logout', uid, {});
 }
 async function liftModeration(uid){
   await _db.ref('moderation/'+uid).update({
@@ -242,9 +285,16 @@ function checkModeration(uid){
 // escribir su propia sala), así que estas funciones no necesitan permisos
 // nuevos; solo agregan el registro en la bitácora que las demás acciones
 // de admin ya tienen.
+// Nota general de snapshots: adminAudit ya es de lectura/escritura exclusiva
+// del admin, así que guardar ahí una copia del nodo justo antes de borrarlo
+// no necesita reglas nuevas ni infraestructura extra -- es la única forma de
+// poder reconstruir algo eliminado por error, o investigar qué contenía una
+// sala/grupo después de que ya no existe en su ubicación original.
 async function closeRoom(code, reason){
+  const snap=await _db.ref('rooms/'+code).once('value').catch(function(){return null;});
+  const data=snap?snap.val():null;
   await _db.ref('rooms/'+code).remove();
-  await logAdminAction('close_room', null, {roomCode: code, reason: reason||''});
+  await logAdminAction('close_room', null, {roomCode: code, reason: reason||'', snapshot: data});
 }
 async function kickPlayerFromRoom(code, playerId, playerName){
   const snap=await _db.ref('rooms/'+code+'/players').once('value');
@@ -255,28 +305,44 @@ async function kickPlayerFromRoom(code, playerId, playerName){
   await logAdminAction('kick_player', null, {roomCode: code, playerName: playerName||''});
 }
 async function deleteRoomsBulk(codes){
+  const snaps=await Promise.all(codes.map(function(c){
+    return _db.ref('rooms/'+c).once('value').then(function(s){return s.val();}).catch(function(){return null;});
+  }));
   const updates={};
   codes.forEach(function(c){ updates['rooms/'+c]=null; });
   await _db.ref().update(updates);
-  await logAdminAction('bulk_delete_rooms', null, {count: codes.length, codes: codes.join(',')});
+  const snapshot={};
+  codes.forEach(function(c,i){ snapshot[c]=snaps[i]; });
+  await logAdminAction('bulk_delete_rooms', null, {count: codes.length, codes: codes.join(','), snapshot: snapshot});
 }
 async function deleteGroupAdmin(gid, groupName){
+  const snap=await _db.ref('groups/'+gid).once('value').catch(function(){return null;});
+  const data=snap?snap.val():null;
   await _db.ref('groups/'+gid).remove();
-  await logAdminAction('delete_group', null, {groupId: gid, groupName: groupName||''});
+  await logAdminAction('delete_group', null, {groupId: gid, groupName: groupName||'', snapshot: data});
 }
 async function deleteGroupsBulk(gids){
+  const snaps=await Promise.all(gids.map(function(gid){
+    return _db.ref('groups/'+gid).once('value').then(function(s){return s.val();}).catch(function(){return null;});
+  }));
   const updates={};
   gids.forEach(function(gid){ updates['groups/'+gid]=null; });
   await _db.ref().update(updates);
-  await logAdminAction('bulk_delete_groups', null, {count: gids.length});
+  const snapshot={};
+  gids.forEach(function(gid,i){ snapshot[gid]=snaps[i]; });
+  await logAdminAction('bulk_delete_groups', null, {count: gids.length, snapshot: snapshot});
 }
 async function banUsersBulk(uids, reason){
-  const updates={};
   const admin=_auth.currentUser;
-  uids.forEach(function(uid){
+  const deviceIds=await Promise.all(uids.map(function(uid){
+    return _db.ref('users/'+uid+'/deviceId').once('value').then(function(s){return s.val();}).catch(function(){return null;});
+  }));
+  const updates={};
+  uids.forEach(function(uid,i){
     updates['moderation/'+uid+'/status']='banned';
     updates['moderation/'+uid+'/reason']=reason||'';
     updates['moderation/'+uid+'/until']=null;
+    updates['moderation/'+uid+'/deviceId']=deviceIds[i]||null;
     updates['moderation/'+uid+'/updatedAt']=Date.now();
     updates['moderation/'+uid+'/updatedBy']=(admin&&admin.email)||'?';
   });
@@ -290,10 +356,14 @@ async function warnUsersBulk(uids, reason){
     updates['moderation/'+uid+'/status']='warned';
     updates['moderation/'+uid+'/reason']=reason||'';
     updates['moderation/'+uid+'/until']=null;
+    updates['moderation/'+uid+'/seenAt']=null;
     updates['moderation/'+uid+'/updatedAt']=Date.now();
     updates['moderation/'+uid+'/updatedBy']=(admin&&admin.email)||'?';
   });
   await _db.ref().update(updates);
+  await Promise.all(uids.map(function(uid){
+    return _db.ref('moderation/'+uid+'/warnCount').transaction(function(cur){ return (cur||0)+1; });
+  }));
   await logAdminAction('bulk_warn', null, {count: uids.length, reason: reason||''});
 }
 async function suspendUsersBulk(uids, reason, untilTs){

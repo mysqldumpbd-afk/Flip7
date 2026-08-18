@@ -134,8 +134,51 @@ const AUDIT_ACTION_LABEL={
   bulk_ban:"🚫 Baneo en lote",bulk_resolve_bugs:"✅ Bugs resueltos en lote",
   bulk_resolve_suggestions:"✅ Sugerencias resueltas en lote",
   bulk_warn:"⚠️ Advertencia en lote",bulk_suspend:"⏳ Suspensión en lote",
-  bulk_unban:"✅ Sanciones levantadas en lote"
+  bulk_unban:"✅ Sanciones levantadas en lote",
+  force_logout:"🔌 Sesión cerrada remotamente"
 };
+// Referencia legible del ticket/alerta que originó una sanción (sourceType/
+// sourceId, ver warnUser/suspendUser/banUser en app.js) -- conecta
+// Auditoría con Bugs/Sugerencias/Seguridad sin tener que confiar en la memoria.
+const SOURCE_LABEL={bug:"🐞 Bug",suggestion:"💡 Sugerencia",security:"🕵️ Seguridad"};
+
+// A partir de cuántas advertencias acumuladas se sugiere escalar la sanción
+// -- solo una sugerencia visual para el admin, no automatiza nada por su cuenta.
+function warnSeverityHint(count){
+  if(!count||count<2) return null;
+  if(count>=4) return "🔴 "+count+" advertencias acumuladas — considera banear.";
+  return "🟠 "+count+" advertencias acumuladas — considera suspender.";
+}
+
+// ── Exportar a CSV (Usuarios / Auditoría / Buzón) — 100% cliente, sin
+// backend: arma el archivo desde lo que ya está cargado y lo descarga. ────
+function toCSV(rows, columns){
+  const esc=function(v){
+    const s=(v===null||v===undefined)?"":String(v);
+    return '"'+s.replace(/"/g,'""')+'"';
+  };
+  const head=columns.map(function(c){ return esc(c[0]); }).join(",");
+  const body=rows.map(function(r){
+    return columns.map(function(c){ return esc(c[1](r)); }).join(",");
+  }).join("\n");
+  return head+"\n"+body;
+}
+function downloadText(filename, content, mime){
+  const blob=new Blob([content],{type:(mime||"text/plain")+";charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+}
+function ExportButton({label,rows,columns,filename}){
+  return(
+    <button className="btn btn-g btn-sm" disabled={!rows||rows.length===0}
+      onClick={()=>downloadText(filename+"_"+Date.now()+".csv", toCSV(rows,columns), "text/csv")}>
+      ⬇️ {label||"Exportar CSV"}
+    </button>
+  );
+}
 
 function daysAgo(ts){
   if(!ts) return "";
@@ -161,7 +204,7 @@ function mergeFeedback(raw, meta){
   }).sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
 }
 
-function FeedbackCard({it,onCycleStatus,onSetPriority,onSetNotes,picked,onTogglePick}){
+function FeedbackCard({it,onCycleStatus,onSetPriority,onSetNotes,picked,onTogglePick,onSanction,sanctionType}){
   const[expanded,setExpanded]=React.useState(false);
   const[notesOpen,setNotesOpen]=React.useState(false);
   const[notesDraft,setNotesDraft]=React.useState(it.internalNotes||"");
@@ -223,11 +266,17 @@ function FeedbackCard({it,onCycleStatus,onSetPriority,onSetNotes,picked,onToggle
           </div>
         )}
       </div>
+      {it.uid && onSanction && (
+        <button className="btn btn-r btn-sm" style={{marginTop:8}}
+          onClick={()=>onSanction(it,{type:sanctionType,id:it.id,label:(SOURCE_LABEL[sanctionType]||"Ticket")+" #"+it.id.slice(0,6)})}>
+          🚨 Vincular y sancionar a este usuario
+        </button>
+      )}
     </div>
   );
 }
 
-function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,onBulkResolve,usersByUid}){
+function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,onBulkResolve,usersByUid,onSanction,sanctionType}){
   const[picked,setPicked]=React.useState({});
   const[q,setQ]=React.useState("");
   const[from,setFrom]=React.useState("");
@@ -270,8 +319,14 @@ function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,o
   return(
     <div style={{marginBottom:24}}>
       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".82rem",color:"#fff",
-        letterSpacing:1,marginBottom:10}}>
-        {icon} {title} <span style={{color:"rgba(255,255,255,.4)"}}>({filtered.length} de {items.length})</span>
+        letterSpacing:1,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+        <span>{icon} {title} <span style={{color:"rgba(255,255,255,.4)"}}>({filtered.length} de {items.length})</span></span>
+        <ExportButton rows={filtered} filename={sanctionType||"feedback"} columns={[
+          ["id",r=>r.id],["nombre",r=>r.name||""],["correo",r=>r.email||""],
+          ["estado",r=>STATUS_LABEL[r.status||"new"]||r.status],["prioridad",r=>PRIORITY_LABEL[r.priority||"medium"]||r.priority],
+          ["pantalla",r=>SCREEN_LABEL[r.screen]||r.screen||""],["categoria",r=>CATEGORY_LABEL[r.category]||r.category||""],
+          ["fecha",r=>fmtDate(r.createdAt)],["texto",r=>r.text||""],["notas_internas",r=>r.internalNotes||""]
+        ]}/>
       </div>
 
       <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
@@ -300,7 +355,7 @@ function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,o
         <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",padding:"10px 0"}}>Nada por aquí con esos filtros.</div>
       )}
       {filtered.map(it=><FeedbackCard key={it.id} it={it} onCycleStatus={onCycleStatus}
-        onSetPriority={onSetPriority} onSetNotes={onSetNotes}
+        onSetPriority={onSetPriority} onSetNotes={onSetNotes} onSanction={onSanction} sanctionType={sanctionType}
         picked={!!picked[it.id]} onTogglePick={function(item){ setPicked(p=>Object.assign({},p,{[item.id]:!p[item.id]})); }}/>)}
     </div>
   );
@@ -767,13 +822,24 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan,onBulkWarn,onBulkSus
           borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
       </div>
 
-      <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:8}}>
-        {filtered.length} de {users.length} usuarios
+      <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:8,
+        display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+        <span>{filtered.length} de {users.length} usuarios</span>
+        <ExportButton rows={filtered} filename="usuarios" columns={[
+          ["uid",r=>r.uid],["nombre",r=>r.displayName||""],["correo",r=>r.email||""],
+          ["tipo_cuenta",r=>PROVIDER_LABEL[providerOf(r)]||providerOf(r)],
+          ["alta",r=>fmtDate(r.createdAt)],["ultimo_acceso",r=>fmtDate(r.lastLogin)],
+          ["dias_inactividad",r=>inactivityDays(r)],
+          ["estado_moderacion",r=>MOD_LABEL[(moderationMap[r.uid]&&moderationMap[r.uid].status)||"ok"]],
+          ["advertencias",r=>(moderationMap[r.uid]&&moderationMap[r.uid].warnCount)||0]
+        ]}/>
       </div>
 
       {filtered.slice(0,200).map(function(u){
-        const st=(moderationMap[u.uid]&&moderationMap[u.uid].status)||"ok";
+        const mu=moderationMap[u.uid];
+        const st=(mu&&mu.status)||"ok";
         const col=MOD_COLOR[st]||MOD_COLOR.ok;
+        const hint=warnSeverityHint(mu&&mu.warnCount);
         return(
           <div key={u.uid} style={{
             background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
@@ -787,7 +853,9 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan,onBulkWarn,onBulkSus
               </div>
               <div style={{fontSize:".68rem",color:"rgba(255,255,255,.45)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {u.email||"—"} · alta {fmtDate(u.createdAt)} · {PROVIDER_LABEL[providerOf(u)]||providerOf(u)}
+                {mu&&mu.warnCount>0 && <span> · ⚠️ {mu.warnCount} advertencia(s)</span>}
               </div>
+              {hint && <div style={{fontSize:".65rem",color:"var(--or)",marginTop:2}}>{hint}</div>}
             </div>
             <span onClick={()=>onSelect(u)} style={{background:col.bg,border:"1px solid "+col.border,borderRadius:20,
               padding:"3px 9px",fontSize:".62rem",whiteSpace:"nowrap",cursor:"pointer"}}>{MOD_LABEL[st]}</span>
@@ -806,12 +874,13 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan,onBulkWarn,onBulkSus
   );
 }
 
-function UserDetailModal({user,mod,onClose}){
+function UserDetailModal({user,mod,onClose,actionSource}){
   const[reason,setReason]=React.useState("");
   const[days,setDays]=React.useState(7);
   const[name,setName]=React.useState(user.displayName||"");
   const[busy,setBusy]=React.useState(false);
   const[err,setErr]=React.useState("");
+  const[logoutDone,setLogoutDone]=React.useState(false);
 
   async function run(fn){
     setBusy(true);setErr("");
@@ -822,6 +891,7 @@ function UserDetailModal({user,mod,onClose}){
 
   const st=(mod&&mod.status)||"ok";
   const col=MOD_COLOR[st]||MOD_COLOR.ok;
+  const hint=warnSeverityHint(mod&&mod.warnCount);
 
   return(
     <div className="mbg" onClick={onClose}>
@@ -834,11 +904,25 @@ function UserDetailModal({user,mod,onClose}){
           Proveedor: {user.provider||"?"}{user.isAnon?" (anónimo)":""}
         </div>
 
+        {actionSource && (
+          <div style={{margin:"10px 0",padding:"6px 10px",borderRadius:8,
+            background:"rgba(123,45,139,.15)",border:"1px solid rgba(123,45,139,.4)",fontSize:".7rem",color:"#cc88ff"}}>
+            🔗 Sancionando a raíz de: {actionSource.label||SOURCE_LABEL[actionSource.type]||actionSource.type}
+          </div>
+        )}
+
         <div style={{margin:"12px 0",padding:"8px 10px",borderRadius:10,
           background:col.bg,border:"1px solid "+col.border,fontSize:".78rem"}}>
           Estado actual: <b>{MOD_LABEL[st]||st}</b>
           {mod&&mod.reason && <div style={{marginTop:4,color:"rgba(255,255,255,.7)"}}>Motivo: {mod.reason}</div>}
           {mod&&mod.until && <div style={{marginTop:2,color:"rgba(255,255,255,.5)"}}>Hasta: {fmtDate(mod.until)}</div>}
+          {mod&&mod.sourceType && (
+            <div style={{marginTop:2,color:"rgba(255,255,255,.5)"}}>
+              Origen: {SOURCE_LABEL[mod.sourceType]||mod.sourceType}{mod.sourceId?" #"+String(mod.sourceId).slice(0,6):""}
+            </div>
+          )}
+          <div style={{marginTop:4,color:"rgba(255,255,255,.5)"}}>Advertencias acumuladas: {(mod&&mod.warnCount)||0}</div>
+          {hint && <div style={{marginTop:4,color:"var(--or)",fontWeight:700}}>{hint}</div>}
         </div>
 
         {err && <div style={{color:"#FF5A5A",fontSize:".78rem",marginBottom:8}}>{err}</div>}
@@ -851,7 +935,7 @@ function UserDetailModal({user,mod,onClose}){
 
         <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
           <button className="btn btn-y btn-sm" disabled={busy}
-            onClick={()=>run(()=>warnUser(user.uid,reason))}>⚠️ Advertir</button>
+            onClick={()=>run(()=>warnUser(user.uid,reason,actionSource))}>⚠️ Advertir</button>
           <select value={days} onChange={e=>setDays(Number(e.target.value))} style={{
             background:"#1a1a2e",color:"#fff",border:"1px solid rgba(255,255,255,.15)",
             borderRadius:8,padding:"7px 8px",fontFamily:"'Nunito',sans-serif"}}>
@@ -861,9 +945,9 @@ function UserDetailModal({user,mod,onClose}){
             <option style={OPTION_STYLE} value={30}>30 días</option>
           </select>
           <button className="btn btn-t btn-sm" disabled={busy}
-            onClick={()=>run(()=>suspendUser(user.uid,reason,Date.now()+days*86400000))}>⏳ Suspender</button>
+            onClick={()=>run(()=>suspendUser(user.uid,reason,Date.now()+days*86400000,actionSource))}>⏳ Suspender</button>
           <button className="btn btn-r btn-sm" disabled={busy}
-            onClick={()=>run(()=>banUser(user.uid,reason))}>🚫 Banear</button>
+            onClick={()=>run(()=>banUser(user.uid,reason,actionSource))}>🚫 Banear</button>
           {st!=="ok" && (
             <button className="btn btn-g btn-sm" disabled={busy}
               onClick={()=>run(()=>liftModeration(user.uid))}>✅ Quitar sanción</button>
@@ -878,6 +962,16 @@ function UserDetailModal({user,mod,onClose}){
             onClick={()=>run(()=>adminEditDisplayName(user.uid,name.trim()))}>Guardar nombre</button>
         </div>
 
+        <div style={{marginBottom:12}}>
+          <button className="btn btn-t btn-sm" disabled={busy||logoutDone}
+            onClick={()=>run(async()=>{ await forceLogoutUser(user.uid); setLogoutDone(true); })}>
+            🔌 {logoutDone?"Sesión remota cerrada":"Cerrar sesión remota"}
+          </button>
+          <div style={{fontSize:".62rem",color:"rgba(255,255,255,.35)",marginTop:4}}>
+            Solo funciona si la app del usuario sigue abierta en ese momento — no es una revocación real de Firebase Auth.
+          </div>
+        </div>
+
         <button className="btn btn-g" onClick={onClose}>Cerrar</button>
       </div>
     </div>
@@ -885,9 +979,34 @@ function UserDetailModal({user,mod,onClose}){
 }
 
 // ── AUDITORÍA: bitácora de acciones de administrador ─────────────────────
+function AuditEntrySnapshot({snapshot}){
+  const[open,setOpen]=React.useState(false);
+  if(snapshot===undefined||snapshot===null)return null;
+  return(
+    <div style={{marginTop:4}}>
+      <button onClick={()=>setOpen(v=>!v)} style={{background:"none",border:"none",
+        color:"rgba(255,255,255,.4)",fontSize:".68rem",cursor:"pointer",textDecoration:"underline",padding:0}}>
+        🗄️ {open?"Ocultar snapshot":"Ver snapshot (datos justo antes de eliminar)"}
+      </button>
+      {open && (
+        <pre style={{marginTop:6,background:"rgba(0,0,0,.35)",border:"1px solid rgba(255,255,255,.1)",
+          borderRadius:8,padding:8,fontSize:".65rem",color:"rgba(255,255,255,.6)",overflowX:"auto",
+          maxHeight:220,overflowY:"auto"}}>{JSON.stringify(snapshot,null,2)}</pre>
+      )}
+    </div>
+  );
+}
 function AuditList({items,usersByUid}){
   return(
     <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+        <ExportButton rows={items} filename="auditoria" columns={[
+          ["fecha",r=>fmtDate(r.at)],["accion",r=>AUDIT_ACTION_LABEL[r.action]||r.action],
+          ["admin",r=>r.by||""],["usuario_objetivo",r=>{ const t=usersByUid[r.targetUid]; return t?(t.displayName||t.email||r.targetUid):(r.targetUid||""); }],
+          ["motivo",r=>r.reason||""],["origen",r=>r.sourceType?((SOURCE_LABEL[r.sourceType]||r.sourceType)+" #"+(r.sourceId||"")):""],
+          ["detalle",r=>[r.newName,r.roomCode,r.playerName,r.groupName,typeof r.count==="number"?("cantidad:"+r.count):""].filter(Boolean).join(" | ")]
+        ]}/>
+      </div>
       {items.length===0 && (
         <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",padding:"10px 0"}}>Sin actividad registrada todavía.</div>
       )}
@@ -902,11 +1021,17 @@ function AuditList({items,usersByUid}){
               {a.by} · {fmtDate(a.at)}
             </div>
             {a.reason && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Motivo: {a.reason}</div>}
+            {a.sourceType && (
+              <div style={{marginTop:4,color:"#cc88ff"}}>
+                🔗 Origen: {SOURCE_LABEL[a.sourceType]||a.sourceType}{a.sourceId?" #"+String(a.sourceId).slice(0,6):""}
+              </div>
+            )}
             {a.newName && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Nuevo nombre: {a.newName}</div>}
             {a.roomCode && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Sala: {a.roomCode}</div>}
             {a.playerName && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Jugador: {a.playerName}</div>}
             {a.groupName && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Grupo: {a.groupName}</div>}
             {typeof a.count==="number" && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Cantidad: {a.count}</div>}
+            <AuditEntrySnapshot snapshot={a.snapshot}/>
           </div>
         );
       })}
@@ -934,7 +1059,7 @@ function scanText(value){
   return null;
 }
 
-function SecurityTab({users,usersByUid,rooms,groups,bugs,suggestions,onSelectUser}){
+function SecurityTab({users,usersByUid,rooms,groups,bugs,suggestions,onSelectUser,moderationMap,onSanction}){
   const requestCounts=React.useMemo(function(){
     const counts={};
     users.forEach(function(u){
@@ -975,8 +1100,65 @@ function SecurityTab({users,usersByUid,rooms,groups,bugs,suggestions,onSelectUse
     return out;
   },[users,rooms,groups,bugs,suggestions]);
 
+  // ── Evasión de baneo por huella de dispositivo (best-effort) ───────────
+  // moderation/{uid}.deviceId se guarda al banear (ver banUser en app.js) --
+  // si otra cuenta activa comparte ese mismo deviceId, probablemente sea la
+  // misma persona evadiendo el baneo desde el mismo navegador. No bloquea
+  // nada (el baneo es a nivel app), solo lo señala para revisión manual.
+  const deviceMatches=React.useMemo(function(){
+    const out=[];
+    const bannedByDevice={};
+    Object.keys(moderationMap||{}).forEach(function(uid){
+      const m=moderationMap[uid];
+      if(m&&m.status==="banned"&&m.deviceId){
+        (bannedByDevice[m.deviceId]=bannedByDevice[m.deviceId]||[]).push(uid);
+      }
+    });
+    users.forEach(function(u){
+      if(!u.deviceId||!bannedByDevice[u.deviceId])return;
+      bannedByDevice[u.deviceId].forEach(function(bannedUid){
+        if(bannedUid===u.uid)return; // es la misma cuenta baneada, no una nueva
+        const otherSt=(moderationMap[u.uid]&&moderationMap[u.uid].status)||"ok";
+        if(otherSt==="banned")return; // ya está baneada también, no hace falta avisar
+        out.push({user:u,bannedUid:bannedUid,bannedUser:usersByUid[bannedUid]});
+      });
+    });
+    return out;
+  },[users,usersByUid,moderationMap]);
+
   return(
     <div>
+      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",color:"#fff",marginBottom:6}}>
+        🛰️ Posible evasión de baneo
+      </div>
+      <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:10}}>
+        Cuentas activas que comparten navegador/dispositivo con una cuenta ya baneada (huella local, no un id de hardware real -- se pierde si borran localStorage o cambian de navegador). Señal para revisar, no una prueba definitiva.
+      </div>
+      {deviceMatches.length===0 && (
+        <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",marginBottom:20}}>No se detectaron coincidencias de dispositivo con cuentas baneadas.</div>
+      )}
+      {deviceMatches.map(function(dm,i){
+        return(
+          <div key={i} style={{background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.3)",
+            borderRadius:12,padding:"9px 12px",marginBottom:6,fontSize:".76rem",
+            display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <span>
+              <b>{dm.user.displayName||dm.user.email||dm.user.uid}</b> comparte dispositivo con la cuenta baneada{" "}
+              <b>{(dm.bannedUser&&(dm.bannedUser.displayName||dm.bannedUser.email))||dm.bannedUid}</b>
+            </span>
+            <div style={{display:"flex",gap:6}}>
+              <button className="btn btn-g btn-sm" onClick={()=>onSelectUser(dm.user)}>Ver ficha</button>
+              {onSanction && (
+                <button className="btn btn-r btn-sm"
+                  onClick={()=>onSanction(dm.user,{type:"security",id:"device_match",label:"🕵️ Seguridad — mismo dispositivo que cuenta baneada"})}>
+                  🚨 Sancionar
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",color:"#fff",marginBottom:6}}>
         🕵️ Top solicitantes de amistad
       </div>
@@ -988,12 +1170,20 @@ function SecurityTab({users,usersByUid,rooms,groups,bugs,suggestions,onSelectUse
       )}
       {topRequesters.map(function(r){
         return(
-          <div key={r.uid} onClick={()=>r.user&&onSelectUser(r.user)} style={{
+          <div key={r.uid} style={{
             background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,
-            padding:"9px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center",
-            cursor:r.user?"pointer":"default"}}>
-            <span style={{fontSize:".8rem"}}>{(r.user&&(r.user.displayName||r.user.email))||("uid: "+r.uid)}</span>
-            <span style={{fontSize:".72rem",color:"rgba(255,255,255,.5)"}}>{r.count} solicitudes enviadas</span>
+            padding:"9px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <span onClick={()=>r.user&&onSelectUser(r.user)} style={{fontSize:".8rem",cursor:r.user?"pointer":"default"}}>
+              {(r.user&&(r.user.displayName||r.user.email))||("uid: "+r.uid)}
+            </span>
+            <span style={{display:"flex",gap:8,alignItems:"center"}}>
+              <span style={{fontSize:".72rem",color:"rgba(255,255,255,.5)"}}>{r.count} solicitudes enviadas</span>
+              {onSanction&&r.user&&r.count>=10 && (
+                <button className="btn btn-r btn-sm" onClick={()=>onSanction(r.user,{type:"security",id:"friend_requests",label:"🕵️ Seguridad — "+r.count+" solicitudes de amistad enviadas"})}>
+                  🚨 Sancionar
+                </button>
+              )}
+            </span>
           </div>
         );
       })}
@@ -1006,10 +1196,18 @@ function SecurityTab({users,usersByUid,rooms,groups,bugs,suggestions,onSelectUse
       </div>
       {flags.length===0 && <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem"}}>No se detectó nada sospechoso.</div>}
       {flags.map(function(f,i){
+        const fu=f.uid&&usersByUid[f.uid];
         return(
           <div key={i} style={{background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.3)",
             borderRadius:12,padding:"9px 12px",marginBottom:6,fontSize:".76rem"}}>
-            <b>{f.label}</b> · {f.source}{f.ref?" ("+f.ref+")":""}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
+              <span><b>{f.label}</b> · {f.source}{f.ref?" ("+f.ref+")":""}</span>
+              {onSanction&&fu && (
+                <button className="btn btn-r btn-sm" onClick={()=>onSanction(fu,{type:"security",id:"pattern_"+i,label:"🕵️ Seguridad — "+f.label+" en "+f.source})}>
+                  🚨 Sancionar
+                </button>
+              )}
+            </div>
             <div style={{marginTop:3,color:"rgba(255,255,255,.6)",wordBreak:"break-word"}}>{f.value}</div>
           </div>
         );
@@ -1033,6 +1231,19 @@ function AdminApp(){
   const[moderationMap,setModerationMap]=React.useState({});
   const[audit,setAudit]=React.useState([]);
   const[selectedUser,setSelectedUser]=React.useState(null);
+  // Contexto opcional del ticket/alerta que originó abrir la ficha de este
+  // usuario (ver botones "🚨 Sancionar" en Bugs/Sugerencias/Seguridad) --
+  // se guarda junto con la acción para poder responder después "¿por qué
+  // baneamos a esta persona?" sin depender de la memoria.
+  const[actionSource,setActionSource]=React.useState(null);
+  function openUserSanction(user,source){
+    setSelectedUser(user);
+    setActionSource(source||null);
+  }
+  function closeUserModal(){
+    setSelectedUser(null);
+    setActionSource(null);
+  }
   const[rooms,setRooms]=React.useState([]);
   const[groups,setGroups]=React.useState([]);
   const[statsGroups,setStatsGroups]=React.useState({}); // partidas reales por grupo (gameCount del grupo nunca se incrementa)
@@ -1053,6 +1264,28 @@ function AdminApp(){
   },[]);
 
   const authorized = !!(authUser && authUser.email===ADMIN_EMAIL);
+
+  // ── Alertas proactivas (best-effort) ────────────────────────────────
+  // Sin Cloud Functions (fuera del plan gratuito) no hay forma de avisar al
+  // admin cuando esta pestaña está cerrada -- lo que sí se puede hacer sin
+  // costo extra es una notificación del navegador (Notification API) que
+  // salta mientras el panel sigue abierto en segundo plano. No sustituye un
+  // push/correo real, pero reduce el "tengo que entrar a revisar" a algo que
+  // avisa solo si dejas la pestaña abierta.
+  const[notifPerm,setNotifPerm]=React.useState(function(){
+    return (typeof Notification!=="undefined") ? Notification.permission : "unsupported";
+  });
+  async function requestNotifPermission(){
+    if(typeof Notification==="undefined")return;
+    try{ const p=await Notification.requestPermission(); setNotifPerm(p); }catch(e){}
+  }
+  function notify(title,body){
+    if(typeof Notification==="undefined"||Notification.permission!=="granted")return;
+    try{ new Notification(title,{body:body}); }catch(e){}
+  }
+  // Marca ids ya vistos por tipo de fuente, para no notificar de golpe todo
+  // lo que ya existía al cargar el panel -- solo lo que llega DESPUÉS.
+  const seenIdsRef=React.useRef({bugs:null,suggestions:null,users:null});
 
   React.useEffect(()=>{
     if(!authorized)return;
@@ -1078,8 +1311,34 @@ function AdminApp(){
     // contador ahí no se puede proteger a nivel de nodo individual.
     const scansRef=_db.ref("adminStats/aiScans");
 
-    const hBugs=bugsRef.on("value",snap=>setRawBugs(snap.val()||{}));
-    const hSug=sugRef.on("value",snap=>setRawSug(snap.val()||{}));
+    const hBugs=bugsRef.on("value",snap=>{
+      const val=snap.val()||{};
+      if(seenIdsRef.current.bugs===null){
+        seenIdsRef.current.bugs=new Set(Object.keys(val));
+      }else{
+        Object.keys(val).forEach(function(id){
+          if(seenIdsRef.current.bugs.has(id))return;
+          seenIdsRef.current.bugs.add(id);
+          const it=val[id]||{};
+          notify("🐞 Nuevo bug reportado",(it.name||it.email||"Alguien")+": "+(it.text||"").slice(0,120));
+        });
+      }
+      setRawBugs(val);
+    });
+    const hSug=sugRef.on("value",snap=>{
+      const val=snap.val()||{};
+      if(seenIdsRef.current.suggestions===null){
+        seenIdsRef.current.suggestions=new Set(Object.keys(val));
+      }else{
+        Object.keys(val).forEach(function(id){
+          if(seenIdsRef.current.suggestions.has(id))return;
+          seenIdsRef.current.suggestions.add(id);
+          const it=val[id]||{};
+          notify("💡 Nueva sugerencia",(it.name||it.email||"Alguien")+": "+(it.text||"").slice(0,120));
+        });
+      }
+      setRawSug(val);
+    });
     const hMetaBugs=metaBugsRef.on("value",snap=>setMetaBugs(snap.val()||{}));
     const hMetaSug=metaSugRef.on("value",snap=>setMetaSug(snap.val()||{}));
     const hGames=gamesRef.on("value",snap=>setStats(s=>Object.assign({},s,{games:Object.keys(snap.val()||{}).length})));
@@ -1087,6 +1346,20 @@ function AdminApp(){
     const hUsers=usersRef.on("value",snap=>{
       const val=snap.val()||{};
       const list=Object.keys(val).map(function(uid){ return Object.assign({uid:uid},val[uid]); });
+      // Aviso best-effort si un nombre nuevo trae un patrón sospechoso (ver
+      // SUSPICIOUS_PATTERNS/scanText) -- misma lógica que la pestaña Seguridad,
+      // aplicada solo a altas nuevas para no repetir el escaneo completo aquí.
+      if(seenIdsRef.current.users===null){
+        seenIdsRef.current.users=new Set(Object.keys(val));
+      }else{
+        Object.keys(val).forEach(function(uid){
+          if(seenIdsRef.current.users.has(uid))return;
+          seenIdsRef.current.users.add(uid);
+          const u=val[uid]||{};
+          const m=scanText(u.displayName);
+          if(m) notify("🚨 Patrón sospechoso en cuenta nueva",m+": "+(u.displayName||uid));
+        });
+      }
       setUsers(list);
       setStats(s=>Object.assign({},s,{users:list.length}));
     });
@@ -1297,7 +1570,16 @@ function AdminApp(){
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.4)",
             letterSpacing:1}}>FLIP 7 · {authUser.email}</div>
         </div>
-        <button className="btn btn-g btn-sm" onClick={()=>signOut()}>Salir</button>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {notifPerm!=="unsupported" && (
+            notifPerm==="granted" ? (
+              <span title="Notificaciones activas mientras esta pestaña siga abierta" style={{fontSize:".7rem",color:"rgba(255,255,255,.4)"}}>🔔 Activas</span>
+            ) : (
+              <button className="btn btn-t btn-sm" onClick={requestNotifPermission}>🔔 Activar notificaciones</button>
+            )
+          )}
+          <button className="btn btn-g btn-sm" onClick={()=>signOut()}>Salir</button>
+        </div>
       </div>
 
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
@@ -1364,11 +1646,13 @@ function AdminApp(){
       )}
 
       {tab==="bugs" && <FeedbackList title="Bugs reportados" icon="🐞" items={bugs} usersByUid={usersByUid}
+        sanctionType="bug" onSanction={(it,source)=>{ const u=usersByUid[it.uid]; if(u)openUserSanction(u,source); }}
         onCycleStatus={it=>cycleStatus(it,"bugs")}
         onSetPriority={(it,p)=>setTicketPriority(it,"bugs",p)}
         onSetNotes={(it,n)=>setTicketNotes(it,"bugs",n)}
         onBulkResolve={ids=>handleBulkResolve("bugs",ids)}/>}
       {tab==="sugerencias" && <FeedbackList title="Sugerencias de juegos" icon="💡" items={suggestions} usersByUid={usersByUid}
+        sanctionType="suggestion" onSanction={(it,source)=>{ const u=usersByUid[it.uid]; if(u)openUserSanction(u,source); }}
         onCycleStatus={it=>cycleStatus(it,"suggestions")}
         onSetPriority={(it,p)=>setTicketPriority(it,"suggestions",p)}
         onSetNotes={(it,n)=>setTicketNotes(it,"suggestions",n)}
@@ -1376,14 +1660,15 @@ function AdminApp(){
 
       {tab==="seguridad" && (
         <SecurityTab users={users} usersByUid={usersByUid} rooms={rooms} groups={groups}
-          bugs={bugs} suggestions={suggestions} onSelectUser={setSelectedUser}/>
+          bugs={bugs} suggestions={suggestions} onSelectUser={setSelectedUser}
+          moderationMap={moderationMap} onSanction={openUserSanction}/>
       )}
 
       {tab==="auditoria" && <AuditList items={audit} usersByUid={usersByUid}/>}
 
       {selectedUser && (
         <UserDetailModal user={selectedUser} mod={moderationMap[selectedUser.uid]}
-          onClose={()=>setSelectedUser(null)}/>
+          actionSource={actionSource} onClose={closeUserModal}/>
       )}
     </div></div>
   );

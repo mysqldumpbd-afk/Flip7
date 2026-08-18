@@ -1,0 +1,88 @@
+{
+  "rules": {
+    "config": { ".read": true, ".write": false },
+    "rooms": {
+      ".read": "auth.token.email === 'mysqldump.bd@gmail.com'",
+      "$roomId": { ".read": true, ".write": true }
+    },
+    "stats": {
+      ".read": true, ".write": true,
+      "players": { "$key": { "games": { ".indexOn": "date" } } }
+    },
+    "adminStats": {
+      "aiScans": {
+        ".read": "auth.token.email === 'mysqldump.bd@gmail.com'",
+        ".write": "auth != null"
+      }
+    },
+
+    "feedback": {
+      "bugs": {
+        ".read": "auth.token.email === 'mysqldump.bd@gmail.com'",
+        "$id": {
+          ".write": "auth != null && !data.exists()"
+        }
+      },
+      "suggestions": {
+        ".read": "auth.token.email === 'mysqldump.bd@gmail.com'",
+        "$id": {
+          ".write": "auth != null && !data.exists()"
+        }
+      }
+    },
+
+    "feedbackMeta": {
+      "bugs": {
+        ".read": "auth.token.email === 'mysqldump.bd@gmail.com'",
+        "$id": {
+          ".write": "auth.token.email === 'mysqldump.bd@gmail.com'"
+        }
+      },
+      "suggestions": {
+        ".read": "auth.token.email === 'mysqldump.bd@gmail.com'",
+        "$id": {
+          ".write": "auth.token.email === 'mysqldump.bd@gmail.com'"
+        }
+      }
+    },
+
+    "moderation": {
+      ".read": "auth.token.email === 'mysqldump.bd@gmail.com'",
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.email === 'mysqldump.bd@gmail.com')",
+        ".write": "auth.token.email === 'mysqldump.bd@gmail.com'",
+        "seenAt": {
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    },
+
+    "adminAudit": {
+      ".read": "auth.token.email === 'mysqldump.bd@gmail.com'",
+      ".write": "auth.token.email === 'mysqldump.bd@gmail.com'",
+      ".indexOn": "at"
+    },
+
+    "$other": { ".read": false, ".write": false },
+    "groups": { ".read": true, ".write": "auth != null" },
+    "presence": { ".read": true, ".write": "auth != null" },
+    "users": {
+      ".read": "auth.token.email === 'mysqldump.bd@gmail.com'",
+      "$uid": {
+        ".read":  "auth != null",
+        ".write": "auth != null && auth.uid == $uid",
+        "forceLogoutAt": {
+          ".write": "auth != null && (auth.uid == $uid || auth.token.email === 'mysqldump.bd@gmail.com')"
+        },
+        "friends": { "$friendUid": { ".write": "auth != null && auth.uid == $friendUid" } },
+        "groups": { "$gid": { ".write": "auth != null && root.child('groups/'+$gid+'/members/'+auth.uid).exists()" } },
+        "pendingInvite": { ".write": "auth != null" },
+        "friendRequests": { "$fromUid": { ".write": "auth != null && auth.uid == $fromUid" } }
+      }
+    },
+    "userIndex": {
+      ".read": "auth != null",
+      "$key": { ".write": "auth != null && (!data.exists() || data.val() === auth.uid || data.child('uid').val() === auth.uid) && (!newData.exists() || newData.val() === auth.uid || newData.child('uid').val() === auth.uid)" }
+    }
+  }
+}
