@@ -1836,6 +1836,11 @@ const FEEDBACK_CATEGORIES=[
   {v:"visual",l:"🎨 Algo se ve mal (visual)"},
   {v:"other",l:"❓ Otro"}
 ];
+// Los <select> nativos no siempre heredan bien los colores del tema en el
+// popup de opciones (queda texto claro sobre fondo blanco en varios
+// navegadores/WebViews, invisible) -- forzando el estilo directo en cada
+// <option> se ve consistente en Chrome/Android (el WebView que usará el APK).
+const OPTION_STYLE={background:"#1a1a2e",color:"#fff"};
 
 function FeedbackModal({onClose,authUser}){
   const[type,setType]=React.useState("bug"); // bug | suggestion
@@ -1892,12 +1897,13 @@ function FeedbackModal({onClose,authUser}){
         // muestra a otros jugadores, y el usuario nunca lo escribe a mano.
         email:(authUser&&!authUser.isAnonymous)?(authUser.email||null):null,
         uid:(authUser&&!authUser.isAnonymous)?authUser.uid:null,
-        screen:screen,
         status:"new",
         createdAt:Date.now(),
         userAgent:(navigator.userAgent||"").slice(0,200)
       };
-      if(type==="bug")payload.category=category;
+      // Pantalla y categoría solo aplican a reportes de error -- una
+      // sugerencia de juego no está ligada a ninguna pantalla en particular.
+      if(type==="bug"){payload.screen=screen;payload.category=category;}
       if(image){payload.imageBase64=image.b64;payload.imageMime=image.mime;}
       await ref.set(payload);
       snd("score");
@@ -1936,15 +1942,15 @@ function FeedbackModal({onClose,authUser}){
               <button className={type==="suggestion"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("suggestion");}}>💡 Sugerir juego</button>
             </div>
 
-            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:5}}>¿EN QUÉ PANTALLA?</div>
-            <select value={screen} onChange={e=>setScreen(e.target.value)} style={selectStyle}>
-              {FEEDBACK_SCREENS.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
-            </select>
-
             {type==="bug" && (<>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:5}}>¿EN QUÉ PANTALLA?</div>
+              <select value={screen} onChange={e=>setScreen(e.target.value)} style={selectStyle}>
+                {FEEDBACK_SCREENS.map(o=><option key={o.v} value={o.v} style={OPTION_STYLE}>{o.l}</option>)}
+              </select>
+
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:5}}>¿QUÉ TIPO DE ERROR?</div>
               <select value={category} onChange={e=>setCategory(e.target.value)} style={selectStyle}>
-                {FEEDBACK_CATEGORIES.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+                {FEEDBACK_CATEGORIES.map(o=><option key={o.v} value={o.v} style={OPTION_STYLE}>{o.l}</option>)}
               </select>
             </>)}
 
