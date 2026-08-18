@@ -1341,6 +1341,16 @@ function AdminApp(){
     users.forEach(function(u){ m[u.uid]=u; });
     return m;
   },[users]);
+  // Estimación por lo bajo del tamaño de lo que este panel tiene cargado --
+  // ver nota completa en CostsTab sobre qué NO incluye (presence, stats/*).
+  // OJO: este hook debe vivir ANTES de los "return" tempranos de más abajo
+  // (spinner / pantalla de login) -- si un useMemo se salta en algunos
+  // renders y se ejecuta en otros, React pierde la cuenta de hooks y truena
+  // con el error #310 (Rules of Hooks). Por eso vive aquí junto a los demás
+  // useMemo de nivel superior, no más abajo donde estaba antes.
+  const estBytesLoaded=React.useMemo(function(){
+    return estBytes(users,rooms,groups,rawBugs,rawSug,metaBugs,metaSug,moderationMap,audit,statsGroups);
+  },[users,rooms,groups,rawBugs,rawSug,metaBugs,metaSug,moderationMap,audit,statsGroups]);
 
   React.useEffect(()=>{
     const unsub=_auth.onAuthStateChanged(u=>setAuthUser(u||null));
@@ -1637,11 +1647,6 @@ function AdminApp(){
   // Si el prompt vuelve a cambiar de tamaño, hay que ajustar este rango.
   const estCostLow=(stats.aiScans*0.0025).toFixed(2);
   const estCostHigh=(stats.aiScans*0.0038).toFixed(2);
-  // Estimación por lo bajo del tamaño de lo que este panel tiene cargado --
-  // ver nota completa en CostsTab sobre qué NO incluye (presence, stats/*).
-  const estBytesLoaded=React.useMemo(function(){
-    return estBytes(users,rooms,groups,rawBugs,rawSug,metaBugs,metaSug,moderationMap,audit,statsGroups);
-  },[users,rooms,groups,rawBugs,rawSug,metaBugs,metaSug,moderationMap,audit,statsGroups]);
 
   // ── Analítica ampliada (Fase 2) ──────────────────────────────────────
   const now=Date.now();
