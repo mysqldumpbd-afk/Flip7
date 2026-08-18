@@ -264,6 +264,12 @@ async function deleteGroupAdmin(gid, groupName){
   await _db.ref('groups/'+gid).remove();
   await logAdminAction('delete_group', null, {groupId: gid, groupName: groupName||''});
 }
+async function deleteGroupsBulk(gids){
+  const updates={};
+  gids.forEach(function(gid){ updates['groups/'+gid]=null; });
+  await _db.ref().update(updates);
+  await logAdminAction('bulk_delete_groups', null, {count: gids.length});
+}
 async function banUsersBulk(uids, reason){
   const updates={};
   const admin=_auth.currentUser;

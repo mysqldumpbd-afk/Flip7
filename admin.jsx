@@ -99,6 +99,7 @@ const AUDIT_ACTION_LABEL={
   unban:"✅ Sanción levantada",edit_name:"✏️ Nombre editado",
   close_room:"🚫 Sala cerrada",kick_player:"👢 Jugador expulsado",
   bulk_delete_rooms:"🗑️ Salas eliminadas en lote",delete_group:"🗑️ Grupo eliminado",
+  bulk_delete_groups:"🗑️ Grupos eliminados en lote",
   bulk_ban:"🚫 Baneo en lote",bulk_resolve_bugs:"✅ Bugs resueltos en lote",
   bulk_resolve_suggestions:"✅ Sugerencias resueltas en lote"
 };
@@ -231,6 +232,9 @@ function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,o
 function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
   const[q,setQ]=React.useState("");
   const[statusF,setStatusF]=React.useState("all");
+  const[ageF,setAgeF]=React.useState("all");
+  const[roundMin,setRoundMin]=React.useState("");
+  const[roundMax,setRoundMax]=React.useState("");
   const[picked,setPicked]=React.useState({});
   const[expandedCode,setExpandedCode]=React.useState(null);
   const[confirmText,setConfirmText]=React.useState("");
@@ -241,6 +245,7 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
     if(!r.finished && (Date.now()-activityTs(r)>3*86400000)) return "abandoned";
     return r.finished ? "finished" : "active";
   }
+  const AGE_DAYS={today:1,d1:1,d3:3,d7:7,d14:14};
 
   const STATUS_L={active:"🟢 Activa",finished:"🏁 Finalizada",abandoned:"👻 Abandonada"};
   const STATUS_C={
@@ -253,14 +258,31 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
     let list=rooms.slice();
     const qq=q.trim().toUpperCase();
     if(qq) list=list.filter(function(r){
-      return (r.code||"").toUpperCase().indexOf(qq)>=0 || (r.hostName||"").toUpperCase().indexOf(qq)>=0;
+      if((r.code||"").toUpperCase().indexOf(qq)>=0) return true;
+      if((r.hostName||"").toUpperCase().indexOf(qq)>=0) return true;
+      return (r.players||[]).some(function(p){ return (p.name||"").toUpperCase().indexOf(qq)>=0; });
     });
     if(statusF!=="all") list=list.filter(function(r){ return statusOf(r)===statusF; });
+    if(ageF!=="all"){
+      const days=AGE_DAYS[ageF]||0;
+      list=list.filter(function(r){ return (Date.now()-activityTs(r))>=days*86400000; });
+    }
+    if(roundMin!=="") list=list.filter(function(r){ return (r.round||1)>=Number(roundMin); });
+    if(roundMax!=="") list=list.filter(function(r){ return (r.round||1)<=Number(roundMax); });
     list.sort(function(a,b){ return activityTs(b)-activityTs(a); });
     return list;
-  },[rooms,q,statusF]);
+  },[rooms,q,statusF,ageF,roundMin,roundMax]);
 
   const pickedCodes=Object.keys(picked).filter(function(c){ return picked[c]; });
+  const allVisibleChecked=filtered.length>0 && filtered.every(function(r){ return picked[r.code]; });
+  function toggleSelectAllVisible(){
+    setPicked(function(p){
+      const next=Object.assign({},p);
+      const target=!allVisibleChecked;
+      filtered.forEach(function(r){ next[r.code]=target; });
+      return next;
+    });
+  }
   async function runBulkDelete(){
     if(confirmText.trim().toUpperCase()!=="CONFIRMAR")return;
     setBusy(true);
@@ -268,34 +290,54 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
     finally{ setBusy(false); }
   }
 
+  const selectStyle={background:"#1a1a2e",color:"#fff",border:"1px solid rgba(255,255,255,.15)",borderRadius:10,padding:9,fontFamily:"'Nunito',sans-serif"};
+
   return(
     <div>
       <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar código o host..."
-          style={{flex:"1 1 180px",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar código, host o jugador..."
+          style={{flex:"1 1 200px",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
           borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
-        <select value={statusF} onChange={e=>setStatusF(e.target.value)}
-          style={{background:"#1a1a2e",color:"#fff",border:"1px solid rgba(255,255,255,.15)",borderRadius:10,padding:9}}>
-          <option style={OPTION_STYLE} value="all">Todas</option>
+        <select value={statusF} onChange={e=>setStatusF(e.target.value)} style={selectStyle}>
+          <option style={OPTION_STYLE} value="all">Todos los estados</option>
           <option style={OPTION_STYLE} value="active">🟢 Activas</option>
           <option style={OPTION_STYLE} value="finished">🏁 Finalizadas</option>
           <option style={OPTION_STYLE} value="abandoned">👻 Abandonadas (+3 días)</option>
         </select>
+        <select value={ageF} onChange={e=>setAgeF(e.target.value)} style={selectStyle}>
+          <option style={OPTION_STYLE} value="all">Cualquier antigüedad</option>
+          <option style={OPTION_STYLE} value="today">Sin actividad hoy</option>
+          <option style={OPTION_STYLE} value="d1">+1 día sin actividad</option>
+          <option style={OPTION_STYLE} value="d3">+3 días sin actividad</option>
+          <option style={OPTION_STYLE} value="d7">+7 días sin actividad</option>
+          <option style={OPTION_STYLE} value="d14">+14 días sin actividad</option>
+        </select>
+        <input type="number" min="1" value={roundMin} onChange={e=>setRoundMin(e.target.value)} placeholder="Ronda mín."
+          style={{width:100,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
+        <input type="number" min="1" value={roundMax} onChange={e=>setRoundMax(e.target.value)} placeholder="Ronda máx."
+          style={{width:100,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
       </div>
 
       {pickedCodes.length>0 && (
         <div style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.35)",borderRadius:12,
           padding:"10px 12px",marginBottom:12}}>
-          <div style={{fontSize:".78rem",marginBottom:6}}>{pickedCodes.length} sala(s) seleccionadas para eliminar.</div>
+          <div style={{fontSize:".78rem",marginBottom:6}}>{pickedCodes.length} sala(s) seleccionadas para cerrar/eliminar.</div>
           <input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder='Escribe "CONFIRMAR" para eliminar'
             style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
             borderRadius:8,padding:8,color:"#fff",marginBottom:6,fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
           <button className="btn btn-r btn-sm" disabled={busy||confirmText.trim().toUpperCase()!=="CONFIRMAR"}
-            onClick={runBulkDelete}>🗑️ Eliminar seleccionadas</button>
+            onClick={runBulkDelete}>🗑️ Cerrar/eliminar seleccionadas</button>
         </div>
       )}
 
-      <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:8}}>{filtered.length} de {rooms.length} salas</div>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <input type="checkbox" checked={allVisibleChecked} onChange={toggleSelectAllVisible}/>
+        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.4)"}}>
+          Seleccionar todas las visibles · {filtered.length} de {rooms.length} salas
+        </span>
+      </div>
 
       {filtered.slice(0,150).map(function(r){
         const st=statusOf(r);
@@ -346,35 +388,111 @@ function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
   );
 }
 
-// ── GRUPOS: listado + buscador + eliminar ────────────────────────────────
-function GroupsTab({groups,onDelete}){
+// ── GRUPOS: listado + buscador + actividad real + eliminación masiva ────
+function GroupsTab({groups,statsGroups,onDelete,onBulkDelete}){
   const[q,setQ]=React.useState("");
+  const[activityF,setActivityF]=React.useState("all");
+  const[from,setFrom]=React.useState("");
+  const[to,setTo]=React.useState("");
+  const[picked,setPicked]=React.useState({});
+  const[confirmText,setConfirmText]=React.useState("");
+  const[busy,setBusy]=React.useState(false);
+
+  function gameIds(gid){ return Object.keys((statsGroups[gid]||{}).games||{}); }
+  function lastActivity(gid){
+    const games=(statsGroups[gid]||{}).games||{};
+    let max=0;
+    Object.keys(games).forEach(function(id){ if((games[id].date||0)>max) max=games[id].date; });
+    return max;
+  }
+
   const filtered=React.useMemo(function(){
     let list=groups.slice();
     const qq=q.trim().toLowerCase();
     if(qq) list=list.filter(function(g){
       return (g.name||"").toLowerCase().indexOf(qq)>=0 || (g.code||"").toLowerCase().indexOf(qq)>=0;
     });
+    if(from){
+      const fromTs=new Date(from+"T00:00:00").getTime();
+      list=list.filter(function(g){ return (g.createdAt||0)>=fromTs; });
+    }
+    if(to){
+      const toTs=new Date(to+"T23:59:59").getTime();
+      list=list.filter(function(g){ return (g.createdAt||0)<=toTs; });
+    }
+    if(activityF!=="all"){
+      list=list.filter(function(g){
+        const count=gameIds(g.id).length;
+        const last=lastActivity(g.id);
+        if(activityF==="never") return count===0;
+        if(activityF==="active") return count>0 && (Date.now()-last)<=30*86400000;
+        if(activityF==="stale30") return count>0 && (Date.now()-last)>30*86400000;
+        return true;
+      });
+    }
     list.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
     return list;
-  },[groups,q]);
+  },[groups,statsGroups,q,activityF,from,to]);
+
+  const pickedIds=Object.keys(picked).filter(function(id){ return picked[id]; });
+  async function runBulkDelete(){
+    if(confirmText.trim().toUpperCase()!=="CONFIRMAR")return;
+    setBusy(true);
+    try{ await onBulkDelete(pickedIds); setPicked({});setConfirmText(""); }
+    finally{ setBusy(false); }
+  }
+
+  const inputStyle={background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+    borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"};
+  const selectStyle={background:"#1a1a2e",color:"#fff",border:"1px solid rgba(255,255,255,.15)",
+    borderRadius:10,padding:9,fontFamily:"'Nunito',sans-serif"};
 
   return(
     <div>
-      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar grupo o código..."
-        style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
-        borderRadius:10,padding:9,color:"#fff",marginBottom:12,fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar grupo o código..."
+          style={Object.assign({flex:"1 1 180px"},inputStyle)}/>
+        <select value={activityF} onChange={e=>setActivityF(e.target.value)} style={selectStyle}>
+          <option style={OPTION_STYLE} value="all">Cualquier actividad</option>
+          <option style={OPTION_STYLE} value="never">👻 Nunca jugó</option>
+          <option style={OPTION_STYLE} value="active">🟢 Activo (últimos 30 días)</option>
+          <option style={OPTION_STYLE} value="stale30">⏳ Inactivo (+30 días)</option>
+        </select>
+        <input type="date" value={from} onChange={e=>setFrom(e.target.value)}
+          style={Object.assign({colorScheme:"dark"},inputStyle)}/>
+        <input type="date" value={to} onChange={e=>setTo(e.target.value)}
+          style={Object.assign({colorScheme:"dark"},inputStyle)}/>
+      </div>
+
+      {pickedIds.length>0 && (
+        <div style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.35)",borderRadius:12,
+          padding:"10px 12px",marginBottom:12}}>
+          <div style={{fontSize:".78rem",marginBottom:6}}>{pickedIds.length} grupo(s) seleccionados para eliminar.</div>
+          <input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder='Escribe "CONFIRMAR" para eliminar'
+            style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+            borderRadius:8,padding:8,color:"#fff",marginBottom:6,fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
+          <button className="btn btn-r btn-sm" disabled={busy||confirmText.trim().toUpperCase()!=="CONFIRMAR"}
+            onClick={runBulkDelete}>🗑️ Eliminar seleccionados</button>
+        </div>
+      )}
+
       <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:8}}>{filtered.length} de {groups.length} grupos</div>
+
       {filtered.map(function(g){
         const memberCount=Object.keys(g.members||{}).length;
+        const games=gameIds(g.id).length;
+        const last=lastActivity(g.id);
         return(
           <div key={g.id} style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
-            borderRadius:12,padding:"10px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-            <div style={{minWidth:0}}>
+            borderRadius:12,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+            <input type="checkbox" checked={!!picked[g.id]}
+              onChange={e=>setPicked(p=>Object.assign({},p,{[g.id]:e.target.checked}))}/>
+            <div style={{minWidth:0,flex:1}}>
               <div style={{fontWeight:700,fontSize:".85rem"}}>{g.name}
                 <span style={{color:"rgba(255,255,255,.4)",fontWeight:400}}> · {g.code}</span></div>
               <div style={{fontSize:".68rem",color:"rgba(255,255,255,.45)"}}>
-                {memberCount} miembro(s) · creado {fmtDate(g.createdAt)}{g.currentRoom?" · partida activa: "+g.currentRoom:""}
+                {memberCount} miembro(s) · creado {fmtDate(g.createdAt)} · {games} partida(s)
+                {last?" · última "+daysAgo(last):""}{g.currentRoom?" · partida activa: "+g.currentRoom:""}
               </div>
             </div>
             <button className="btn btn-r btn-sm" onClick={()=>onDelete(g.id,g.name)}>🗑️ Eliminar</button>
@@ -647,6 +765,7 @@ function AdminApp(){
   const[selectedUser,setSelectedUser]=React.useState(null);
   const[rooms,setRooms]=React.useState([]);
   const[groups,setGroups]=React.useState([]);
+  const[statsGroups,setStatsGroups]=React.useState({}); // partidas reales por grupo (gameCount del grupo nunca se incrementa)
   const[stats,setStats]=React.useState({games:0,players:0,users:0,aiScans:0});
   const[tab,setTab]=React.useState("resumen"); // resumen | usuarios | salas | grupos | bugs | sugerencias | auditoria
 
@@ -677,6 +796,10 @@ function AdminApp(){
     const moderationRef=_db.ref("moderation");
     const roomsRef=_db.ref("rooms"); // .read admin-only a nivel padre -- ver reglas
     const groupsRef=_db.ref("groups");
+    // "gameCount" en /groups/{gid} nunca se incrementa en el juego (queda
+    // en 0 desde que se crea el grupo) -- la actividad real vive aquí, en
+    // el índice que sí se llena cada vez que termina una partida de grupo.
+    const statsGroupsRef=_db.ref("stats/groups");
     // Últimas 300 acciones -- de sobra para revisar actividad reciente sin
     // bajar la bitácora completa cada vez que crece (ver .indexOn:"at" en reglas).
     const auditRef=_db.ref("adminAudit").orderByChild("at").limitToLast(300);
@@ -706,6 +829,7 @@ function AdminApp(){
       const val=snap.val()||{};
       setGroups(Object.keys(val).map(function(gid){ return Object.assign({id:gid},val[gid]); }));
     });
+    const hStatsGroups=statsGroupsRef.on("value",snap=>setStatsGroups(snap.val()||{}));
     const hAudit=auditRef.on("value",snap=>{
       const val=snap.val()||{};
       const list=Object.keys(val).map(function(id){ return Object.assign({id:id},val[id]); })
@@ -720,6 +844,7 @@ function AdminApp(){
       gamesRef.off("value",hGames);playersRef.off("value",hPlayers);
       usersRef.off("value",hUsers);moderationRef.off("value",hMod);
       roomsRef.off("value",hRooms);groupsRef.off("value",hGroups);
+      statsGroupsRef.off("value",hStatsGroups);
       auditRef.off("value",hAudit);scansRef.off("value",hScans);
     };
   },[authorized]);
@@ -761,6 +886,10 @@ function AdminApp(){
   async function handleDeleteGroup(gid,name){
     try{ await deleteGroupAdmin(gid,name); }
     catch(e){ console.warn("No se pudo eliminar el grupo:",e.message); }
+  }
+  async function handleBulkDeleteGroups(gids){
+    try{ await deleteGroupsBulk(gids); }
+    catch(e){ console.warn("No se pudieron eliminar los grupos:",e.message); }
   }
 
   async function handleLogin(e){
@@ -874,7 +1003,9 @@ function AdminApp(){
     return !r.finished && (now-ts>3*86400000);
   }).length;
   const errorRate=stats.games>0 ? ((bugs.length/stats.games)*100).toFixed(1)+"%" : "—";
-  const topGroups=groups.slice().sort(function(a,b){ return (b.gameCount||0)-(a.gameCount||0); }).slice(0,3);
+  function groupGameCount(gid){ return Object.keys((statsGroups[gid]||{}).games||{}).length; }
+  const topGroups=groups.slice().sort(function(a,b){ return groupGameCount(b.id)-groupGameCount(a.id); })
+    .filter(function(g){ return groupGameCount(g.id)>0; }).slice(0,3);
 
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
@@ -928,8 +1059,9 @@ function AdminApp(){
             Usuarios nuevos esta semana: <b>{newUsers7d}</b> ({userTrend})<br/>
             Tasa de bugs reportados por partida: <b>{errorRate}</b><br/>
             {topGroups.length>0 && (
-              <span>Grupos más activos: {topGroups.map(function(g){ return g.name+" ("+(g.gameCount||0)+")"; }).join(", ")}</span>
+              <span>Grupos más activos: {topGroups.map(function(g){ return g.name+" ("+groupGameCount(g.id)+")"; }).join(", ")}</span>
             )}
+            {topGroups.length===0 && <span>Todavía ningún grupo tiene partidas registradas.</span>}
           </div>
         </div>
       )}
@@ -943,7 +1075,7 @@ function AdminApp(){
       )}
 
       {tab==="grupos" && (
-        <GroupsTab groups={groups} onDelete={handleDeleteGroup}/>
+        <GroupsTab groups={groups} statsGroups={statsGroups} onDelete={handleDeleteGroup} onBulkDelete={handleBulkDeleteGroups}/>
       )}
 
       {tab==="bugs" && <FeedbackList title="Bugs reportados" icon="🐞" items={bugs}
