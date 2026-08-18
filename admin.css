@@ -1,0 +1,98 @@
+/* ═══════════════════════════════════════════════════════════════
+   admin.css — Panel Administrativo FLIP 7
+   Hoja de estilos PROPIA y AISLADA: solo la carga admin.html, nunca
+   index.html (el juego). Se carga DESPUÉS de styles.css a propósito,
+   así que puede reescribir las mismas variables de color y reglas que
+   usa admin.jsx (que reutiliza clases/valores de styles.css) sin tocar
+   una sola línea de ese archivo compartido con el juego.
+
+   Objetivo: que el panel se sienta "de escritorio de datos" -- denso,
+   neutro, legible -- en vez de "tarjeta de juego" (fuentes Anton/
+   Righteous, colores saturados, botones grandes) que es correcto para
+   la app pero no para administrar.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Todo el árbol de admin.jsx mide texto en rem -- bajar el tamaño base
+   del documento reduce proporcionalmente CADA fontSize inline del panel
+   sin tener que tocar cada componente uno por uno. Es seguro porque
+   admin.html es una página aparte de index.html. */
+html{ font-size:13px; }
+
+.admin-shell{
+  --dark:#10141c;
+  --y:#4f8cff;   /* acento primario (antes amarillo "juego") */
+  --or:#d9a441;  /* medio / advertencia */
+  --r:#e5484d;   /* crítico / peligro */
+  --t:#3fb6c4;   /* info / link secundario */
+  --pu:#8b6bd8;  /* origen / vínculo */
+  --gr:#3ba073;  /* éxito */
+
+  --adm-bg:#0b0e14;
+  --adm-card:#151a23;
+  --adm-border:rgba(255,255,255,.08);
+  --adm-text-dim:rgba(230,237,243,.55);
+
+  background:var(--adm-bg);
+  min-height:100dvh;
+}
+.admin-shell .page{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  letter-spacing:normal;
+}
+/* admin.jsx pone fuentes de juego (Anton/Righteous/Lilita) por inline
+   style en decenas de sitios -- forzarlas aquí a la fuente del sistema
+   es la única forma de retipografiar todo el panel sin editar cada
+   componente. Es un caso legítimo de !important: hoja de estilos
+   dedicada, exclusiva de esta página, atacando specificity de inline
+   styles que no tiene otra vía de override. */
+.admin-shell, .admin-shell *{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif !important;
+  letter-spacing:normal !important;
+}
+
+/* ── Botones: más compactos que el estilo "juego" ─────────────────── */
+.admin-shell .btn{
+  padding:8px 14px !important;
+  font-size:.8rem !important;
+  border-radius:8px !important;
+  font-weight:700 !important;
+}
+.admin-shell .btn-sm{
+  padding:5px 10px !important;
+  font-size:.7rem !important;
+}
+
+/* ── Tabs superiores: pestañas de dashboard, no botones de juego ───── */
+.admTabs{
+  display:flex; flex-wrap:wrap; gap:4px;
+  margin-bottom:18px;
+  border-bottom:1px solid var(--adm-border);
+  padding-bottom:8px;
+}
+.admTabs .admTabBtn{
+  padding:7px 11px !important;
+  border-radius:7px !important;
+  font-size:.7rem !important;
+  font-weight:700 !important;
+  transition:background .15s,color .15s;
+}
+
+/* ── Grid de filtros: columnas parejas en vez del flex-wrap irregular
+   que dejaba inputs/selects de anchos distintos en cada fila. ────────
+   Los hijos ya llegan sin flex/width propios (ver admin.jsx) para que
+   el grid controle el tamaño de forma consistente. */
+.admFilters{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(148px, 1fr));
+  gap:8px;
+  align-items:center;
+  margin-bottom:14px;
+}
+.admFilters > *{ width:100% !important; box-sizing:border-box; min-width:0; }
+.admFilters-wide{ grid-column:span 2; }
+@media (max-width:520px){
+  .admFilters-wide{ grid-column:span 1; }
+}
+
+/* ── Modales (mbg/ms) más compactos ───────────────────────────────── */
+.admin-shell .ms{ font-size:.85rem; }

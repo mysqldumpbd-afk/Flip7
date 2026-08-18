@@ -25,7 +25,7 @@ class AdminErrorBoundary extends React.Component{
   render(){
     if(this.state.hasError){
       return(
-        <div className="wrap"><div className="page" style={{paddingTop:80,textAlign:"center"}}>
+        <div className="wrap admin-shell"><div className="page" style={{paddingTop:80,textAlign:"center"}}>
           <div style={{fontSize:"2.5rem",marginBottom:12}}>😵</div>
           <div style={{fontWeight:900,fontSize:"1rem",marginBottom:8}}>Algo salió mal en el panel</div>
           <div style={{color:"rgba(255,255,255,.5)",fontSize:".8rem",marginBottom:16}}>{this.state.msg}</div>
@@ -39,13 +39,13 @@ class AdminErrorBoundary extends React.Component{
 
 function StatCard({icon,label,value,sub}){
   return(
-    <div style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
-      borderRadius:14,padding:"14px 16px",minWidth:140,flex:"1 1 140px"}}>
-      <div style={{fontSize:"1.4rem",marginBottom:6}}>{icon}</div>
-      <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:"var(--y)"}}>{value}</div>
-      <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.5)",
-        letterSpacing:1,marginTop:2}}>{label}</div>
-      {sub&&<div style={{fontSize:".68rem",color:"rgba(255,255,255,.35)",marginTop:4}}>{sub}</div>}
+    <div style={{background:"var(--adm-card,rgba(255,255,255,.05))",border:"1px solid rgba(255,255,255,.1)",
+      borderRadius:10,padding:"10px 12px",minWidth:120,flex:"1 1 120px"}}>
+      <div style={{fontSize:"1.1rem",marginBottom:4}}>{icon}</div>
+      <div style={{fontSize:"1.25rem",fontWeight:800,color:"var(--y)",lineHeight:1.1}}>{value}</div>
+      <div style={{fontSize:".6rem",color:"rgba(255,255,255,.5)",
+        letterSpacing:.5,marginTop:3,textTransform:"uppercase"}}>{label}</div>
+      {sub&&<div style={{fontSize:".64rem",color:"rgba(255,255,255,.4)",marginTop:4,whiteSpace:"normal",lineHeight:1.35}}>{sub}</div>}
     </div>
   );
 }
@@ -177,6 +177,88 @@ function ExportButton({label,rows,columns,filename}){
       onClick={()=>downloadText(filename+"_"+Date.now()+".csv", toCSV(rows,columns), "text/csv")}>
       ⬇️ {label||"Exportar CSV"}
     </button>
+  );
+}
+
+// ── COSTOS: estimación de gastos probables (IA + Firebase + hosting) ────
+// Límites y tarifas del plan gratuito (Spark) y de pago (Blaze) de Firebase
+// Realtime Database, verificados en la documentación oficial (ver fuente en
+// el pie de la pestaña Costos) -- no son inventados, pero Firebase puede
+// cambiarlos; conviene reconfirmar ahí antes de decidir un upgrade real.
+const SPARK_LIMITS={storageGB:1, downloadGBmo:10, connections:100};
+const BLAZE_RATE={storagePerGB:5, downloadPerGB:1};
+
+function estBytes(){
+  let total=0;
+  for(let i=0;i<arguments.length;i++){
+    try{ total+=new Blob([JSON.stringify(arguments[i]||{})]).size; }catch(e){}
+  }
+  return total;
+}
+function fmtBytes(n){
+  if(n<1024) return n+" B";
+  if(n<1024*1024) return (n/1024).toFixed(1)+" KB";
+  if(n<1024*1024*1024) return (n/1024/1024).toFixed(2)+" MB";
+  return (n/1024/1024/1024).toFixed(2)+" GB";
+}
+
+function CostsTab({estBytesLoaded,presenceCount,aiScans,estCostLow,estCostHigh,roomsCount,usersCount}){
+  const storageGB=estBytesLoaded/1024/1024/1024;
+  const storagePct=Math.min(100,(storageGB/SPARK_LIMITS.storageGB)*100);
+  const connPct=Math.min(100,(presenceCount/SPARK_LIMITS.connections)*100);
+  return(
+    <div>
+      <div style={{fontSize:".76rem",color:"rgba(255,255,255,.5)",marginBottom:16,lineHeight:1.6}}>
+        Flip 7 corre hoy en el plan gratuito de Firebase (Spark) + GitHub Pages, así que el costo real es $0. Esta pestaña existe para saber CUÁNDO dejaría de serlo, antes de que pase.
+      </div>
+
+      <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:18}}>
+        <StatCard icon="🔍" label="ESCANEOS DE IA (TOTAL)" value={aiScans} sub={"~$"+estCostLow+" – $"+estCostHigh+" USD acumulado"}/>
+        <StatCard icon="🗄️" label="DATOS CARGADOS POR EL PANEL" value={fmtBytes(estBytesLoaded)} sub={storagePct.toFixed(2)+"% del tope gratuito de 1 GB"}/>
+        <StatCard icon="📡" label="SESIONES EN LÍNEA AHORA" value={presenceCount} sub={"tope gratuito: "+SPARK_LIMITS.connections+" conexiones simultáneas"}/>
+        <StatCard icon="🌐" label="HOSTING (GITHUB PAGES)" value="$0" sub="estático, sin costo mientras siga ahí"/>
+      </div>
+
+      <div style={{background:"var(--adm-card,rgba(255,255,255,.04))",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+        <div style={{fontSize:".78rem",fontWeight:700,marginBottom:8}}>📦 Almacenamiento (Realtime Database)</div>
+        <div style={{background:"rgba(255,255,255,.08)",borderRadius:6,height:7,overflow:"hidden",marginBottom:6}}>
+          <div style={{width:storagePct+"%",height:"100%",background:storagePct>80?"var(--r)":storagePct>50?"var(--or)":"var(--gr)"}}/>
+        </div>
+        <div style={{fontSize:".68rem",color:"rgba(255,255,255,.5)",lineHeight:1.5}}>
+          {fmtBytes(estBytesLoaded)} de 1 GB gratuitos estimados ({storagePct.toFixed(3)}%). Estimación POR LO BAJO: solo cuenta lo que este panel carga (usuarios, salas, grupos, buzón, auditoría) -- no incluye presence, ni stats/games ni stats/players completos, así que el tamaño real de la base es mayor.
+        </div>
+      </div>
+
+      <div style={{background:"var(--adm-card,rgba(255,255,255,.04))",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+        <div style={{fontSize:".78rem",fontWeight:700,marginBottom:8}}>🔌 Conexiones simultáneas</div>
+        <div style={{background:"rgba(255,255,255,.08)",borderRadius:6,height:7,overflow:"hidden",marginBottom:6}}>
+          <div style={{width:connPct+"%",height:"100%",background:connPct>80?"var(--r)":connPct>50?"var(--or)":"var(--gr)"}}/>
+        </div>
+        <div style={{fontSize:".68rem",color:"rgba(255,255,255,.5)",lineHeight:1.5}}>
+          {presenceCount} de {SPARK_LIMITS.connections} conexiones simultáneas gratuitas (aprox., basado en quién tiene la app abierta ahora mismo). Superar este tope no cuesta dinero directamente, pero SÍ obliga a pasar a Blaze aunque el consumo de datos siga siendo bajo.
+        </div>
+      </div>
+
+      <div style={{background:"var(--adm-card,rgba(255,255,255,.04))",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+        <div style={{fontSize:".78rem",fontWeight:700,marginBottom:8}}>⬇️ Descarga de datos — el gasto más fácil de disparar sin darse cuenta</div>
+        <div style={{fontSize:".7rem",color:"rgba(255,255,255,.6)",lineHeight:1.6}}>
+          El plan gratuito incluye 10 GB/mes DESCARGADOS (no solo guardados). Cada vez que alguien abre la app o este panel, Firebase reenvía los datos que escucha en vivo -- entre más gente juegue por día y más se abra el panel, más rápido se consume esta cuota, sin importar cuánto pese lo guardado. Con {roomsCount} salas y {usersCount} cuentas hoy, el consumo real depende del tráfico diario, no de lo almacenado.
+        </div>
+      </div>
+
+      <div style={{background:"var(--adm-card,rgba(255,255,255,.04))",border:"1px solid rgba(255,255,255,.08)",borderRadius:10,padding:"12px 14px"}}>
+        <div style={{fontSize:".78rem",fontWeight:700,marginBottom:8}}>💳 Si algún día se supera el plan gratuito (Blaze)</div>
+        <div style={{fontSize:".7rem",color:"rgba(255,255,255,.6)",lineHeight:1.9}}>
+          Almacenamiento: ${BLAZE_RATE.storagePerGB} USD por GB/mes que exceda el 1 GB gratuito.<br/>
+          Descarga: ${BLAZE_RATE.downloadPerGB} USD por GB que exceda los 10 GB/mes gratuitos.<br/>
+          Conexiones simultáneas: sin costo por conexión, pero Spark corta en 100 a la vez.<br/>
+          Hosting (GitHub Pages) seguiría siendo $0 -- solo Firebase cambiaría de plan.
+        </div>
+        <div style={{fontSize:".62rem",color:"rgba(255,255,255,.32)",marginTop:8}}>
+          Fuente: documentación oficial de Firebase Realtime Database (firebase.google.com/docs/database/usage/billing) -- verifica ahí si cambian antes de decidir un upgrade.
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -329,9 +411,9 @@ function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,o
         ]}/>
       </div>
 
-      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
+      <div className="admFilters">
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar por nombre o correo..."
-          style={Object.assign({flex:"1 1 180px"},inputStyle)}/>
+          className="admFilters-wide" style={inputStyle}/>
         <select value={providerF} onChange={e=>setProviderF(e.target.value)} style={selectStyle}>
           <option style={OPTION_STYLE} value="all">Todos los tipos de cuenta</option>
           <option style={OPTION_STYLE} value="google.com">🟢 Gmail / Google</option>
@@ -434,9 +516,10 @@ function RoomsTab({rooms,groups,onCloseRoom,onKick,onBulkDelete}){
 
   return(
     <div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
+      <div className="admFilters">
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar código, host o jugador..."
-          style={{flex:"1 1 200px",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          className="admFilters-wide"
+          style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
           borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
         <select value={statusF} onChange={e=>setStatusF(e.target.value)} style={selectStyle}>
           <option style={OPTION_STYLE} value="all">Todos los estados</option>
@@ -450,16 +533,16 @@ function RoomsTab({rooms,groups,onCloseRoom,onKick,onBulkDelete}){
           <option style={OPTION_STYLE} value="none">Sin grupo</option>
           {(groups||[]).map(function(g){ return <option key={g.id} style={OPTION_STYLE} value={g.id}>👪 {g.name}</option>; })}
         </select>
-        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",alignSelf:"center"}}>Días sin actividad:</span>
+        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",display:"flex",alignItems:"center"}}>Días sin actividad:</span>
         <CmpSelect value={inactOp} onChange={setInactOp}/>
         <input type="number" min="0" value={inactDays} onChange={e=>setInactDays(e.target.value)} placeholder="días"
-          style={{width:90,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
           borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
         <input type="number" min="1" value={roundMin} onChange={e=>setRoundMin(e.target.value)} placeholder="Ronda mín."
-          style={{width:100,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
           borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
         <input type="number" min="1" value={roundMax} onChange={e=>setRoundMax(e.target.value)} placeholder="Ronda máx."
-          style={{width:100,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
           borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
       </div>
 
@@ -616,17 +699,17 @@ function GroupsTab({groups,statsGroups,usersByUid,onDelete,onBulkDelete}){
 
   return(
     <div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
+      <div className="admFilters">
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar grupo o código..."
-          style={Object.assign({flex:"1 1 180px"},inputStyle)}/>
+          className="admFilters-wide" style={inputStyle}/>
         <input type="date" value={from} onChange={e=>setFrom(e.target.value)}
           style={Object.assign({colorScheme:"dark"},inputStyle)}/>
         <input type="date" value={to} onChange={e=>setTo(e.target.value)}
           style={Object.assign({colorScheme:"dark"},inputStyle)}/>
-        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",alignSelf:"center"}}>Días de inactividad:</span>
+        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",display:"flex",alignItems:"center"}}>Días de inactividad:</span>
         <CmpSelect value={inactOp} onChange={setInactOp}/>
         <input type="number" min="0" value={inactDays} onChange={e=>setInactDays(e.target.value)} placeholder="días"
-          style={{width:90,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
           borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
         <label style={{display:"flex",alignItems:"center",gap:6,fontSize:".72rem",color:"rgba(255,255,255,.6)"}}>
           <input type="checkbox" checked={neverOnly} onChange={e=>setNeverOnly(e.target.checked)}/>
@@ -790,9 +873,9 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan,onBulkWarn,onBulkSus
             onClick={()=>runBulk(()=>onBulkBan(pickedUids,bulkReason),true)}>🚫 Banear seleccionados</button>
         </div>
       )}
-      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
+      <div className="admFilters">
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar nombre, correo o uid..."
-          style={Object.assign({flex:"1 1 200px"},inputStyle)}/>
+          className="admFilters-wide" style={inputStyle}/>
         <select value={statusF} onChange={e=>setStatusF(e.target.value)} style={selectStyle}>
           <option style={OPTION_STYLE} value="all">Todos los estados</option>
           <option style={OPTION_STYLE} value="ok">✅ Activos</option>
@@ -815,10 +898,10 @@ function UsersTable({users,moderationMap,onSelect,onBulkBan,onBulkWarn,onBulkSus
           style={Object.assign({colorScheme:"dark"},inputStyle)}/>
         <input type="date" value={to} onChange={e=>setTo(e.target.value)}
           style={Object.assign({colorScheme:"dark"},inputStyle)}/>
-        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",alignSelf:"center"}}>Días de inactividad:</span>
+        <span style={{fontSize:".7rem",color:"rgba(255,255,255,.45)",display:"flex",alignItems:"center"}}>Días de inactividad:</span>
         <CmpSelect value={inactOp} onChange={setInactOp}/>
         <input type="number" min="0" value={inactDays} onChange={e=>setInactDays(e.target.value)} placeholder="días"
-          style={{width:90,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
           borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
       </div>
 
@@ -1248,7 +1331,8 @@ function AdminApp(){
   const[groups,setGroups]=React.useState([]);
   const[statsGroups,setStatsGroups]=React.useState({}); // partidas reales por grupo (gameCount del grupo nunca se incrementa)
   const[stats,setStats]=React.useState({games:0,players:0,users:0,aiScans:0});
-  const[tab,setTab]=React.useState("resumen"); // resumen | usuarios | salas | grupos | bugs | sugerencias | auditoria
+  const[presenceCount,setPresenceCount]=React.useState(0); // sesiones con presence/_global.online=true AHORA
+  const[tab,setTab]=React.useState("resumen"); // resumen | usuarios | salas | grupos | bugs | sugerencias | costos | auditoria
 
   const bugs=React.useMemo(()=>mergeFeedback(rawBugs,metaBugs),[rawBugs,metaBugs]);
   const suggestions=React.useMemo(()=>mergeFeedback(rawSug,metaSug),[rawSug,metaSug]);
@@ -1310,6 +1394,11 @@ function AdminApp(){
     // tiene reglas de Firebase abiertas para todo el árbol, así que un
     // contador ahí no se puede proteger a nivel de nodo individual.
     const scansRef=_db.ref("adminStats/aiScans");
+    // Proxy de "conexiones simultáneas ahora" para la pestaña Costos -- cuenta
+    // quiénes tienen presence/_global/{uid}.online=true (ver startPresenceHeartbeat
+    // en app.js). No es 100% exacto (el límite gratuito de Firebase cuenta
+    // conexiones de socket, no usuarios), pero da una referencia real y gratis.
+    const presenceRef=_db.ref("presence/_global");
 
     const hBugs=bugsRef.on("value",snap=>{
       const val=snap.val()||{};
@@ -1380,6 +1469,11 @@ function AdminApp(){
       setAudit(list);
     });
     const hScans=scansRef.on("value",snap=>setStats(s=>Object.assign({},s,{aiScans:snap.val()||0})));
+    const hPresence=presenceRef.on("value",snap=>{
+      const val=snap.val()||{};
+      const online=Object.keys(val).filter(function(uid){ return val[uid]&&val[uid].online; }).length;
+      setPresenceCount(online);
+    });
 
     return ()=>{
       bugsRef.off("value",hBugs);sugRef.off("value",hSug);
@@ -1389,6 +1483,7 @@ function AdminApp(){
       roomsRef.off("value",hRooms);groupsRef.off("value",hGroups);
       statsGroupsRef.off("value",hStatsGroups);
       auditRef.off("value",hAudit);scansRef.off("value",hScans);
+      presenceRef.off("value",hPresence);
     };
   },[authorized]);
 
@@ -1477,7 +1572,7 @@ function AdminApp(){
 
   if(authUser===undefined){
     return(
-      <div className="wrap"><div className="page" style={{paddingTop:80,textAlign:"center"}}>
+      <div className="wrap admin-shell"><div className="page" style={{paddingTop:80,textAlign:"center"}}>
         <div className="spin" style={{margin:"0 auto"}}></div>
       </div></div>
     );
@@ -1485,7 +1580,7 @@ function AdminApp(){
 
   if(!authUser || !authorized){
     return(
-      <div className="wrap"><div className="page" style={{paddingTop:60}}>
+      <div className="wrap admin-shell"><div className="page" style={{paddingTop:60}}>
         <div style={{textAlign:"center",marginBottom:24}}>
           <div style={{fontSize:"2.6rem",marginBottom:8}}>🛡️</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:"var(--y)"}}>PANEL ADMIN</div>
@@ -1542,6 +1637,11 @@ function AdminApp(){
   // Si el prompt vuelve a cambiar de tamaño, hay que ajustar este rango.
   const estCostLow=(stats.aiScans*0.0025).toFixed(2);
   const estCostHigh=(stats.aiScans*0.0038).toFixed(2);
+  // Estimación por lo bajo del tamaño de lo que este panel tiene cargado --
+  // ver nota completa en CostsTab sobre qué NO incluye (presence, stats/*).
+  const estBytesLoaded=React.useMemo(function(){
+    return estBytes(users,rooms,groups,rawBugs,rawSug,metaBugs,metaSug,moderationMap,audit,statsGroups);
+  },[users,rooms,groups,rawBugs,rawSug,metaBugs,metaSug,moderationMap,audit,statsGroups]);
 
   // ── Analítica ampliada (Fase 2) ──────────────────────────────────────
   const now=Date.now();
@@ -1563,12 +1663,11 @@ function AdminApp(){
     .filter(function(g){ return groupGameCount(g.id)>0; }).slice(0,3);
 
   return(
-    <div className="wrap"><div className="page" style={{paddingTop:24}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+    <div className="wrap admin-shell"><div className="page" style={{paddingTop:24}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div>
-          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)"}}>PANEL ADMIN</div>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.4)",
-            letterSpacing:1}}>FLIP 7 · {authUser.email}</div>
+          <div style={{fontSize:"1.05rem",fontWeight:800,color:"var(--y)"}}>PANEL ADMIN</div>
+          <div style={{fontSize:".68rem",color:"rgba(255,255,255,.4)"}}>FLIP 7 · {authUser.email}</div>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           {notifPerm!=="unsupported" && (
@@ -1582,18 +1681,18 @@ function AdminApp(){
         </div>
       </div>
 
-      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
+      <div className="admTabs">
         {[["resumen","📊 Resumen"],["usuarios","👥 Usuarios"],["salas","🎮 Salas ("+activeRooms+")"],
           ["grupos","👪 Grupos"],["bugs","🐞 Bugs ("+pendingBugs+")"],
           ["sugerencias","💡 Sugerencias ("+pendingSug+")"],["seguridad","🕵️ Seguridad"],
-          ["auditoria","📜 Auditoría"]].map(function(pair){
+          ["costos","💰 Costos"],["auditoria","📜 Auditoría"]].map(function(pair){
           const k=pair[0],label=pair[1];
           return(
-            <button key={k} onClick={()=>setTab(k)} style={{
-              flex:"1 1 auto",padding:"9px 8px",borderRadius:10,border:"1px solid rgba(255,255,255,.12)",
-              background:tab===k?"linear-gradient(135deg,var(--y),var(--or))":"rgba(255,255,255,.05)",
-              color:tab===k?"var(--dark)":"rgba(255,255,255,.7)",fontFamily:"'Righteous',sans-serif",
-              fontSize:".64rem",cursor:"pointer",whiteSpace:"nowrap"
+            <button key={k} className="admTabBtn" onClick={()=>setTab(k)} style={{
+              border:"1px solid rgba(255,255,255,.12)",
+              background:tab===k?"var(--y)":"rgba(255,255,255,.05)",
+              color:tab===k?"#fff":"rgba(255,255,255,.7)",
+              cursor:"pointer",whiteSpace:"nowrap"
             }}>{label}</button>
           );
         })}
@@ -1662,6 +1761,11 @@ function AdminApp(){
         <SecurityTab users={users} usersByUid={usersByUid} rooms={rooms} groups={groups}
           bugs={bugs} suggestions={suggestions} onSelectUser={setSelectedUser}
           moderationMap={moderationMap} onSanction={openUserSanction}/>
+      )}
+
+      {tab==="costos" && (
+        <CostsTab estBytesLoaded={estBytesLoaded} presenceCount={presenceCount} aiScans={stats.aiScans}
+          estCostLow={estCostLow} estCostHigh={estCostHigh} roomsCount={rooms.length} usersCount={users.length}/>
       )}
 
       {tab==="auditoria" && <AuditList items={audit} usersByUid={usersByUid}/>}
