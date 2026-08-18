@@ -5018,9 +5018,11 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
   var afterNeg=Math.max(0,afterDiv+negMods.reduce(function(a,b){return a+b;},0));
   var total=afterNeg+(flip7?15:0);
 
+  function distinctCount(arr){ return new Set(arr).size; }
+
   function toggleCard(n){
     var countN=selected.filter(function(x){return x===n;}).length;
-    // Lucky 13: permite maximo 2 copias del 13. Resto: max 1.
+    // Lucky 13: permite maximo 2 copias del 13. Resto: max 1 (un 3er 13 bustea).
     var maxAllowed=(n===13&&lucky13)?2:1;
     if(countN>0&&countN>=maxAllowed){
       // Quitar UNA copia del numero
@@ -5031,15 +5033,26 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
           if(!removed&&x===n){removed=true;return false;}
           return true;
         });
-        if(next.length<7)setFlip7(false);
+        setFlip7(distinctCount(next)===7);
         return next;
       });
     }else{
-      if(selected.length>=7){snd("zero");return;}
+      // Tope normal: 7 cartas (una por cada valor distinto).
+      // Lucky 13: el 2do 13 es una carta EXTRA protegida — abre un 8vo cupo,
+      // sin importar en qué momento/orden salga la 2da copia. Una vez que
+      // esa 2da copia existe, ese 8vo cupo queda "gastado" ahí y el resto
+      // de valores distintos se sigue llenando normalmente hasta 7 (8 en total).
+      var already2x13=selected.filter(function(x){return x===13;}).length===2;
+      var isSecond13Now=(n===13&&lucky13&&countN===1);
+      var cap=(already2x13||isSecond13Now)?8:7;
+      if(selected.length>=cap){snd("zero");return;}
       snd("score");
       setSelected(function(p){
         var next=p.concat([n]);
-        if(next.length===7)setFlip7(true);
+        // Bonus Flip 7 = 7 VALORES DISTINTOS (el 13 cuenta una vez aunque
+        // tengas las 2 copias). La copia extra del 13 SÍ suma puntos y SÍ
+        // cuenta para el bonus, según la carta oficial de Lucky 13.
+        setFlip7(distinctCount(next)===7);
         return next;
       });
     }
@@ -5309,8 +5322,12 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
             "FLIP 7 — 7 CARTAS DISTINTAS"),
           React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",
             fontSize:".58rem",color:"rgba(255,255,255,.3)",marginTop:2}},
-            selected.length+"/7 · "+(selected.length>=7
-              ?"Bonus automatico":"Faltan "+(7-selected.length)))
+            (function(){
+              var dc=distinctCount(selected);
+              var dup13=selected.filter(function(x){return x===13;}).length===2;
+              if(dc===7)return dc+"/7 · Bonus automatico"+(dup13?" (+13 extra Lucky 13)":"");
+              return dc+"/7 · Faltan "+(7-dc);
+            })())
         ),
         React.createElement("div",{style:{
           fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",
