@@ -1287,10 +1287,12 @@ function AuthScreen({onAuth}){
     const timer=setInterval(()=>setWaitSecs(s=>s+1),1000);
     try{
       console.log("[Auth] Abriendo popup de Google…");
-      const r=await signInGoogle();
-      console.log("[Auth] Popup resuelto, usuario:",r.user.uid);
-      await saveUserProfile(r.user);
-      onAuth(r.user);
+      const r=await signInGoogle(); // ya trae su propio respaldo a redirect si el popup falla
+      console.log("[Auth] Login resuelto, usuario:",r&&r.user&&r.user.uid);
+      if(r&&r.user){ // si cayó a redirect, r es undefined y la página ya está navegando afuera
+        await saveUserProfile(r.user);
+        onAuth(r.user);
+      }
     }catch(e){
       console.log("[Auth] Error en popup:",e.code,e.message);
       if(e.code==="auth/popup-closed-by-user"){
@@ -1300,6 +1302,15 @@ function AuthScreen({onAuth}){
       }
     }
     clearInterval(timer);setBusy(false);
+  }
+  // Salida manual para cuando el popup se queda colgado sin lanzar ningún
+  // error que signInGoogle() pueda atrapar (pasa en algunos navegadores de
+  // escritorio con cookies de terceros bloqueadas) -- manda al usuario por
+  // redirect directamente en vez de dejarlo esperando indefinidamente.
+  async function handleGoogleRedirectManual(){
+    snd("tap");setErr("");
+    try{ await signInGoogleRedirect(); }
+    catch(e){ setErr(e.message||"No se pudo continuar con Google");setBusy(false); }
   }
 
   async function handleEmailLogin(){
@@ -1392,6 +1403,13 @@ function AuthScreen({onAuth}){
               color:"rgba(255,255,255,.4)"}}>
               Puede tardar hasta 40 segundos — no cierres la ventana ({waitSecs}s)
             </div>
+            {waitSecs>=5&&(
+              <div onClick={handleGoogleRedirectManual}
+                style={{marginTop:6,fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
+                  color:"var(--t)",textDecoration:"underline",cursor:"pointer"}}>
+                ¿Se está tardando? Prueba con este otro método
+              </div>
+            )}
           </div>
         )}
 
@@ -1497,14 +1515,23 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
     setBusy(true);setErr("");setWaitSecs(0);
     const timer=setInterval(()=>setWaitSecs(s=>s+1),1000);
     try{
-      const r=await linkAnonToGoogle();
-      await saveUserProfile(r.user);
-      onDone(r.user);
+      const r=await linkAnonToGoogle(); // ya trae su propio respaldo a redirect si el popup falla
+      if(r&&r.user){ // si cayó a redirect, r es undefined y la página ya está navegando afuera
+        await saveUserProfile(r.user);
+        onDone(r.user);
+      }
     }catch(e){
       if(e.code==="auth/popup-closed-by-user")setErr("");
       else setErr(e.message||"Error con Google");
     }
     clearInterval(timer);setBusy(false);
+  }
+  // Misma salida manual que en AuthScreen -- por si el popup de vinculación
+  // se queda colgado sin lanzar ningún error atrapable.
+  async function handleGoogleRedirectManual(){
+    snd("tap");setErr("");
+    try{ await linkAnonToGoogleRedirect(); }
+    catch(e){ setErr(e.message||"No se pudo continuar con Google");setBusy(false); }
   }
   async function handleEmail(){
     if(!name.trim()){setErr("Ingresa tu nombre");return;}
@@ -1559,6 +1586,13 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
             <div style={{textAlign:"center",marginBottom:8,fontFamily:"'Righteous',sans-serif",
               fontSize:".6rem",color:"rgba(255,255,255,.4)"}}>
               Puede tardar hasta 40 segundos — no cierres la ventana ({waitSecs}s)
+              {waitSecs>=5&&(
+                <div onClick={handleGoogleRedirectManual}
+                  style={{marginTop:6,fontSize:".64rem",color:"var(--t)",
+                    textDecoration:"underline",cursor:"pointer"}}>
+                  ¿Se está tardando? Prueba con este otro método
+                </div>
+              )}
             </div>
           )}
           <button onClick={()=>setMode("email")} disabled={busy} style={{

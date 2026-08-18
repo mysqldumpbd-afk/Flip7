@@ -187,10 +187,24 @@ function AdminApp(){
     finally{ setLoggingIn(false); }
   }
 
+  const[googleBusy,setGoogleBusy]=React.useState(false);
+  const[waitSecs,setWaitSecs]=React.useState(0);
   async function handleGoogleLogin(){
+    setLoginErr("");setGoogleBusy(true);setWaitSecs(0);
+    const timer=setInterval(()=>setWaitSecs(s=>s+1),1000);
+    try{ await signInGoogle(); } // ya trae su propio respaldo a redirect si el popup falla
+    catch(err){
+      if(err&&err.code!=="auth/popup-closed-by-user") setLoginErr("No se pudo iniciar sesión con Google.");
+    }
+    clearInterval(timer);setGoogleBusy(false);
+  }
+  // Salida manual por si el popup se queda colgado sin lanzar ningún error
+  // atrapable (pasa en algunos navegadores de escritorio con cookies de
+  // terceros bloqueadas) -- ver la misma nota en components.jsx/AuthScreen.
+  async function handleGoogleRedirectManual(){
     setLoginErr("");
-    try{ await signInGoogle(); }
-    catch(err){ setLoginErr("No se pudo iniciar sesión con Google."); }
+    try{ await signInGoogleRedirect(); }
+    catch(err){ setLoginErr("No se pudo continuar con Google.");setGoogleBusy(false); }
   }
 
   if(authUser===undefined){
@@ -228,7 +242,22 @@ function AdminApp(){
             {loginErr&&<div style={{color:"#FF5A5A",fontSize:".78rem",marginBottom:10,textAlign:"center"}}>{loginErr}</div>}
             <button className="btn btn-y" disabled={loggingIn} type="submit">{loggingIn?"Entrando...":"Entrar"}</button>
             <div style={{textAlign:"center",color:"rgba(255,255,255,.3)",fontSize:".7rem",margin:"12px 0"}}>o</div>
-            <button type="button" className="btn btn-g" onClick={handleGoogleLogin}>Entrar con Google</button>
+            <button type="button" className="btn btn-g" disabled={googleBusy} onClick={handleGoogleLogin}>
+              {googleBusy?"Esperando a Google...":"Entrar con Google"}
+            </button>
+            {googleBusy&&(
+              <div style={{textAlign:"center",marginTop:8,fontFamily:"'Righteous',sans-serif",
+                fontSize:".62rem",color:"rgba(255,255,255,.4)"}}>
+                Puede tardar hasta 40 segundos ({waitSecs}s)
+                {waitSecs>=5&&(
+                  <div onClick={handleGoogleRedirectManual}
+                    style={{marginTop:6,fontSize:".64rem",color:"var(--t)",
+                      textDecoration:"underline",cursor:"pointer"}}>
+                    ¿Se está tardando? Prueba con este otro método
+                  </div>
+                )}
+              </div>
+            )}
           </form>
         )}
       </div></div>

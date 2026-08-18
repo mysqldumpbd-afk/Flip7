@@ -17,11 +17,49 @@ const _auth = firebase.auth();
 
 // ── AUTH HELPERS ────────────────────────────────────────────────
 // Google Sign-In
-async function signInGoogle(){
+//
+// Por qué signInWithPopup + respaldo a redirect: en navegadores de
+// escritorio (Chrome, Firefox, Safari) cada vez es más común que bloqueen
+// las cookies de terceros que el popup de Google necesita para avisarle a
+// la página que ya terminó -- ahí el popup falla o se queda colgado sin
+// resolver nunca. En el celular casi no pasa (el navegador móvil maneja
+// esto distinto), por eso ahí se sentía instantáneo y en web no.
+// Si el popup falla con un error real (no que el usuario lo haya cerrado
+// a propósito), reintentamos automáticamente con signInWithRedirect, que
+// no depende de cookies de terceros -- manda al usuario a la página de
+// Google y lo trae de vuelta ya logueado (ver getRedirectResult más abajo).
+function googleProvider(){
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({prompt:'select_account'});
-  return _auth.signInWithPopup(provider);
+  return provider;
 }
+async function signInGoogle(){
+  try{
+    return await _auth.signInWithPopup(googleProvider());
+  }catch(e){
+    if(e && e.code==='auth/popup-closed-by-user') throw e; // cerró la ventana a propósito -- no forzar redirect
+    console.warn('[Auth] Popup de Google falló, reintentando con redirect:', e&&e.code, e&&e.message);
+    return _auth.signInWithRedirect(googleProvider()); // la página navega afuera; el resultado se recoge en getRedirectResult()
+  }
+}
+// Disparo manual del flujo por redirect -- para el botón "¿se está
+// tardando?" que se muestra si el popup lleva varios segundos sin resolver
+// (el popup puede quedar colgado sin lanzar ningún error que el catch de
+// arriba pueda atrapar, así que también hace falta una salida manual).
+async function signInGoogleRedirect(){
+  return _auth.signInWithRedirect(googleProvider());
+}
+// Recoge el resultado cuando el login (o la vinculación de cuenta) se
+// resolvió por redirect en vez de popup -- se ejecuta una sola vez al
+// cargar la página; en una carga normal (que no es el regreso desde
+// Google) resuelve a null y no hace nada.
+_auth.getRedirectResult().then(function(result){
+  if(result && result.user){
+    saveUserProfile(result.user).catch(function(e){console.warn('saveUserProfile tras redirect falló:',e.message);});
+  }
+}).catch(function(e){
+  console.warn('[Auth] getRedirectResult falló:', e&&e.code, e&&e.message);
+});
 // Email / Password
 async function signInEmail(email, password){
   return _auth.signInWithEmailAndPassword(email, password);
@@ -40,9 +78,21 @@ async function signInAnon(){
 async function linkAnonToGoogle(){
   const user=_auth.currentUser;
   if(!user||!user.isAnonymous) throw new Error("No hay sesión anónima activa");
-  const provider=new firebase.auth.GoogleAuthProvider();
-  provider.setCustomParameters({prompt:'select_account'});
-  return user.linkWithPopup(provider);
+  try{
+    return await user.linkWithPopup(googleProvider());
+  }catch(e){
+    if(e && e.code==='auth/popup-closed-by-user') throw e;
+    console.warn('[Auth] Popup de vinculación falló, reintentando con redirect:', e&&e.code, e&&e.message);
+    return user.linkWithRedirect(googleProvider()); // la página navega afuera; el resultado se recoge en getRedirectResult()
+  }
+}
+// Disparo manual del flujo por redirect para vincular -- mismo botón de
+// "¿se está tardando?" que signInGoogleRedirect, pero para vincular una
+// cuenta anónima ya existente en vez de iniciar sesión desde cero.
+async function linkAnonToGoogleRedirect(){
+  const user=_auth.currentUser;
+  if(!user||!user.isAnonymous) throw new Error("No hay sesión anónima activa");
+  return user.linkWithRedirect(googleProvider());
 }
 async function linkAnonToEmail(email,password,displayName){
   const user=_auth.currentUser;
