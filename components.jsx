@@ -583,6 +583,26 @@ function App(){
   // ── AUTH STATE ──────────────────────────────────────────────
   const[authUser,setAuthUser]=useState(undefined); // undefined=loading, null=not authed, obj=authed
   const[authChecked,setAuthChecked]=useState(false);
+  // undefined=todavía no se revisó, null=cuenta sin sanciones activas,
+  // objeto {status,reason,until}=baneada o suspendida ahora mismo. Se
+  // escucha en vivo (no solo al entrar) para que un baneo hecho mientras
+  // la app ya está abierta también saque al usuario, no hasta que recargue.
+  const[modBlock,setModBlock]=useState(undefined);
+  React.useEffect(()=>{
+    if(!authUser){ setModBlock(undefined); return; }
+    const ref=_db.ref("moderation/"+authUser.uid);
+    const h=ref.on("value",function(snap){
+      const m=snap.val();
+      if(!m){ setModBlock(null); return; }
+      if(m.status==="banned"){ setModBlock(m); return; }
+      if(m.status==="suspended"){
+        setModBlock(m.until&&Date.now()>m.until ? null : m);
+        return;
+      }
+      setModBlock(null); // 'ok', 'warned' -- no bloquea
+    });
+    return function(){ ref.off("value",h); };
+  },[authUser]);
   // Reconexión automática: guardar último código activo en localStorage
   const[lastKnownCode,setLastKnownCode]=useState(()=>localStorage.getItem("f7lastCode")||"");
   const[reconnectReady,setReconnectReady]=useState(false);
@@ -1090,6 +1110,7 @@ function App(){
     </div>
   );
   if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}/>;
+  if(modBlock)return<AccountBlockedScreen mod={modBlock}/>;
   if(screen==="home")return<>
     {homeNotice&&(
       <div onClick={()=>setHomeNotice(null)} style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",
@@ -1266,6 +1287,51 @@ function HeroLogoCompact(){
       <div style={{minWidth:0,overflow:"hidden"}}>
         <div className="hero-brand-sub-sm">FLIP 7 · UNOFFICIAL SCORETRACK</div>
         <RollingTagline compact/>
+      </div>
+    </div>
+  );
+}
+
+// ── PANTALLA DE BLOQUEO — cuenta baneada o suspendida ───────────
+// Se muestra en vez del resto de la app cuando el estado en vivo de
+// /moderation/{uid} indica un baneo permanente o una suspensión que
+// todavía no vence (ver el efecto que la revisa en App, justo después
+// del AUTH GATE).
+function AccountBlockedScreen({mod}){
+  const banned=mod&&mod.status==="banned";
+  return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",
+      height:"100dvh",background:"var(--dark)",padding:20}}>
+      <div style={{textAlign:"center",maxWidth:340}}>
+        <div style={{fontSize:"3rem",marginBottom:14}}>{banned?"🚫":"⏳"}</div>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.25rem",color:"var(--y)",marginBottom:8}}>
+          {banned?"CUENTA BLOQUEADA":"CUENTA SUSPENDIDA"}
+        </div>
+        <div style={{color:"rgba(255,255,255,.7)",fontSize:".85rem",lineHeight:1.5,marginBottom:12}}>
+          {banned
+            ? "Esta cuenta fue bloqueada y ya no puede usar la app."
+            : "Esta cuenta está suspendida temporalmente y no puede usar la app por ahora."}
+        </div>
+        {mod&&mod.reason&&(
+          <div style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.12)",
+            borderRadius:12,padding:"10px 14px",fontSize:".78rem",color:"rgba(255,255,255,.6)",marginBottom:12}}>
+            Motivo: {mod.reason}
+          </div>
+        )}
+        {!banned&&mod&&mod.until&&(
+          <div style={{fontSize:".75rem",color:"rgba(255,255,255,.4)",marginBottom:16}}>
+            Podrás volver a entrar el {new Date(mod.until).toLocaleString("es-MX",{dateStyle:"medium",timeStyle:"short"})}
+          </div>
+        )}
+        <div style={{fontSize:".72rem",color:"rgba(255,255,255,.35)",marginBottom:16}}>
+          Si crees que esto es un error, contáctanos desde otra cuenta usando el buzón de la app (⚙️ → Reportar bug / sugerir).
+        </div>
+        <button onClick={()=>signOut()} style={{
+          background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.2)",
+          color:"#fff",borderRadius:10,padding:"10px 20px",cursor:"pointer",
+          fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".85rem"}}>
+          Cerrar sesión
+        </button>
       </div>
     </div>
   );

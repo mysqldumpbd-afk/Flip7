@@ -170,6 +170,72 @@ async function saveUserProfile(user, extraData={}){
   }
 }
 
+// ── MODERACIÓN / ADMIN — baneo, suspensión, advertencias, bitácora ──────
+// Todo vive en nodos separados de /users (moderation/{uid}, adminAudit) en
+// vez de anidado dentro de /users/{uid}: la regla de /users/{uid} ya le da
+// escritura al propio dueño de la cuenta, y un permiso abierto en un nodo
+// padre no se puede cerrar con una regla más restrictiva en un hijo -- si
+// el estado de baneo viviera ahí adentro, cualquier usuario podría
+// desbanearse a sí mismo escribiendo directo. Por eso son nodos aparte,
+// con escritura exclusiva del correo admin (ver reglas de Firebase).
+function logAdminAction(action, targetUid, extra){
+  const admin=_auth.currentUser;
+  return _db.ref('adminAudit').push(Object.assign({
+    action: action,
+    targetUid: targetUid||null,
+    by: (admin&&admin.email)||'?',
+    at: Date.now()
+  }, extra||{})).catch(function(e){ console.warn('No se pudo registrar en la bitácora:', e.message); });
+}
+async function warnUser(uid, reason){
+  await _db.ref('moderation/'+uid).update({
+    status:'warned', reason: reason||'', until:null,
+    updatedAt: Date.now(), updatedBy:(_auth.currentUser&&_auth.currentUser.email)||'?'
+  });
+  await logAdminAction('warn', uid, {reason: reason||''});
+}
+async function suspendUser(uid, reason, untilTs){
+  await _db.ref('moderation/'+uid).update({
+    status:'suspended', reason: reason||'', until: untilTs||null,
+    updatedAt: Date.now(), updatedBy:(_auth.currentUser&&_auth.currentUser.email)||'?'
+  });
+  await logAdminAction('suspend', uid, {reason: reason||'', until: untilTs||null});
+}
+async function banUser(uid, reason){
+  await _db.ref('moderation/'+uid).update({
+    status:'banned', reason: reason||'', until:null,
+    updatedAt: Date.now(), updatedBy:(_auth.currentUser&&_auth.currentUser.email)||'?'
+  });
+  await logAdminAction('ban', uid, {reason: reason||''});
+}
+async function liftModeration(uid){
+  await _db.ref('moderation/'+uid).update({
+    status:'ok', reason:'', until:null,
+    updatedAt: Date.now(), updatedBy:(_auth.currentUser&&_auth.currentUser.email)||'?'
+  });
+  await logAdminAction('unban', uid, {});
+}
+async function adminEditDisplayName(uid, newName){
+  await _db.ref('users/'+uid+'/displayName').set(newName);
+  await logAdminAction('edit_name', uid, {newName: newName});
+}
+// Lee el estado de moderación de un usuario y resuelve si debería estar
+// bloqueado AHORA MISMO -- una suspensión ya vencida deja de contar sola,
+// sin que el admin tenga que revertirla a mano. Las advertencias ('warned')
+// no bloquean, solo quedan de contexto para el admin.
+function checkModeration(uid){
+  return _db.ref('moderation/'+uid).once('value').then(function(snap){
+    const m=snap.val();
+    if(!m) return null;
+    if(m.status==='banned') return m;
+    if(m.status==='suspended'){
+      if(m.until && Date.now()>m.until) return null;
+      return m;
+    }
+    return null;
+  }).catch(function(){ return null; });
+}
+
 // ── PRESENCIA — se reafirma en cada reconexión (bloqueo de pantalla, wifi
 // caído, app en segundo plano) y detecta grupos nuevos sin requerir volver
 // a iniciar sesión. Antes solo se escribía una vez al loguear, por eso
