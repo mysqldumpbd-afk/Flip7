@@ -33,12 +33,29 @@ function googleProvider(){
   provider.setCustomParameters({prompt:'select_account'});
   return provider;
 }
+// Cuando el navegador bloquea el storage de terceros (Tracking Prevention de
+// Edge, ITP de Safari, etc.) el popup de Google no lanza ningún error: se
+// queda colgado sin resolver ni rechazar nunca, así que un try/catch normal
+// no lo detecta. Esta carrera contra un timeout obliga a que, si el popup
+// no contestó en POPUP_TIMEOUT_MS, se trate igual que un error real y se
+// caiga automáticamente al flujo por redirect -- sin depender de que el
+// usuario note el link "¿se está tardando?" y lo presione a mano.
+const POPUP_TIMEOUT_MS = 9000;
+function withPopupTimeout(promise){
+  let timer;
+  const timeout = new Promise(function(_, reject){
+    timer = setTimeout(function(){
+      reject({code:'auth/popup-timeout', message:'El popup no respondió a tiempo'});
+    }, POPUP_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(function(){ clearTimeout(timer); });
+}
 async function signInGoogle(){
   try{
-    return await _auth.signInWithPopup(googleProvider());
+    return await withPopupTimeout(_auth.signInWithPopup(googleProvider()));
   }catch(e){
     if(e && e.code==='auth/popup-closed-by-user') throw e; // cerró la ventana a propósito -- no forzar redirect
-    console.warn('[Auth] Popup de Google falló, reintentando con redirect:', e&&e.code, e&&e.message);
+    console.warn('[Auth] Popup de Google falló o no respondió, reintentando con redirect:', e&&e.code, e&&e.message);
     return _auth.signInWithRedirect(googleProvider()); // la página navega afuera; el resultado se recoge en getRedirectResult()
   }
 }
@@ -79,10 +96,10 @@ async function linkAnonToGoogle(){
   const user=_auth.currentUser;
   if(!user||!user.isAnonymous) throw new Error("No hay sesión anónima activa");
   try{
-    return await user.linkWithPopup(googleProvider());
+    return await withPopupTimeout(user.linkWithPopup(googleProvider()));
   }catch(e){
     if(e && e.code==='auth/popup-closed-by-user') throw e;
-    console.warn('[Auth] Popup de vinculación falló, reintentando con redirect:', e&&e.code, e&&e.message);
+    console.warn('[Auth] Popup de vinculación falló o no respondió, reintentando con redirect:', e&&e.code, e&&e.message);
     return user.linkWithRedirect(googleProvider()); // la página navega afuera; el resultado se recoge en getRedirectResult()
   }
 }
