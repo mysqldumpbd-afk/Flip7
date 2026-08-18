@@ -96,7 +96,11 @@ const PRIORITY_COLOR={
 
 const AUDIT_ACTION_LABEL={
   warn:"⚠️ Advertencia",suspend:"⏳ Suspensión",ban:"🚫 Baneo",
-  unban:"✅ Sanción levantada",edit_name:"✏️ Nombre editado"
+  unban:"✅ Sanción levantada",edit_name:"✏️ Nombre editado",
+  close_room:"🚫 Sala cerrada",kick_player:"👢 Jugador expulsado",
+  bulk_delete_rooms:"🗑️ Salas eliminadas en lote",delete_group:"🗑️ Grupo eliminado",
+  bulk_ban:"🚫 Baneo en lote",bulk_resolve_bugs:"✅ Bugs resueltos en lote",
+  bulk_resolve_suggestions:"✅ Sugerencias resueltas en lote"
 };
 
 function daysAgo(ts){
@@ -123,7 +127,7 @@ function mergeFeedback(raw, meta){
   }).sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
 }
 
-function FeedbackCard({it,onCycleStatus,onSetPriority,onSetNotes}){
+function FeedbackCard({it,onCycleStatus,onSetPriority,onSetNotes,picked,onTogglePick}){
   const[expanded,setExpanded]=React.useState(false);
   const[notesOpen,setNotesOpen]=React.useState(false);
   const[notesDraft,setNotesDraft]=React.useState(it.internalNotes||"");
@@ -135,9 +139,12 @@ function FeedbackCard({it,onCycleStatus,onSetPriority,onSetNotes}){
     <div style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
       borderRadius:12,padding:"12px 14px",marginBottom:10}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
-        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.45)"}}>
-          {it.name||"Anónimo"} · {fmtDate(it.createdAt)} · <span style={{color:"rgba(255,255,255,.3)"}}>{daysAgo(it.createdAt)}</span>
-          {it.email && <div style={{color:"rgba(255,255,255,.3)",marginTop:2}}>{it.email}</div>}
+        <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+          <input type="checkbox" checked={!!picked} onChange={()=>onTogglePick(it)} style={{marginTop:3}}/>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.45)"}}>
+            {it.name||"Anónimo"} · {fmtDate(it.createdAt)} · <span style={{color:"rgba(255,255,255,.3)"}}>{daysAgo(it.createdAt)}</span>
+            {it.email && <div style={{color:"rgba(255,255,255,.3)",marginTop:2}}>{it.email}</div>}
+          </div>
         </div>
         <button onClick={()=>onCycleStatus(it)} style={{
           background:col.bg,border:"1px solid "+col.border,borderRadius:20,padding:"4px 10px",
@@ -186,29 +193,210 @@ function FeedbackCard({it,onCycleStatus,onSetPriority,onSetNotes}){
   );
 }
 
-function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes}){
+function FeedbackList({title,icon,items,onCycleStatus,onSetPriority,onSetNotes,onBulkResolve}){
+  const[picked,setPicked]=React.useState({});
+  const pickedIds=Object.keys(picked).filter(function(id){ return picked[id]; });
+  const[busy,setBusy]=React.useState(false);
+
+  async function runBulkResolve(){
+    setBusy(true);
+    try{ await onBulkResolve(pickedIds); setPicked({}); }
+    finally{ setBusy(false); }
+  }
+
   return(
     <div style={{marginBottom:24}}>
       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".82rem",color:"#fff",
         letterSpacing:1,marginBottom:10}}>
         {icon} {title} <span style={{color:"rgba(255,255,255,.4)"}}>({items.length})</span>
       </div>
+      {pickedIds.length>0 && (
+        <div style={{background:"rgba(59,178,115,.1)",border:"1px solid rgba(59,178,115,.35)",borderRadius:12,
+          padding:"10px 12px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+          <span style={{fontSize:".78rem"}}>{pickedIds.length} ticket(s) seleccionados</span>
+          <button className="btn btn-g btn-sm" disabled={busy} onClick={runBulkResolve}>✅ Marcar resueltos</button>
+        </div>
+      )}
       {items.length===0 && (
         <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",padding:"10px 0"}}>Nada por aquí todavía.</div>
       )}
       {items.map(it=><FeedbackCard key={it.id} it={it} onCycleStatus={onCycleStatus}
-        onSetPriority={onSetPriority} onSetNotes={onSetNotes}/>)}
+        onSetPriority={onSetPriority} onSetNotes={onSetNotes}
+        picked={!!picked[it.id]} onTogglePick={function(item){ setPicked(p=>Object.assign({},p,{[item.id]:!p[item.id]})); }}/>)}
+    </div>
+  );
+}
+
+// ── SALAS: listado en vivo con estado, expulsión y eliminación masiva ───
+function RoomsTab({rooms,onCloseRoom,onKick,onBulkDelete}){
+  const[q,setQ]=React.useState("");
+  const[statusF,setStatusF]=React.useState("all");
+  const[picked,setPicked]=React.useState({});
+  const[expandedCode,setExpandedCode]=React.useState(null);
+  const[confirmText,setConfirmText]=React.useState("");
+  const[busy,setBusy]=React.useState(false);
+
+  function activityTs(r){ return r.lastActivityAt||r.gameStartedAt||r.createdAt||0; }
+  function statusOf(r){
+    if(!r.finished && (Date.now()-activityTs(r)>3*86400000)) return "abandoned";
+    return r.finished ? "finished" : "active";
+  }
+
+  const STATUS_L={active:"🟢 Activa",finished:"🏁 Finalizada",abandoned:"👻 Abandonada"};
+  const STATUS_C={
+    active:{bg:"rgba(59,178,115,.15)",border:"rgba(59,178,115,.4)"},
+    finished:{bg:"rgba(100,150,255,.15)",border:"rgba(100,150,255,.4)"},
+    abandoned:{bg:"rgba(255,150,50,.15)",border:"rgba(255,150,50,.4)"}
+  };
+
+  const filtered=React.useMemo(function(){
+    let list=rooms.slice();
+    const qq=q.trim().toUpperCase();
+    if(qq) list=list.filter(function(r){
+      return (r.code||"").toUpperCase().indexOf(qq)>=0 || (r.hostName||"").toUpperCase().indexOf(qq)>=0;
+    });
+    if(statusF!=="all") list=list.filter(function(r){ return statusOf(r)===statusF; });
+    list.sort(function(a,b){ return activityTs(b)-activityTs(a); });
+    return list;
+  },[rooms,q,statusF]);
+
+  const pickedCodes=Object.keys(picked).filter(function(c){ return picked[c]; });
+  async function runBulkDelete(){
+    if(confirmText.trim().toUpperCase()!=="CONFIRMAR")return;
+    setBusy(true);
+    try{ await onBulkDelete(pickedCodes); setPicked({});setConfirmText(""); }
+    finally{ setBusy(false); }
+  }
+
+  return(
+    <div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar código o host..."
+          style={{flex:"1 1 180px",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+          borderRadius:10,padding:9,color:"#fff",fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
+        <select value={statusF} onChange={e=>setStatusF(e.target.value)}
+          style={{background:"#1a1a2e",color:"#fff",border:"1px solid rgba(255,255,255,.15)",borderRadius:10,padding:9}}>
+          <option style={OPTION_STYLE} value="all">Todas</option>
+          <option style={OPTION_STYLE} value="active">🟢 Activas</option>
+          <option style={OPTION_STYLE} value="finished">🏁 Finalizadas</option>
+          <option style={OPTION_STYLE} value="abandoned">👻 Abandonadas (+3 días)</option>
+        </select>
+      </div>
+
+      {pickedCodes.length>0 && (
+        <div style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.35)",borderRadius:12,
+          padding:"10px 12px",marginBottom:12}}>
+          <div style={{fontSize:".78rem",marginBottom:6}}>{pickedCodes.length} sala(s) seleccionadas para eliminar.</div>
+          <input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder='Escribe "CONFIRMAR" para eliminar'
+            style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+            borderRadius:8,padding:8,color:"#fff",marginBottom:6,fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
+          <button className="btn btn-r btn-sm" disabled={busy||confirmText.trim().toUpperCase()!=="CONFIRMAR"}
+            onClick={runBulkDelete}>🗑️ Eliminar seleccionadas</button>
+        </div>
+      )}
+
+      <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:8}}>{filtered.length} de {rooms.length} salas</div>
+
+      {filtered.slice(0,150).map(function(r){
+        const st=statusOf(r);
+        const col=STATUS_C[st];
+        const isExpanded=expandedCode===r.code;
+        return(
+          <div key={r.code} style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
+            borderRadius:12,padding:"10px 14px",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <input type="checkbox" checked={!!picked[r.code]}
+                onChange={e=>setPicked(p=>Object.assign({},p,{[r.code]:e.target.checked}))}/>
+              <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExpandedCode(isExpanded?null:r.code)}>
+                <div style={{fontWeight:700,fontSize:".85rem"}}>{r.code}
+                  <span style={{color:"rgba(255,255,255,.4)",fontWeight:400}}> · {r.hostName||"?"}</span></div>
+                <div style={{fontSize:".68rem",color:"rgba(255,255,255,.45)"}}>
+                  {(r.players||[]).length} jugadores · ronda {r.round||1} · {daysAgo(activityTs(r))}
+                </div>
+              </div>
+              <span style={{background:col.bg,border:"1px solid "+col.border,borderRadius:20,
+                padding:"3px 9px",fontSize:".6rem",whiteSpace:"nowrap"}}>{STATUS_L[st]}</span>
+            </div>
+            {isExpanded && (
+              <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
+                {(r.players||[]).map(function(p){
+                  return(
+                    <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                      padding:"4px 0",fontSize:".78rem"}}>
+                      <span>{p.emoji||"🎴"} {p.name} — {p.total||0} pts</span>
+                      <button className="btn btn-r btn-sm" onClick={()=>onKick(r.code,p.id,p.name)}>Expulsar</button>
+                    </div>
+                  );
+                })}
+                {(r.players||[]).length===0 && <div style={{fontSize:".76rem",color:"rgba(255,255,255,.4)"}}>Sin jugadores.</div>}
+                <button className="btn btn-r btn-sm" style={{marginTop:8}}
+                  onClick={()=>onCloseRoom(r.code)}>🚫 Cerrar sala</button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {filtered.length===0 && <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",padding:"10px 0"}}>Sin salas con esos filtros.</div>}
+      {filtered.length>150 && (
+        <div style={{textAlign:"center",color:"rgba(255,255,255,.35)",fontSize:".72rem",marginTop:8}}>
+          Mostrando las primeras 150 — afina la búsqueda para ver más.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── GRUPOS: listado + buscador + eliminar ────────────────────────────────
+function GroupsTab({groups,onDelete}){
+  const[q,setQ]=React.useState("");
+  const filtered=React.useMemo(function(){
+    let list=groups.slice();
+    const qq=q.trim().toLowerCase();
+    if(qq) list=list.filter(function(g){
+      return (g.name||"").toLowerCase().indexOf(qq)>=0 || (g.code||"").toLowerCase().indexOf(qq)>=0;
+    });
+    list.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+    return list;
+  },[groups,q]);
+
+  return(
+    <div>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar grupo o código..."
+        style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+        borderRadius:10,padding:9,color:"#fff",marginBottom:12,fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
+      <div style={{fontSize:".7rem",color:"rgba(255,255,255,.4)",marginBottom:8}}>{filtered.length} de {groups.length} grupos</div>
+      {filtered.map(function(g){
+        const memberCount=Object.keys(g.members||{}).length;
+        return(
+          <div key={g.id} style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
+            borderRadius:12,padding:"10px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:".85rem"}}>{g.name}
+                <span style={{color:"rgba(255,255,255,.4)",fontWeight:400}}> · {g.code}</span></div>
+              <div style={{fontSize:".68rem",color:"rgba(255,255,255,.45)"}}>
+                {memberCount} miembro(s) · creado {fmtDate(g.createdAt)}{g.currentRoom?" · partida activa: "+g.currentRoom:""}
+              </div>
+            </div>
+            <button className="btn btn-r btn-sm" onClick={()=>onDelete(g.id,g.name)}>🗑️ Eliminar</button>
+          </div>
+        );
+      })}
+      {filtered.length===0 && <div style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",padding:"10px 0"}}>Sin grupos con esos filtros.</div>}
     </div>
   );
 }
 
 // ── USUARIOS: tabla con filtros + ficha de usuario con acciones ─────────
-function UsersTable({users,moderationMap,onSelect}){
+function UsersTable({users,moderationMap,onSelect,onBulkBan}){
   const[q,setQ]=React.useState("");
   const[statusF,setStatusF]=React.useState("all");
   const[from,setFrom]=React.useState("");
   const[to,setTo]=React.useState("");
   const[sort,setSort]=React.useState("recent");
+  const[picked,setPicked]=React.useState({});
+  const[bulkReason,setBulkReason]=React.useState("");
+  const[bulkConfirm,setBulkConfirm]=React.useState("");
+  const[bulkBusy,setBulkBusy]=React.useState(false);
 
   const filtered=React.useMemo(function(){
     let list=users.slice();
@@ -249,8 +437,30 @@ function UsersTable({users,moderationMap,onSelect}){
   const selectStyle={background:"#1a1a2e",color:"#fff",border:"1px solid rgba(255,255,255,.15)",
     borderRadius:10,padding:9,fontFamily:"'Nunito',sans-serif"};
 
+  const pickedUids=Object.keys(picked).filter(function(u){ return picked[u]; });
+  async function runBulkBan(){
+    if(bulkConfirm.trim().toUpperCase()!=="CONFIRMAR")return;
+    setBulkBusy(true);
+    try{ await onBulkBan(pickedUids,bulkReason); setPicked({});setBulkReason("");setBulkConfirm(""); }
+    finally{ setBulkBusy(false); }
+  }
+
   return(
     <div>
+      {pickedUids.length>0 && (
+        <div style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.35)",borderRadius:12,
+          padding:"10px 12px",marginBottom:12}}>
+          <div style={{fontSize:".78rem",marginBottom:6}}>{pickedUids.length} usuario(s) seleccionados para banear.</div>
+          <textarea value={bulkReason} onChange={e=>setBulkReason(e.target.value)} rows={2} placeholder="Motivo del baneo en lote"
+            style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+            borderRadius:8,padding:8,color:"#fff",marginBottom:6,fontFamily:"'Nunito',sans-serif",boxSizing:"border-box",resize:"vertical"}}/>
+          <input value={bulkConfirm} onChange={e=>setBulkConfirm(e.target.value)} placeholder='Escribe "CONFIRMAR" para banear'
+            style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
+            borderRadius:8,padding:8,color:"#fff",marginBottom:6,fontFamily:"'Nunito',sans-serif",boxSizing:"border-box"}}/>
+          <button className="btn btn-r btn-sm" disabled={bulkBusy||bulkConfirm.trim().toUpperCase()!=="CONFIRMAR"}
+            onClick={runBulkBan}>🚫 Banear seleccionados</button>
+        </div>
+      )}
       <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar nombre, correo o uid..."
           style={Object.assign({flex:"1 1 200px"},inputStyle)}/>
@@ -281,11 +491,13 @@ function UsersTable({users,moderationMap,onSelect}){
         const st=(moderationMap[u.uid]&&moderationMap[u.uid].status)||"ok";
         const col=MOD_COLOR[st]||MOD_COLOR.ok;
         return(
-          <div key={u.uid} onClick={()=>onSelect(u)} style={{
+          <div key={u.uid} style={{
             background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
-            borderRadius:12,padding:"10px 14px",marginBottom:8,cursor:"pointer",
+            borderRadius:12,padding:"10px 14px",marginBottom:8,
             display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-            <div style={{minWidth:0}}>
+            <input type="checkbox" checked={!!picked[u.uid]} onClick={e=>e.stopPropagation()}
+              onChange={e=>setPicked(p=>Object.assign({},p,{[u.uid]:e.target.checked}))}/>
+            <div style={{minWidth:0,flex:1,cursor:"pointer"}} onClick={()=>onSelect(u)}>
               <div style={{fontWeight:700,fontSize:".85rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {u.displayName||"Sin nombre"} {u.isAnon && <span style={{color:"rgba(255,255,255,.35)"}}>(anónimo)</span>}
               </div>
@@ -293,8 +505,8 @@ function UsersTable({users,moderationMap,onSelect}){
                 {u.email||"—"} · alta {fmtDate(u.createdAt)}
               </div>
             </div>
-            <span style={{background:col.bg,border:"1px solid "+col.border,borderRadius:20,
-              padding:"3px 9px",fontSize:".62rem",whiteSpace:"nowrap"}}>{MOD_LABEL[st]}</span>
+            <span onClick={()=>onSelect(u)} style={{background:col.bg,border:"1px solid "+col.border,borderRadius:20,
+              padding:"3px 9px",fontSize:".62rem",whiteSpace:"nowrap",cursor:"pointer"}}>{MOD_LABEL[st]}</span>
           </div>
         );
       })}
@@ -407,6 +619,10 @@ function AuditList({items,usersByUid}){
             </div>
             {a.reason && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Motivo: {a.reason}</div>}
             {a.newName && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Nuevo nombre: {a.newName}</div>}
+            {a.roomCode && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Sala: {a.roomCode}</div>}
+            {a.playerName && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Jugador: {a.playerName}</div>}
+            {a.groupName && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Grupo: {a.groupName}</div>}
+            {typeof a.count==="number" && <div style={{marginTop:4,color:"rgba(255,255,255,.6)"}}>Cantidad: {a.count}</div>}
           </div>
         );
       })}
@@ -429,8 +645,10 @@ function AdminApp(){
   const[moderationMap,setModerationMap]=React.useState({});
   const[audit,setAudit]=React.useState([]);
   const[selectedUser,setSelectedUser]=React.useState(null);
+  const[rooms,setRooms]=React.useState([]);
+  const[groups,setGroups]=React.useState([]);
   const[stats,setStats]=React.useState({games:0,players:0,users:0,aiScans:0});
-  const[tab,setTab]=React.useState("resumen"); // resumen | usuarios | bugs | sugerencias | auditoria
+  const[tab,setTab]=React.useState("resumen"); // resumen | usuarios | salas | grupos | bugs | sugerencias | auditoria
 
   const bugs=React.useMemo(()=>mergeFeedback(rawBugs,metaBugs),[rawBugs,metaBugs]);
   const suggestions=React.useMemo(()=>mergeFeedback(rawSug,metaSug),[rawSug,metaSug]);
@@ -457,6 +675,8 @@ function AdminApp(){
     const playersRef=_db.ref("stats/players");
     const usersRef=_db.ref("users");
     const moderationRef=_db.ref("moderation");
+    const roomsRef=_db.ref("rooms"); // .read admin-only a nivel padre -- ver reglas
+    const groupsRef=_db.ref("groups");
     // Últimas 300 acciones -- de sobra para revisar actividad reciente sin
     // bajar la bitácora completa cada vez que crece (ver .indexOn:"at" en reglas).
     const auditRef=_db.ref("adminAudit").orderByChild("at").limitToLast(300);
@@ -478,6 +698,14 @@ function AdminApp(){
       setStats(s=>Object.assign({},s,{users:list.length}));
     });
     const hMod=moderationRef.on("value",snap=>setModerationMap(snap.val()||{}));
+    const hRooms=roomsRef.on("value",snap=>{
+      const val=snap.val()||{};
+      setRooms(Object.keys(val).map(function(code){ return Object.assign({code:code},val[code]); }));
+    });
+    const hGroups=groupsRef.on("value",snap=>{
+      const val=snap.val()||{};
+      setGroups(Object.keys(val).map(function(gid){ return Object.assign({id:gid},val[gid]); }));
+    });
     const hAudit=auditRef.on("value",snap=>{
       const val=snap.val()||{};
       const list=Object.keys(val).map(function(id){ return Object.assign({id:id},val[id]); })
@@ -491,6 +719,7 @@ function AdminApp(){
       metaBugsRef.off("value",hMetaBugs);metaSugRef.off("value",hMetaSug);
       gamesRef.off("value",hGames);playersRef.off("value",hPlayers);
       usersRef.off("value",hUsers);moderationRef.off("value",hMod);
+      roomsRef.off("value",hRooms);groupsRef.off("value",hGroups);
       auditRef.off("value",hAudit);scansRef.off("value",hScans);
     };
   },[authorized]);
@@ -508,6 +737,30 @@ function AdminApp(){
   async function setTicketNotes(item,type,notes){
     try{ await _db.ref("feedbackMeta/"+type+"/"+item.id).update({internalNotes:notes,updatedAt:Date.now()}); }
     catch(e){ console.warn("No se pudo guardar la nota:",e.message); }
+  }
+  async function handleBulkResolve(type,ids){
+    try{ await resolveTicketsBulk(type,ids); }
+    catch(e){ console.warn("No se pudo resolver en lote:",e.message); }
+  }
+  async function handleBulkBanUsers(uids,reason){
+    try{ await banUsersBulk(uids,reason); }
+    catch(e){ console.warn("No se pudo banear en lote:",e.message); }
+  }
+  async function handleCloseRoom(code){
+    try{ await closeRoom(code); }
+    catch(e){ console.warn("No se pudo cerrar la sala:",e.message); }
+  }
+  async function handleKickPlayer(code,playerId,playerName){
+    try{ await kickPlayerFromRoom(code,playerId,playerName); }
+    catch(e){ console.warn("No se pudo expulsar al jugador:",e.message); }
+  }
+  async function handleBulkDeleteRooms(codes){
+    try{ await deleteRoomsBulk(codes); }
+    catch(e){ console.warn("No se pudieron eliminar las salas:",e.message); }
+  }
+  async function handleDeleteGroup(gid,name){
+    try{ await deleteGroupAdmin(gid,name); }
+    catch(e){ console.warn("No se pudo eliminar el grupo:",e.message); }
   }
 
   async function handleLogin(e){
@@ -606,6 +859,23 @@ function AdminApp(){
   const estCostLow=(stats.aiScans*0.0025).toFixed(2);
   const estCostHigh=(stats.aiScans*0.0038).toFixed(2);
 
+  // ── Analítica ampliada (Fase 2) ──────────────────────────────────────
+  const now=Date.now();
+  const newUsers7d=users.filter(function(u){ return (u.createdAt||0)>=now-7*86400000; }).length;
+  const newUsersPrev7d=users.filter(function(u){
+    return (u.createdAt||0)>=now-14*86400000 && (u.createdAt||0)<now-7*86400000;
+  }).length;
+  const userTrend=newUsersPrev7d===0
+    ? (newUsers7d>0?"nuevo":"sin cambio")
+    : (newUsers7d>=newUsersPrev7d?"+":"")+Math.round(((newUsers7d-newUsersPrev7d)/newUsersPrev7d)*100)+"% vs semana anterior";
+  const activeRooms=rooms.filter(function(r){ return !r.finished; }).length;
+  const abandonedRooms=rooms.filter(function(r){
+    const ts=r.lastActivityAt||r.gameStartedAt||r.createdAt||0;
+    return !r.finished && (now-ts>3*86400000);
+  }).length;
+  const errorRate=stats.games>0 ? ((bugs.length/stats.games)*100).toFixed(1)+"%" : "—";
+  const topGroups=groups.slice().sort(function(a,b){ return (b.gameCount||0)-(a.gameCount||0); }).slice(0,3);
+
   return(
     <div className="wrap"><div className="page" style={{paddingTop:24}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
@@ -618,7 +888,8 @@ function AdminApp(){
       </div>
 
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
-        {[["resumen","📊 Resumen"],["usuarios","👥 Usuarios"],["bugs","🐞 Bugs ("+pendingBugs+")"],
+        {[["resumen","📊 Resumen"],["usuarios","👥 Usuarios"],["salas","🎮 Salas ("+activeRooms+")"],
+          ["grupos","👪 Grupos"],["bugs","🐞 Bugs ("+pendingBugs+")"],
           ["sugerencias","💡 Sugerencias ("+pendingSug+")"],["auditoria","📜 Auditoría"]].map(function(pair){
           const k=pair[0],label=pair[1];
           return(
@@ -642,21 +913,49 @@ function AdminApp(){
           <StatCard icon="🐞" label="BUGS PENDIENTES" value={pendingBugs}/>
           <StatCard icon="💡" label="SUGERENCIAS PENDIENTES" value={pendingSug}/>
           <StatCard icon="🚫" label="USUARIOS BANEADOS" value={bannedCount}/>
+          <StatCard icon="🎮" label="SALAS ACTIVAS" value={activeRooms} sub={abandonedRooms+" abandonadas (+3 días)"}/>
+          <StatCard icon="👪" label="GRUPOS" value={groups.length}/>
+        </div>
+      )}
+
+      {tab==="resumen" && (
+        <div style={{marginTop:16,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",
+          borderRadius:14,padding:"14px 16px"}}>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".75rem",color:"#fff",marginBottom:10}}>
+            📈 Analítica
+          </div>
+          <div style={{fontSize:".8rem",color:"rgba(255,255,255,.7)",lineHeight:1.8}}>
+            Usuarios nuevos esta semana: <b>{newUsers7d}</b> ({userTrend})<br/>
+            Tasa de bugs reportados por partida: <b>{errorRate}</b><br/>
+            {topGroups.length>0 && (
+              <span>Grupos más activos: {topGroups.map(function(g){ return g.name+" ("+(g.gameCount||0)+")"; }).join(", ")}</span>
+            )}
+          </div>
         </div>
       )}
 
       {tab==="usuarios" && (
-        <UsersTable users={users} moderationMap={moderationMap} onSelect={setSelectedUser}/>
+        <UsersTable users={users} moderationMap={moderationMap} onSelect={setSelectedUser} onBulkBan={handleBulkBanUsers}/>
+      )}
+
+      {tab==="salas" && (
+        <RoomsTab rooms={rooms} onCloseRoom={handleCloseRoom} onKick={handleKickPlayer} onBulkDelete={handleBulkDeleteRooms}/>
+      )}
+
+      {tab==="grupos" && (
+        <GroupsTab groups={groups} onDelete={handleDeleteGroup}/>
       )}
 
       {tab==="bugs" && <FeedbackList title="Bugs reportados" icon="🐞" items={bugs}
         onCycleStatus={it=>cycleStatus(it,"bugs")}
         onSetPriority={(it,p)=>setTicketPriority(it,"bugs",p)}
-        onSetNotes={(it,n)=>setTicketNotes(it,"bugs",n)}/>}
+        onSetNotes={(it,n)=>setTicketNotes(it,"bugs",n)}
+        onBulkResolve={ids=>handleBulkResolve("bugs",ids)}/>}
       {tab==="sugerencias" && <FeedbackList title="Sugerencias de juegos" icon="💡" items={suggestions}
         onCycleStatus={it=>cycleStatus(it,"suggestions")}
         onSetPriority={(it,p)=>setTicketPriority(it,"suggestions",p)}
-        onSetNotes={(it,n)=>setTicketNotes(it,"suggestions",n)}/>}
+        onSetNotes={(it,n)=>setTicketNotes(it,"suggestions",n)}
+        onBulkResolve={ids=>handleBulkResolve("suggestions",ids)}/>}
 
       {tab==="auditoria" && <AuditList items={audit} usersByUid={usersByUid}/>}
 

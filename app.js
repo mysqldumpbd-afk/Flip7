@@ -236,6 +236,57 @@ function checkModeration(uid){
   }).catch(function(){ return null; });
 }
 
+// ── ADMIN: salas, grupos y acciones masivas ─────────────────────────────
+// rooms/$roomId y groups/$gid ya eran de escritura abierta para cualquier
+// autenticado (así funciona hoy el juego -- cualquiera con el código puede
+// escribir su propia sala), así que estas funciones no necesitan permisos
+// nuevos; solo agregan el registro en la bitácora que las demás acciones
+// de admin ya tienen.
+async function closeRoom(code, reason){
+  await _db.ref('rooms/'+code).remove();
+  await logAdminAction('close_room', null, {roomCode: code, reason: reason||''});
+}
+async function kickPlayerFromRoom(code, playerId, playerName){
+  const snap=await _db.ref('rooms/'+code+'/players').once('value');
+  const players=snap.val()||[];
+  const next=players.filter(function(p){ return p.id!==playerId; });
+  await _db.ref('rooms/'+code+'/players').set(next);
+  await _db.ref('rooms/'+code+'/presence/'+playerId).remove().catch(function(){});
+  await logAdminAction('kick_player', null, {roomCode: code, playerName: playerName||''});
+}
+async function deleteRoomsBulk(codes){
+  const updates={};
+  codes.forEach(function(c){ updates['rooms/'+c]=null; });
+  await _db.ref().update(updates);
+  await logAdminAction('bulk_delete_rooms', null, {count: codes.length, codes: codes.join(',')});
+}
+async function deleteGroupAdmin(gid, groupName){
+  await _db.ref('groups/'+gid).remove();
+  await logAdminAction('delete_group', null, {groupId: gid, groupName: groupName||''});
+}
+async function banUsersBulk(uids, reason){
+  const updates={};
+  const admin=_auth.currentUser;
+  uids.forEach(function(uid){
+    updates['moderation/'+uid+'/status']='banned';
+    updates['moderation/'+uid+'/reason']=reason||'';
+    updates['moderation/'+uid+'/until']=null;
+    updates['moderation/'+uid+'/updatedAt']=Date.now();
+    updates['moderation/'+uid+'/updatedBy']=(admin&&admin.email)||'?';
+  });
+  await _db.ref().update(updates);
+  await logAdminAction('bulk_ban', null, {count: uids.length, reason: reason||''});
+}
+async function resolveTicketsBulk(type, ids){
+  const updates={};
+  ids.forEach(function(id){
+    updates['feedbackMeta/'+type+'/'+id+'/status']='resolved';
+    updates['feedbackMeta/'+type+'/'+id+'/updatedAt']=Date.now();
+  });
+  await _db.ref().update(updates);
+  await logAdminAction('bulk_resolve_'+type, null, {count: ids.length});
+}
+
 // ── PRESENCIA — se reafirma en cada reconexión (bloqueo de pantalla, wifi
 // caído, app en segundo plano) y detecta grupos nuevos sin requerir volver
 // a iniciar sesión. Antes solo se escribía una vez al loguear, por eso
