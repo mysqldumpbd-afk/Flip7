@@ -44,7 +44,7 @@ const COLORS=[
 const CONF=["#F5C800","#E63946","#2EC4B6","#FF6B35","#fff","#3BB273","#7B2D8B"];
 const uid4=()=>Math.random().toString(36).slice(2,6).toUpperCase();
 const uid=()=>Math.random().toString(36).slice(2,10);
-const fmtDate=ts=>new Date(ts).toLocaleDateString("es-MX",{weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+const fmtDate=(ts,T)=>{T=T||LANGS.es;return new Date(ts).toLocaleDateString(T.locale,{weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});};
 
 // Seudónimo para invitados (cuentas anónimas): NO se guarda en Firebase
 // (una cuenta anónima no tiene un lugar persistente/único donde guardarlo
@@ -53,13 +53,14 @@ const fmtDate=ts=>new Date(ts).toLocaleDateString("es-MX",{weekday:"short",month
 function getAnonNickname(){ try{return sessionStorage.getItem('f7_anon_nick')||'';}catch(e){return '';} }
 function setAnonNickname(v){ try{ if(v)sessionStorage.setItem('f7_anon_nick',v); else sessionStorage.removeItem('f7_anon_nick'); }catch(e){} }
 // Etiqueta legible del método de acceso a partir de providerData de Firebase Auth
-function providerLabel(user){
+function providerLabel(user,T){
+  T=T||LANGS.es;
   if(!user)return '';
-  if(user.isAnonymous)return 'Sin cuenta';
+  if(user.isAnonymous)return T.providerNone;
   const pid=user.providerData&&user.providerData[0]&&user.providerData[0].providerId;
-  if(pid==='google.com')return 'Google';
-  if(pid==='password')return 'Correo y contraseña';
-  return 'Cuenta';
+  if(pid==='google.com')return T.providerGoogle;
+  if(pid==='password')return T.providerPassword;
+  return T.providerAccount;
 }
 
 // Colores de texto para cada número de carta Flip 7
@@ -301,12 +302,13 @@ function makeDB(demo){
   };
 }
 
-function classifyError(e){
+function classifyError(e,T){
+  T=T||LANGS.es;
   const m=String(e?.message||e);
-  if(!navigator.onLine)return{msg:"⚡ Sin conexión.",steps:["Verifica tu internet"]};
-  if(m.includes("PERMISSION_DENIED"))return{msg:"🔒 Sin permisos Firebase.",steps:['Reglas → ".read":true,".write":true → Publicar']};
-  if(m.includes("fetch")||m.includes("network"))return{msg:"📡 Error de red.",steps:["Verifica conexión e intenta de nuevo"]};
-  return{msg:"⚠ "+m.slice(0,100),steps:["Recarga la página"]};
+  if(!navigator.onLine)return{msg:T.errOffline,steps:[T.errOfflineStep]};
+  if(m.includes("PERMISSION_DENIED"))return{msg:T.errPermission,steps:[T.errPermissionStep]};
+  if(m.includes("fetch")||m.includes("network"))return{msg:T.errNetwork,steps:[T.errNetworkStep]};
+  return{msg:"⚠ "+m.slice(0,100),steps:[T.errGenericStep]};
 }
 
 // ── LANGS ─────────────────────────────────────────────────────
@@ -350,6 +352,568 @@ const LANGS={
     roundProgress:"AVANCE POR RONDAS",
     codeLabel:"SALA",
     correct:"✏️ Corregir",
+    // ── EXTENSIÓN i18n (auto-generada) ──
+    modeClassicDesc:"Primero en llegar a 200 puntos. 7 cartas únicas = +15 bonus.",
+    modeClassicRules:["Meta: 200 puntos", "Carta duplicada = bust (0 pts en la ronda)", "7 cartas únicas = +15 pts bonus + fin de ronda", "Modificadores: x2, +2 al +10"],
+    modeVenganzaDesc:"Misma mecanica, cartas 1-13, modificadores negativos y cartas de accion inter-jugadores.",
+    modeVenganzaRules:["Meta: 200 puntos", "Cartas numericas: 1 al 13", "Bust por duplicado = 0 pts", "Flip 7 bonus = +15 pts", "Modificadores NEGATIVOS: -2,-4,-6,-8,-10,/2", "Orden: Suma -> /2 -> -N -> min 0 -> +15", "Acciones: Swap, Steal, Discard, Flip Four"],
+    errOffline:"⚡ Sin conexión.",
+    errOfflineStep:"Verifica tu internet",
+    errPermission:"🔒 Sin permisos Firebase.",
+    errPermissionStep:"Reglas → \".read\":true,\".write\":true → Publicar",
+    errNetwork:"📡 Error de red.",
+    errNetworkStep:"Verifica conexión e intenta de nuevo",
+    errGenericStep:"Recarga la página",
+    errGoogle:"Error con Google",
+    errGoogleContinue:"No se pudo continuar con Google",
+    errEnterEmailPass:"Ingresa email y contraseña",
+    errRegisteredWithGoogle:"Este correo ya está registrado con Google. Inicia sesión con Google.",
+    errWrongCreds:"Correo o contraseña incorrectos",
+    errLoginFailed:"No se pudo iniciar sesión",
+    errEnterName:"Ingresa tu nombre",
+    errMinChars:"Mínimo 6 caracteres",
+    errEmailInUse:"Este email ya tiene cuenta — inicia sesión desde 'salir' primero",
+    errSignupFailed:"Error al crear cuenta",
+    errAnonDisabled:"El acceso como invitado está deshabilitado",
+    errAnonFailed:"No se pudo entrar como invitado",
+    guestLabel:"Invitado",
+    savedSessionMsg:"Guardado para esta sesión",
+    errorPrefixLbl:"Error:",
+    feedbackEmptyErr:"Escribe algo antes de enviar.",
+    feedbackSendErr:"No se pudo enviar. Revisa tu conexión e intenta de nuevo.",
+    providerNone:"Sin cuenta",
+    providerGoogle:"Google",
+    providerPassword:"Correo y contraseña",
+    providerAccount:"Cuenta",
+    agoNow:"hace un momento",
+    agoMin:"hace {n}min",
+    agoH:"hace {n}h",
+    agoD:"hace {n}d",
+    locale:"es-MX",
+    loadingCaps:"CARGANDO...",
+    gamePrefix:"Partida",
+    errBoundaryTitle:"Algo salió mal",
+    errBoundaryDesc:"La app tuvo un error inesperado y no puede seguir en esta pantalla.",
+    reloadApp:"🔄 Recargar la app",
+    loadingSlow:"Esto está tardando más de lo normal",
+    reloadPage:"🔄 Recargar página",
+    exitBtn:"Salir",
+    confirmSignOut:"¿Cerrar sesión?",
+    roomLabelInline:"SALA:",
+    demoModeLbl:"MODO DEMO — local, sin Firebase",
+    connecting:"Conectando",
+    modeLabelClassic:"Clásico",
+    modeLabelVenganza:"Venganza",
+    modeLbl:"Modo:",
+    heroSubBrand:"FLIP 7 · UNOFFICIAL SCORETRACK",
+    warnTitle:"ADVERTENCIA DEL ADMINISTRADOR",
+    warnDefaultMsg:"Recibiste una advertencia por parte del equipo de administración. Revisa que tu comportamiento cumpla las reglas de la comunidad.",
+    warnCountMsg:"Advertencias acumuladas: {n}. Si continúan, tu cuenta puede ser suspendida o bloqueada.",
+    understood:"Entendido",
+    accBlockedTitle:"CUENTA BLOQUEADA",
+    accSuspendedTitle:"CUENTA SUSPENDIDA",
+    accBlockedDesc:"Esta cuenta fue bloqueada y ya no puede usar la app.",
+    accSuspendedDesc:"Esta cuenta está suspendida temporalmente y no puede usar la app por ahora.",
+    accReason:"Motivo:",
+    accReturnDate:"Podrás volver a entrar el {date}",
+    accContact:"Si crees que esto es un error, contáctanos desde otra cuenta usando el buzón de la app (⚙️ → Reportar bug / sugerir).",
+    signOutBtn:"Cerrar sesión",
+    continueGoogle:"Continuar con Google",
+    waitingGoogle:"Esperando a Google…",
+    continueEmail:"✉️ Continuar con Email",
+    waitLong:"Puede tardar hasta 40 segundos — no cierres la ventana ({n}s)",
+    tryOtherMethod:"¿Se está tardando? Prueba con este otro método",
+    orNoAccount:"O SIN CUENTA",
+    playNoAccount:"👤 Jugar sin cuenta",
+    noAccountWarnHist:"Sin cuenta no se guarda tu historial entre dispositivos",
+    loginTab:"Iniciar sesión",
+    createAccount:"Crear cuenta",
+    namePlaceholder:"Tu nombre",
+    emailPlaceholder:"Email",
+    passwordPlaceholder:"Contraseña (mín. 6 caracteres)",
+    waitingDots:"⏳ ...",
+    loginBtn:"🎮 Iniciar sesión",
+    signupBtn:"🚀 Crear cuenta",
+    createAccountFor:"Crea tu cuenta para usar {feature}",
+    progressKept:"Tu progreso actual se queda igual — solo se vincula.",
+    notNow:"Ahora no",
+    profileTitle:"👤 PERFIL",
+    guestSessionLabel:"SIN CUENTA — sesión temporal",
+    guestExplain:"Estás jugando sin cuenta: nada de esto se guarda de forma permanente, solo se usa mientras siga abierta esta sesión del navegador. Si cierras la pestaña o entras desde otro dispositivo, se pierde.",
+    anonNickLabel:"TU SEUDÓNIMO PARA ESTA SESIÓN",
+    anonNickPlaceholder:"¿Cómo quieres que te vean en las partidas?",
+    useThisNick:"💾 Usar este seudónimo",
+    wantSaveAcrossDevices:"¿Quieres que tu emoji, color y estadísticas se guarden entre partidas y dispositivos?",
+    nickForGamesLabel:"TU SEUDÓNIMO PARA PARTIDAS",
+    nickForGamesDesc:"Se usa para pre-llenar tu nombre al crear una partida, sin tener que cambiar tu nombre real de {provider}.",
+    nickForGamesPlaceholder:"Tu nombre en partidas",
+    defaultEmojiLabel:"TU EMOJI POR DEFECTO",
+    defaultColorLabel:"TU COLOR POR DEFECTO",
+    celebrationLabel:"CELEBRACIÓN AL GANAR",
+    celebrationDesc:"Se aplica solo en TU pantalla cuando SOS quien gana. Los demás jugadores siguen viendo su propio sorteo.",
+    celebRandom:"Aleatoria",
+    celebRandomSub:"Sorprende cada vez (como hasta ahora)",
+    celebOriginal:"Original",
+    celebOriginalSub:"Dorado — confeti clásico",
+    celebExplosive:"Victoria Explosiva",
+    celebExplosiveSub:"Teal / morado",
+    celebCrowned:"Coronado",
+    celebCrownedSub:"Morado claro",
+    celebJungle:"Selva",
+    celebJungleSub:"Verde — hojas y tambores",
+    savingBtn:"⏳ Guardando...",
+    saveProfileBtn:"💾 Guardar perfil",
+    profileSaved:"✅ Perfil guardado",
+    feedbackThanks:"¡Gracias!",
+    feedbackThanksBug:"Ya lo tenemos anotado, lo revisamos pronto.",
+    feedbackThanksSuggestion:"Tu idea quedó guardada, la consideramos para futuras versiones.",
+    closeBtn:"Cerrar",
+    feedbackTitle:"🗳️ Buzón de Score 7",
+    reportBug:"✍️ Reportar un error",
+    suggestGame:"💡 Sugerir juego",
+    whichScreen:"¿EN QUÉ PANTALLA?",
+    whatErrorType:"¿QUÉ TIPO DE ERROR?",
+    feedbackBugPlaceholder:"Cuéntanos qué pasó y qué esperabas que pasara...",
+    feedbackSuggestPlaceholder:"¿Qué juego o función te gustaría ver en la app?",
+    attachScreenshot:"📎 Adjuntar captura de pantalla (opcional)",
+    screenshotAttached:"Captura adjunta",
+    sendingAs:"Enviando como:",
+    sendBtn:"Enviar",
+    sendingBtn:"Enviando...",
+    noNameLabel:"Sin nombre",
+    anonPlayerLabel:"Jugador anónimo (sin cuenta)",
+    fsHome:"🏠 Inicio",
+    fsCreate:"➕ Crear sala",
+    fsJoin:"🔑 Unirse a una sala",
+    fsRound:"🎲 Ronda / Marcador",
+    fsTable:"📋 Tabla de rondas",
+    fsSpectator:"📺 Marcador en vivo (espectador)",
+    fsScanner:"📷 Escáner de cartas (IA)",
+    fsStats:"📊 Estadísticas",
+    fsProfile:"👤 Perfil",
+    fsGroups:"👥 Grupos",
+    fsOther:"❓ Otra / no estoy seguro",
+    fcCrash:"🖤 Se puso en negro / se cerró",
+    fcNotSaved:"💾 No se guardó mi puntaje",
+    fcAi:"🤖 El escáner de cartas (IA) falló",
+    fcConnection:"📡 No pude entrar o conectarme a la sala",
+    fcVisual:"🎨 Algo se ve mal (visual)",
+    fcOther:"❓ Otro",
+    someoneStarted:"Alguien ya empezó a jugar — únete ahora",
+    joinNowBtn:"✅ Unirme",
+    gameModeLabel:"MODO DE JUEGO",
+    requiresManual:"📋 Requiere manual oficial",
+    howItWorks:"CÓMO FUNCIONA",
+    ruleClassicCards:"Cartas 0–12",
+    ruleClassicCardsDesc:" · suma los valores de tu mano.",
+    ruleDupTitle:"Carta duplicada",
+    ruleDupDesc:" = bust, cero pts en la ronda.",
+    ruleFlip7Title:"Flip 7",
+    ruleFlip7Desc:": 7 cartas únicas = +15 pts bonus + fin de ronda.",
+    ruleModTitle:"Modificadores:",
+    ruleModDesc:" ×2, +2 al +10 sobre tu suma.",
+    ruleGoalDesc:" · primero en llegar gana.",
+    ruleVengCards:"Cartas 0–13",
+    ruleVengCardsDesc:" · incluye especiales: Zero, Unlucky 7, Lucky 13.",
+    ruleVengDupTitle:"Duplicado",
+    ruleVengDupDesc:" = bust · Unlucky 7 = pierdes tus cartas, queda el 7.",
+    ruleVengModTitle:"Modificadores negativos",
+    ruleVengModDesc:" (te los juegan): ÷2, −2 al −10.",
+    ruleVengActionsTitle:"Acciones:",
+    ruleVengActionsDesc:" Swap, Steal, Discard, Flip Four, Just One More.",
+    goalPointsLabel:"META DE PUNTOS",
+    standardLbl:"ESTÁNDAR",
+    autoCloseRound:"⚡ Auto-cerrar ronda cuando todos terminen",
+    canChangeLater:"Puedes cambiarlo después, dentro del juego",
+    nextArrow:"Siguiente →",
+    backToGameType:"← Tipo de juego",
+    noFriendsYet:"Aún no tienes amigos agregados",
+    selectAll:"Todos",
+    selectNone:"Ninguno",
+    useSelected:"✅ Usar seleccionados",
+    noGroupsYet:"Aún no tienes grupos",
+    groupsAvailable:"GRUPOS DISPONIBLES",
+    tapToIncludeExclude:"Toca a cada integrante para incluirlo o excluirlo de esta partida.",
+    activeRoomFound:"SALA ACTIVA ENCONTRADA",
+    codeLabelInline:"Código:",
+    reconnectAdmin:"⚡ Reconectarme como Admin",
+    ignoreBtn:"Ignorar",
+    roomCodeTitle:"Código de sala",
+    idealForTablet:"💡 Ideal para dejar abierta en una tablet o pantalla en medio de la mesa — todos ven los puntajes actualizarse en vivo, sin que nadie tenga que pasarse el celular.",
+    joinNamePlaceholder:"Tu nombre en el juego",
+    spectatorOnlyLbl:"SOLO VER MARCADOR",
+    choosePlayerHint:"Elige tu personaje. Los marcados como \"En sala\" ya están conectados.",
+    choosePlayerLbl:"ELIGE TU JUGADOR",
+    inRoomTag:"En sala",
+    joinAsNewLbl:"O UNIRME COMO JUGADOR NUEVO",
+    newPlayerNamePlaceholder:"Nombre del nuevo jugador",
+    addNewPlayerBtn:"➕ AGREGAR JUGADOR NUEVO",
+    moreOptionsAria:"Más opciones",
+    profileMenuItem:"👤 Perfil",
+    reportBugMenuItem:"🗳️ Reportar bug / sugerir",
+    changeAccount:"Cambiar cuenta",
+    anonExpireWarn:"⚠ Las sesiones anónimas se eliminan tras 30 días de inactividad",
+    spectatorMenuItem:"👁 Espectador",
+    joinArrow:"Unirme →",
+    waitingRematch:"⏳ Esperando revancha del admin...",
+    adminDisconnected:"⚠️ El admin se desconectó",
+    playerDisconnectedInfo:"ℹ️ Algún jugador está desconectado. Puede reconectarse con el código de sala.",
+    transferAdmin:"🔁 Transferir admin",
+    endGameBtn2:"🛑 Terminar partida",
+    chooseNewAdmin:"ELEGIR NUEVO ADMIN — debe estar conectado ahora mismo",
+    confirmEndGame:"¿Terminar la partida para todos?",
+    endGameDesc:"Todos los jugadores volverán al inicio. La sala no se borra.",
+    yesEndGame:"Sí, terminar",
+    youLbl:"tú",
+    adminBadge:"👑 ADMIN",
+    ptsLbl:"pts",
+    readyBtn:"✓ LISTO",
+    unlockBtn:"🔒 Desbloquear",
+    scanAiBtn:"📷 Scan IA",
+    cardsBtn:"🃏 Cartas",
+    manualBtn:"🧮 Manual",
+    zeroBtn:"💀 Cero",
+    lockedRowHint:"Fila protegida — toca para desbloquear y capturar",
+    waitingDots2:"⏳ esperando",
+    lobbyModeLbl:"SALA EN MODO LOBBY",
+    shareCodeToJoin:"Comparte este código para que los jugadores se unan",
+    colPlayer:"Jugador",
+    colTotal:"Total",
+    scoreboardTitle:"MARCADOR",
+    liveCaps:"EN VIVO",
+    roomCapsInline:"SALA",
+    seeScoreboard:"🏆 Ver marcador final",
+    clearHistoryConfirmTitle:"🗑 Borrar historial",
+    demoTag:"DEMO",
+    groupsTitle:"GRUPOS",
+    groupsLoginPrompt:"Crea una cuenta para crear grupos con tus amigos, ver quién está online y jugar juntos cada semana.",
+    backToGroups:"← Grupos",
+    inviteBtn:"🔗 Invitar",
+    confirmReq:"Confirmar",
+    deleteGroupTitle:"Eliminar grupo",
+    gameInProgress:"PARTIDA EN CURSO",
+    membersLbl:"MIEMBROS",
+    tapToIncludeHint:"TOCA A LOS QUE VAN A JUGAR · CUALQUIERA PUEDE UNIRSE DESPUÉS",
+    adminLbl:"ADMIN",
+    tapToIncludeShort:"tap para incluir",
+    yesLbl:"Sí",
+    noLbl:"No",
+    deleteMemberTitle:"Eliminar del grupo",
+    addFriendsToGroup:"AGREGAR AMIGOS AL GRUPO",
+    addBtn:"+ Agregar",
+    backToGroupsLong:"← Volver a Grupos",
+    groupsCapsTitle:"👥 GRUPOS",
+    noGroupsYet2:"Sin grupos aún",
+    createGroupHint:"Crea un grupo para jugar con los mismos amigos cada semana con el mismo código",
+    inGameTag:"🎮 EN JUEGO",
+    groupNameLbl:"NOMBRE DEL GRUPO",
+    groupNamePlaceholder:"ej. Los Jueves 🎴",
+    createGroupBtn:"🎮 Crear grupo",
+    newGroupBtn:"+ Crear nuevo grupo",
+    groupCodeLbl:"CÓDIGO DEL GRUPO",
+    joinGroupBtn:"👥 Unirme al grupo",
+    askGroupCode:"Pide el código de 4 letras al admin del grupo",
+    calendarLbl:"📅 CALENDARIO",
+    thisMonthSuffix:"este mes",
+    lessLbl:"menos",
+    moreLbl:"más",
+    comparingLbl:"Comparando…",
+    neverPlayedTogether:"Aún no han jugado juntos en la misma partida",
+    youAllCaps:"TÚ",
+    vsLbl:"vs",
+    gameWord:"partida",
+    togetherSuffix:"juntos",
+    dateColLbl:"Fecha",
+    youCol:"Tú",
+    posAbbrev:"pos.",
+    loadingRoundsTable:"Cargando tabla de rondas…",
+    guestModeLbl:"Modo anónimo",
+    createAccountStatsHint:"Crea una cuenta para guardar tus stats, ver tu historial y agregar amigos.",
+    createAccountLoginBtn:"Crear cuenta / Iniciar sesión",
+    noGamesYetLong:"Aún sin partidas registradas",
+    playFirstGameHint:"Juega tu primera partida para ver tus stats",
+    winRateLbl:"WIN RATE",
+    flip7PerGame:"FLIP 7 POR PARTIDA",
+    bustPerGame:"BUST POR PARTIDA",
+    bestStreak:"RACHA RÉCORD",
+    cardsPerRound:"CARTAS POR RONDA",
+    luckyCard:"CARTA DE LA SUERTE",
+    bustsInARow:"BUSTS SEGUIDOS",
+    needAccountFriends:"Necesitas cuenta para agregar amigos",
+    inviteFriendCaps:"INVITAR AMIGO",
+    shareLinkDesc:"Comparte tu link — cuando tu amigo lo abra quedará conectado contigo automáticamente.",
+    shareInviteLinkBtn:"🔗 Compartir link de invitación",
+    searchByNameEmail:"O BUSCAR POR NOMBRE / EMAIL (2+ letras)",
+    searchNameEmailPlaceholder:"Escribe nombre o email…",
+    searchingLbl:"Buscando…",
+    requestSentBtn:"+ SOLICITUD",
+    noResults:"Sin resultados",
+    wantsToBeFriend:"quiere ser tu amigo",
+    acceptBtn:"✓ Aceptar",
+    noFriendsYetAdd:"Sin amigos aún — agrega a tus compañeros de juego",
+    noGamesYetShort:"Sin partidas aún",
+    winsLbl:"WINS",
+    compareHeadToHead:"Comparar cabeza a cabeza",
+    deleteFriendTitle:"Eliminar amigo",
+    noGamesRegisteredYet:"Sin partidas registradas aún",
+    vengeanceTag:"💀 VENGANZA",
+    ptsTotalLbl:"pts totales",
+    backToMenu:"← Volver al menú",
+    historyOfGames:"HISTORIAL DE PARTIDAS",
+    noHistoryYet:"Sin historial aún",
+    backToRanking:"← Volver al ranking",
+    statsCapsTitle:"📊 ESTADÍSTICAS",
+    flip7RaceTo200:"FLIP 7 · RACE TO 200",
+    loadingStats:"Cargando estadísticas...",
+    completeGameForRanking:"Completa una partida para ver el ranking",
+    noStatsYet:"Sin estadísticas aún",
+    winsTrophy:"🏆 wins",
+    weekdayLetters:["D", "L", "M", "M", "J", "V", "S"],
+    heroPhrases:["FLIP. SUMA. GANA.", "¿PLANTAS O ARRIESGAS?", "SIN REPETIR, SIN PASARTE", "CADA CARTA CUENTA", "LA SUERTE ESTÁ ECHADA", "CORRE A LA META"],
+    scanTitle2:"🃏 Árbitro de Cartas",
+    myCardsTitle:"🃏 Mis cartas",
+    myCardsVengTitle:"💀 Mis cartas",
+    manualCorrectTitle:"✏️ Corregir puntos",
+    manualCaptureTitle:"🧮 Captura Manual",
+    loadingDots:"Cargando...",
+    tapOpenCamera:"Toca para abrir la cámara",
+    aimCardsHint:"Apunta a tus cartas y toma foto",
+    orChooseGallery:"o elegir de galería",
+    verticalPhotoDetected:"📱 Foto en vertical detectada",
+    verticalPhotoDesc:"El Árbitro lee mejor las cartas en horizontal. No es perfecto con fotos verticales — gírala antes de analizar.",
+    rotatePhotoBtn:"🔄 Girar foto",
+    allCardsVisible:"¿Se ven bien todas las cartas?",
+    refereeSupreme:"🃏 El Árbitro de Cartas™ · Juez Supremo del Mazo",
+    anotherPhotoBtn:"📷 Otra foto",
+    analyzeBtn:"🔍 Analizar",
+    refereeAnalyzing:"El Árbitro está revisando las cartas...",
+    retryBtn:"Reintentar",
+    cardsDetectedCaps:"CARTAS DETECTADAS — toca para quitar",
+    dupWarnPrefix:"aparecen dos veces en la foto — solo puntúan cartas diferentes.",
+    dupWarnBust:"Si de verdad sacaste dos números iguales en tu turno, eso es un reventón — considera anotar 💀 Cero en vez de confirmar este puntaje.",
+    noCardsAddFromPalette:"Sin cartas — agrega de la paleta",
+    totalFinalCaps:"TOTAL FINAL",
+    totalRoundCaps:"TOTAL DE ESTA RONDA",
+    baseLbl:"Base:",
+    modifiersCorrectCaps:"MODIFICADORES — toca para corregir",
+    modifiersHaveCaps:"MODIFICADORES — toca si los tienes",
+    modifiersPlayedCaps:"MODIFICADORES — si alguien te los jugo",
+    onLbl:"ON",
+    offLbl:"OFF",
+    activeLbl:"ACTIVO",
+    flip7UniqueCaps:"FLIP 7 — 7 CARTAS ÚNICAS",
+    flip7DistinctCaps:"FLIP 7 — 7 CARTAS DISTINTAS",
+    completeBonusActive:"¡Completo! Bonus activado",
+    completeBonusAuto:"¡Completo! Bonus automático",
+    missingForBonus:"Faltan {n} para el bonus",
+    cardsWord:"cartas",
+    actionCardsDetectedCaps:"CARTAS DE ACCIÓN DETECTADAS — toca para quitar si no aplica",
+    actionCardsRegisterCaps:"CARTAS DE ACCION (registrar si las usaste)",
+    addCardPaletteCaps:"➕ AGREGAR CARTA — toca para sumar",
+    flip7CompletedMax:"🃏 ¡FLIP 7 COMPLETADO! Máximo de cartas alcanzado",
+    youHavePrefix:"Tienes {a} + esta ronda {b} = {c}",
+    repeatPhotoBtn2:"📷 Repetir foto",
+    confirmPtsBtn:"✓ Confirmar {n} pts",
+    confirmPtsVengBtn:"💀 Confirmar {n} pts",
+    inclFlip7Bonus:" (incl. +15 Flip 7)",
+    plusFlip7Bonus:" (+15 Flip 7)",
+    exitWithoutScoring:"Salir sin anotar",
+    zeroThisRound:"💀 Cero esta ronda",
+    tapCardsInHand:"TOCA LAS CARTAS QUE TIENES EN MANO",
+    tapCardsInHand113:"TOCA LAS CARTAS QUE TIENES (1-13)",
+    selectCardsBtn:"Selecciona cartas",
+    credentialsInvalid:"Credenciales del Árbitro inválidas. Contacta al admin.",
+    refereeBusy:"El Árbitro está ocupado. Espera unos segundos e intenta de nuevo.",
+    refereeBadFormat:"El Árbitro no devolvió un formato válido. Intenta de nuevo.",
+    refereeConfused:"El Árbitro tuvo un momento confuso. Intenta de nuevo.",
+    refereeNoCredentials:"El Árbitro no tiene credenciales.\nConfigura el proxy en Cloudflare Workers\no contacta al administrador.",
+    couldntReadImage:"No se pudo leer esa imagen. Intenta con otra.",
+    activeDivBtn:"Activo — solo tienes el 7. Agrega las cartas nuevas que te lleguen.",
+    unlucky7Desc:"Te cayo Unlucky 7 — pierdes TODAS tus cartas. Solo te quedas con el 7. Puedes seguir acumulando cartas nuevas.",
+    tapOnlyIfActivated:"tap solo si lo activaste por error",
+    lucky13Caps:"LUCKY 13",
+    unlucky7Caps:"UNLUCKY 7",
+    lucky13Allow2:"Permite tener 2 cartas del 13 sin bustear",
+    active2x13:"ACTIVO — 2x13",
+    spentLbl:"gastado",
+    flip7Bonus15Caps:"💀 FLIP 7 — BONUS +15",
+    missingSlash7:"/7 · Faltan {n} para el bonus",
+    completeAutoSlash7:"/7 · Bonus automatico",
+    flip15Extra13:" (+13 extra Lucky 13)",
+    correctionOf:"Corrección de",
+    currentValueLbl:"valor actual:",
+    pointsOf2:"Puntos de",
+    thisRound2:"esta ronda",
+    errorLbl:"ERROR",
+    flip15BonusTip:"+ 15 FLIP 7 BONUS  (7 cartas únicas)",
+    clrKey:"CLR",
+    clrKeyClear:"CLR — Limpiar",
+    saveCorrection:"GUARDAR CORRECCIÓN · ",
+    confirmDot:"CONFIRMAR · ",
+    statsMenuLbl:"Estadísticas",
+    friendsMenuLbl:"Amigos",
+    myGroupsMenuBtn:"👥 Mis grupos",
+    gameInProgressRoomTpl:"Partida en curso · sala {code}",
+    signOutConfirm:"¿Cerrar sesión?",
+    signOutShortLbl:"salir",
+    clearCacheLbl:"Limpiar caché",
+    celWinnerLbl:"¡GANADOR!",
+    celTieLbl:"¡EMPATE!",
+    celExplosiveLbl:"¡VICTORIA EXPLOSIVA!",
+    celExplosiveTieLbl:"¡EMPATE EXPLOSIVO!",
+    celCrownedLbl:"¡CORONADO!",
+    celCrownSharedLbl:"¡CORONA COMPARTIDA!",
+    celJungleKingLbl:"¡REY DE LA SELVA!",
+    celJungleSharedLbl:"¡SELVA COMPARTIDA!",
+    vpClose1:"¡Qué partidazo cerrado!",
+    vpClose2:"Ganó por los pelos",
+    vpClose3:"Victoria al filo de la navaja",
+    vpClose4:"Casi un empate — qué emoción",
+    vpClose5:"Se decidió en el último suspiro",
+    vpSolid1:"Victoria sólida",
+    vpSolid2:"Con margen de sobra",
+    vpSolid3:"Dominó de principio a fin",
+    vpSolid4:"Una ventaja clara",
+    vpSolid5:"Se lo llevó con autoridad",
+    vpCrush1:"¡Victoria aplastante!",
+    vpCrush2:"Arrasó con todos",
+    vpCrush3:"No hubo color",
+    vpCrush4:"Un baño histórico",
+    vpCrush5:"Nadie estuvo cerca",
+    playersCapsHeader:"JUGADORES",
+    manualModeLbl:"Manual",
+    groupModeLbl:"Grupo",
+    selectedCountWord:"seleccionados",
+    onlineDotLbl:"● en línea",
+    offlineDotLbl:"○ offline",
+    viewScoreboardCaps:"VER MARCADOR",
+    joinCapsLogo:"UNIRSE",
+    roomCodeCapsLbl:"CÓDIGO DE SALA",
+    yourNameCaps:"TU NOMBRE",
+    searchingRoomLbl:"⏳ Buscando sala",
+    joinGameCapsBtn:"🎮 UNIRME AL JUEGO",
+    enterSpectatorBtn:"👁 ENTRAR COMO ESPECTADOR",
+    alreadyConnectedLbl:"ya conectado",
+    invitedYouToPlay:"te invitó a jugar!",
+    gameInGroupTpl:"Partida en {group}!",
+    notNowLbl:"Ahora no",
+    need2PlayersErr:"Necesitas al menos 2 jugadores.",
+    code4CharsErr:"Código de 4 caracteres.",
+    enterNameErr:"Ingresa tu nombre.",
+    roomNotFoundTpl:"Sala \"{code}\" no encontrada.",
+    askAdminCodeStep:"Pide el código al admin",
+    roomNoLongerExistsErr:"Esa sala ya no existe.",
+    gameAlreadyEndedErr:"Esa partida ya terminó.",
+    adminEndedGameNotice:"🚪 El admin terminó la partida",
+    groupsFeatureLbl:"Grupos",
+    yourGroupLbl:"tu grupo",
+    sessionMetaLine:"{n} jugadores · {r} rondas · Sala {code}",
+    liveSuffixWord:"LIVE",
+    roomLiveTemplate:"SALA {code} · LIVE",
+    liveScoreboardCaps:"📡 MARCADOR EN VIVO",
+    roomRoundTemplate:"SALA {code} · RONDA {n}",
+    missingPtsPctTemplate:"faltan {n} pts · {pct}%",
+    roundWordBare:"ronda",
+    roundWordBarePlural:"rondas",
+    missingPtsTemplate:"faltan {n} pts",
+    autoCloseHint:"⚡ Auto-cerrar ronda cuando todos terminen",
+    editOtherRowLbl:"Editar fila de otro jugador",
+    unlockedAutoRelock:"Desbloqueado — se bloquea solo después de usarlo",
+    protectedRowHint:"Protegido — evita capturar por error la fila de alguien más",
+    chooseNewAdminCaps:"ELEGIR NUEVO ADMIN — debe estar conectado ahora mismo",
+    onlineDotWord:"● en línea",
+    offlineSimple:"desconectado",
+    endGameConfirmQ:"¿Terminar la partida para todos?",
+    endGameConfirmDesc:"Todos los jugadores volverán al inicio. La sala no se borra.",
+    yesEndGame:"Sí, terminar",
+    adminCrownBadge:"👑 ADMIN",
+    ptsAbbrev:"pts",
+    readyBadge:"✓ LISTO",
+    unlockBtn:"🔒 Desbloquear",
+    scanIaBtn:"📷 Scan IA",
+    cardsBtnCaps:"🃏 Cartas",
+    manualBtn:"🧮 Manual",
+    zeroBtn:"💀 Cero",
+    rowProtectedTapHint:"Fila protegida — toca para desbloquear y capturar",
+    waitingLower:"⏳ esperando",
+    lobbyModeCaps:"SALA EN MODO LOBBY",
+    shareCodeJoinHint:"Comparte este código para que los jugadores se unan",
+    goalShortLabel:"META {n}",
+    ptsGameOverTemplate:"{pts} PUNTOS · FIN DEL JUEGO",
+    adminDisconnectedTitle:"⚠️ El admin se desconectó",
+    adminReconnectHint:"La sala sigue activa — el admin puede reconectarse con el código {code}",
+    playerDisconnectedHint:"ℹ️ Algún jugador está desconectado. Puede reconectarse con el código de sala.",
+    missingOfTemplate:"Faltan {n} de {m}",
+    ptsGoalTemplate:"{pts} PUNTOS · META A {target} PUNTOS",
+    rematchSamePlayers:"🔁 REVANCHA · Mismos jugadores",
+    waitingRematchAdmin:"⏳ Esperando revancha del admin...",
+    errUnknown:"Error desconocido",
+    rematchTitleCaps:"¡REVANCHA!",
+    onTheWayCaps:"EN CAMINO",
+    roundBadgeTemplate:"RONDA {n}",
+    avgScoreLbl:"Prom. score",
+    winsOfGamesLine:"{w} victorias de {g} partidas",
+    tabRankingEmoji:"🏆 Ranking",
+    tabGamesEmoji:"🎮 Partidas",
+    statsLeaderRow:"{g} partidas · {pct}% victorias · mejor: {best}pts",
+    posOfTotalTemplate:"#{p} de {n}",
+    playersAbbrev:"jug.",
+    roomInlineLower:"Sala {code}",
+    roundsWord:"rondas",
+    alreadyFriends:"Ya son amigos",
+    requestAlreadySent:"Ya le enviaste una solicitud — espera a que responda",
+    requestSentMsg:"✅ Solicitud enviada a {name}",
+    errRemoveFriendPrefix:"Error al eliminar:",
+    tabMe:"👤 Yo",
+    tabHistory:"🎮 Historial",
+    statLblWins:"Victorias",
+    statLblGames:"Partidas",
+    statLblBestScore:"Mejor score",
+    statLblAvgGame:"Prom. partida",
+    statLblFlip7s:"Flip 7s",
+    statLblBusts:"Busts",
+    winLossLine:"{w} victorias · {l} derrotas",
+    winStreakCaps:"VICTORIAS SEGUIDAS",
+    lossStreakCaps:"DERROTAS SEGUIDAS",
+    comebackWord:"REMONTADA",
+    comebackWordPlural:"REMONTADAS",
+    modeClassicCaps:"CLÁSICO",
+    modeVengCaps:"VENGANZA",
+    gamesAbbrev:"P",
+    shareInviteTitle:"¡Únete a Flip 7!",
+    shareInviteText:"Agrégate como mi amigo en Flip 7 🃏",
+    linkCopiedWhatsapp:"✅ Link copiado — pégalo en WhatsApp",
+    pendingRequestsCaps:"🔴 SOLICITUDES PENDIENTES ({n})",
+    playersCountPos:"{n} jugadores · pos #{p}",
+    friendStatsLine:"{n} partidas · {pct}% wins · mejor: {best}pts · 🃏{flip7}",
+    goalTargetPts:"🏆 META: {n} PUNTOS",
+    gameWordPlural:"partidas",
+    onlineWord:"Online",
+    statusInGame:"🎮 En partida",
+    statusInLobby:"🎴 En lobby",
+    statusOnline:"🟢 Online",
+    statusOffline:"Offline",
+    grpShareText:"Únete a nuestro grupo Flip 7!",
+    grpLinkCopied:"✅ Link copiado",
+    grpJoinArrow:"Unirme →",
+    grpYouTag:"tú",
+    grpPlayNow:"Jugar ahora",
+    grpPlayerWord:"jugador",
+    grpPlayerWordPlural:"jugadores",
+    grpMemberAdded:"{name} agregado al grupo",
+    grpAddErr:"❌ Error al agregar",
+    tabMyGroups:"Mis grupos",
+    tabJoinGroup:"Unirme",
+    grpMembersWord:"miembros",
+    grpNameRequired:"Ponle nombre al grupo",
+    grpCreatedMsg:"✅ Grupo creado — código: {code}",
+    grpCodeRequired:"Código de 4 letras",
+    grpNotFound:"Grupo no encontrado",
+    grpAlreadyMember:"Ya eres miembro de este grupo",
+    grpJoinedMsg:"✅ Te uniste a {name}",
+    grpCreateRoomHint:"Crea una sala desde el menú principal y elige este grupo",
+    grpMemberRemoved:"✅ Miembro eliminado del grupo",
+    grpGroupDeleted:"✅ Grupo eliminado",
   },
   en:{
     appTag:"First to reach 200 wins!",
@@ -389,12 +953,1215 @@ const LANGS={
     liveBoard:"📡 LIVE SCOREBOARD",autoUpdate:"AUTO-UPDATES · GOAL 200 PTS",
     roundProgress:"ROUND PROGRESS",
     codeLabel:"ROOM",
-    correct:"✏️ Correct",
+    correct:"✏️ Fix",
+    // ── i18n EXTENSION (auto-generated) ──
+    modeClassicDesc:"First to reach 200 points. 7 unique cards = +15 bonus.",
+    modeClassicRules:["Goal: 200 points", "Duplicate card = bust (0 pts for the round)", "7 unique cards = +15 pt bonus + round ends", "Modifiers: x2, +2 to +10"],
+    modeVenganzaDesc:"Same mechanics, cards 1-13, negative modifiers and inter-player action cards.",
+    modeVenganzaRules:["Goal: 200 points", "Number cards: 1 to 13", "Bust on duplicate = 0 pts", "Flip 7 bonus = +15 pts", "NEGATIVE modifiers: -2,-4,-6,-8,-10,/2", "Order: Sum -> /2 -> -N -> min 0 -> +15", "Actions: Swap, Steal, Discard, Flip Four"],
+    errOffline:"⚡ No connection.",
+    errOfflineStep:"Check your internet",
+    errPermission:"🔒 No Firebase permissions.",
+    errPermissionStep:"Rules → \".read\":true,\".write\":true → Publish",
+    errNetwork:"📡 Network error.",
+    errNetworkStep:"Check your connection and try again",
+    errGenericStep:"Reload the page",
+    errGoogle:"Error with Google",
+    errGoogleContinue:"Couldn't continue with Google",
+    errEnterEmailPass:"Enter email and password",
+    errRegisteredWithGoogle:"This email is already registered with Google. Sign in with Google.",
+    errWrongCreds:"Wrong email or password",
+    errLoginFailed:"Couldn't sign in",
+    errEnterName:"Enter your name",
+    errMinChars:"Minimum 6 characters",
+    errEmailInUse:"This email already has an account — sign in from 'sign out' first",
+    errSignupFailed:"Couldn't create account",
+    errAnonDisabled:"Guest access is disabled",
+    errAnonFailed:"Couldn't sign in as guest",
+    guestLabel:"Guest",
+    savedSessionMsg:"Saved for this session",
+    errorPrefixLbl:"Error:",
+    feedbackEmptyErr:"Write something before sending.",
+    feedbackSendErr:"Couldn't send. Check your connection and try again.",
+    providerNone:"No account",
+    providerGoogle:"Google",
+    providerPassword:"Email & password",
+    providerAccount:"Account",
+    agoNow:"just now",
+    agoMin:"{n}min ago",
+    agoH:"{n}h ago",
+    agoD:"{n}d ago",
+    locale:"en-US",
+    loadingCaps:"LOADING...",
+    gamePrefix:"Game",
+    errBoundaryTitle:"Something went wrong",
+    errBoundaryDesc:"The app had an unexpected error and can't continue on this screen.",
+    reloadApp:"🔄 Reload app",
+    loadingSlow:"This is taking longer than usual",
+    reloadPage:"🔄 Reload page",
+    exitBtn:"Exit",
+    confirmSignOut:"Sign out?",
+    roomLabelInline:"ROOM:",
+    demoModeLbl:"DEMO MODE — local, no Firebase",
+    connecting:"Connecting",
+    modeLabelClassic:"Classic",
+    modeLabelVenganza:"Vengeance",
+    modeLbl:"Mode:",
+    heroSubBrand:"FLIP 7 · UNOFFICIAL SCORETRACK",
+    warnTitle:"WARNING FROM THE ADMIN",
+    warnDefaultMsg:"You received a warning from the admin team. Please make sure your behavior follows the community rules.",
+    warnCountMsg:"Total warnings: {n}. If this continues, your account may be suspended or blocked.",
+    understood:"Got it",
+    accBlockedTitle:"ACCOUNT BLOCKED",
+    accSuspendedTitle:"ACCOUNT SUSPENDED",
+    accBlockedDesc:"This account was blocked and can no longer use the app.",
+    accSuspendedDesc:"This account is temporarily suspended and can't use the app right now.",
+    accReason:"Reason:",
+    accReturnDate:"You'll be able to log back in on {date}",
+    accContact:"If you think this is a mistake, contact us from another account using the app's feedback box (⚙️ → Report bug / suggest).",
+    signOutBtn:"Sign out",
+    continueGoogle:"Continue with Google",
+    waitingGoogle:"Waiting for Google…",
+    continueEmail:"✉️ Continue with Email",
+    waitLong:"This can take up to 40 seconds — don't close the window ({n}s)",
+    tryOtherMethod:"Taking too long? Try this other method",
+    orNoAccount:"OR NO ACCOUNT",
+    playNoAccount:"👤 Play without an account",
+    noAccountWarnHist:"Without an account your history isn't saved across devices",
+    loginTab:"Log in",
+    createAccount:"Create account",
+    namePlaceholder:"Your name",
+    emailPlaceholder:"Email",
+    passwordPlaceholder:"Password (min. 6 characters)",
+    waitingDots:"⏳ ...",
+    loginBtn:"🎮 Log in",
+    signupBtn:"🚀 Create account",
+    createAccountFor:"Create your account to use {feature}",
+    progressKept:"Your current progress stays the same — it just gets linked.",
+    notNow:"Not now",
+    profileTitle:"👤 PROFILE",
+    guestSessionLabel:"NO ACCOUNT — temporary session",
+    guestExplain:"You're playing without an account: none of this is saved permanently, it's only used while this browser session stays open. If you close the tab or use another device, it's lost.",
+    anonNickLabel:"YOUR NICKNAME FOR THIS SESSION",
+    anonNickPlaceholder:"How do you want to be seen in games?",
+    useThisNick:"💾 Use this nickname",
+    wantSaveAcrossDevices:"Want your emoji, color and stats saved across games and devices?",
+    nickForGamesLabel:"YOUR NICKNAME FOR GAMES",
+    nickForGamesDesc:"Used to pre-fill your name when creating a game, without changing your real {provider} name.",
+    nickForGamesPlaceholder:"Your name in games",
+    defaultEmojiLabel:"YOUR DEFAULT EMOJI",
+    defaultColorLabel:"YOUR DEFAULT COLOR",
+    celebrationLabel:"WIN CELEBRATION",
+    celebrationDesc:"Only applies on YOUR screen when YOU are the winner. Other players still see their own random pick.",
+    celebRandom:"Random",
+    celebRandomSub:"Surprise every time (like before)",
+    celebOriginal:"Original",
+    celebOriginalSub:"Gold — classic confetti",
+    celebExplosive:"Explosive Victory",
+    celebExplosiveSub:"Teal / purple",
+    celebCrowned:"Crowned",
+    celebCrownedSub:"Light purple",
+    celebJungle:"Jungle",
+    celebJungleSub:"Green — leaves and drums",
+    savingBtn:"⏳ Saving...",
+    saveProfileBtn:"💾 Save profile",
+    profileSaved:"✅ Profile saved",
+    feedbackThanks:"Thanks!",
+    feedbackThanksBug:"We've got it noted, we'll look into it soon.",
+    feedbackThanksSuggestion:"Your idea has been saved, we'll consider it for future versions.",
+    closeBtn:"Close",
+    feedbackTitle:"🗳️ Score 7 Feedback Box",
+    reportBug:"✍️ Report a bug",
+    suggestGame:"💡 Suggest a game",
+    whichScreen:"WHICH SCREEN?",
+    whatErrorType:"WHAT TYPE OF ERROR?",
+    feedbackBugPlaceholder:"Tell us what happened and what you expected to happen...",
+    feedbackSuggestPlaceholder:"What game or feature would you like to see in the app?",
+    attachScreenshot:"📎 Attach a screenshot (optional)",
+    screenshotAttached:"Screenshot attached",
+    sendingAs:"Sending as:",
+    sendBtn:"Send",
+    sendingBtn:"Sending...",
+    noNameLabel:"No name",
+    anonPlayerLabel:"Anonymous player (no account)",
+    fsHome:"🏠 Home",
+    fsCreate:"➕ Create room",
+    fsJoin:"🔑 Join a room",
+    fsRound:"🎲 Round / Scoreboard",
+    fsTable:"📋 Round table",
+    fsSpectator:"📺 Live scoreboard (spectator)",
+    fsScanner:"📷 Card scanner (AI)",
+    fsStats:"📊 Stats",
+    fsProfile:"👤 Profile",
+    fsGroups:"👥 Groups",
+    fsOther:"❓ Other / not sure",
+    fcCrash:"🖤 Screen went black / crashed",
+    fcNotSaved:"💾 My score wasn't saved",
+    fcAi:"🤖 The card scanner (AI) failed",
+    fcConnection:"📡 Couldn't join or connect to the room",
+    fcVisual:"🎨 Something looks wrong (visual)",
+    fcOther:"❓ Other",
+    someoneStarted:"Someone already started playing — join now",
+    joinNowBtn:"✅ Join",
+    gameModeLabel:"GAME MODE",
+    requiresManual:"📋 Requires official manual",
+    howItWorks:"HOW IT WORKS",
+    ruleClassicCards:"Cards 0–12",
+    ruleClassicCardsDesc:" · add up the values in your hand.",
+    ruleDupTitle:"Duplicate card",
+    ruleDupDesc:" = bust, zero pts for the round.",
+    ruleFlip7Title:"Flip 7",
+    ruleFlip7Desc:": 7 unique cards = +15 pt bonus + round ends.",
+    ruleModTitle:"Modifiers:",
+    ruleModDesc:" ×2, +2 to +10 on top of your sum.",
+    ruleGoalDesc:" · first to reach it wins.",
+    ruleVengCards:"Cards 0–13",
+    ruleVengCardsDesc:" · includes specials: Zero, Unlucky 7, Lucky 13.",
+    ruleVengDupTitle:"Duplicate",
+    ruleVengDupDesc:" = bust · Unlucky 7 = you lose your cards, only the 7 stays.",
+    ruleVengModTitle:"Negative modifiers",
+    ruleVengModDesc:" (played on you): ÷2, −2 to −10.",
+    ruleVengActionsTitle:"Actions:",
+    ruleVengActionsDesc:" Swap, Steal, Discard, Flip Four, Just One More.",
+    goalPointsLabel:"POINT GOAL",
+    standardLbl:"STANDARD",
+    autoCloseRound:"⚡ Auto-close round when everyone finishes",
+    canChangeLater:"You can change this later, inside the game",
+    nextArrow:"Next →",
+    backToGameType:"← Game type",
+    noFriendsYet:"You haven't added any friends yet",
+    selectAll:"All",
+    selectNone:"None",
+    useSelected:"✅ Use selected",
+    noGroupsYet:"You don't have any groups yet",
+    groupsAvailable:"AVAILABLE GROUPS",
+    tapToIncludeExclude:"Tap each member to include or exclude them from this game.",
+    activeRoomFound:"ACTIVE ROOM FOUND",
+    codeLabelInline:"Code:",
+    reconnectAdmin:"⚡ Reconnect as Admin",
+    ignoreBtn:"Ignore",
+    roomCodeTitle:"Room code",
+    idealForTablet:"💡 Great for leaving open on a tablet or screen in the middle of the table — everyone sees scores update live, no one has to pass the phone around.",
+    joinNamePlaceholder:"Your name in the game",
+    spectatorOnlyLbl:"VIEW SCOREBOARD ONLY",
+    choosePlayerHint:"Choose your character. Those marked \"In room\" are already connected.",
+    choosePlayerLbl:"CHOOSE YOUR PLAYER",
+    inRoomTag:"In room",
+    joinAsNewLbl:"OR JOIN AS A NEW PLAYER",
+    newPlayerNamePlaceholder:"New player's name",
+    addNewPlayerBtn:"➕ ADD NEW PLAYER",
+    moreOptionsAria:"More options",
+    profileMenuItem:"👤 Profile",
+    reportBugMenuItem:"🗳️ Report bug / suggest",
+    changeAccount:"Switch account",
+    anonExpireWarn:"⚠ Anonymous sessions are deleted after 30 days of inactivity",
+    spectatorMenuItem:"👁 Spectator",
+    joinArrow:"Join →",
+    waitingRematch:"⏳ Waiting for the admin's rematch...",
+    adminDisconnected:"⚠️ The admin disconnected",
+    playerDisconnectedInfo:"ℹ️ A player is disconnected. They can reconnect with the room code.",
+    transferAdmin:"🔁 Transfer admin",
+    endGameBtn2:"🛑 End game",
+    chooseNewAdmin:"CHOOSE NEW ADMIN — must be connected right now",
+    confirmEndGame:"End the game for everyone?",
+    endGameDesc:"All players will return to the home screen. The room isn't deleted.",
+    yesEndGame:"Yes, end it",
+    youLbl:"you",
+    adminBadge:"👑 ADMIN",
+    ptsLbl:"pts",
+    readyBtn:"✓ READY",
+    unlockBtn:"🔒 Unlock",
+    scanAiBtn:"📷 AI Scan",
+    cardsBtn:"🃏 Cards",
+    manualBtn:"🧮 Manual",
+    zeroBtn:"💀 Zero",
+    lockedRowHint:"Row locked — tap to unlock and capture",
+    waitingDots2:"⏳ waiting",
+    lobbyModeLbl:"ROOM IN LOBBY MODE",
+    shareCodeToJoin:"Share this code so players can join",
+    colPlayer:"Player",
+    colTotal:"Total",
+    scoreboardTitle:"SCOREBOARD",
+    liveCaps:"LIVE",
+    roomCapsInline:"ROOM",
+    seeScoreboard:"🏆 See final scoreboard",
+    clearHistoryConfirmTitle:"🗑 Clear history",
+    demoTag:"DEMO",
+    groupsTitle:"GROUPS",
+    groupsLoginPrompt:"Create an account to make groups with your friends, see who's online and play together every week.",
+    backToGroups:"← Groups",
+    inviteBtn:"🔗 Invite",
+    confirmReq:"Confirm",
+    deleteGroupTitle:"Delete group",
+    gameInProgress:"GAME IN PROGRESS",
+    membersLbl:"MEMBERS",
+    tapToIncludeHint:"TAP WHO'S PLAYING · ANYONE CAN JOIN LATER",
+    adminLbl:"ADMIN",
+    tapToIncludeShort:"tap to include",
+    yesLbl:"Yes",
+    noLbl:"No",
+    deleteMemberTitle:"Remove from group",
+    addFriendsToGroup:"ADD FRIENDS TO THE GROUP",
+    addBtn:"+ Add",
+    backToGroupsLong:"← Back to Groups",
+    groupsCapsTitle:"👥 GROUPS",
+    noGroupsYet2:"No groups yet",
+    createGroupHint:"Create a group to play with the same friends every week using the same code",
+    inGameTag:"🎮 IN GAME",
+    groupNameLbl:"GROUP NAME",
+    groupNamePlaceholder:"e.g. Thursday Crew 🎴",
+    createGroupBtn:"🎮 Create group",
+    newGroupBtn:"+ Create new group",
+    groupCodeLbl:"GROUP CODE",
+    joinGroupBtn:"👥 Join the group",
+    askGroupCode:"Ask the group's admin for the 4-letter code",
+    calendarLbl:"📅 CALENDAR",
+    thisMonthSuffix:"this month",
+    lessLbl:"less",
+    moreLbl:"more",
+    comparingLbl:"Comparing…",
+    neverPlayedTogether:"You haven't played together in the same game yet",
+    youAllCaps:"YOU",
+    vsLbl:"vs",
+    gameWord:"game",
+    togetherSuffix:"together",
+    dateColLbl:"Date",
+    youCol:"You",
+    posAbbrev:"pos.",
+    loadingRoundsTable:"Loading round table…",
+    guestModeLbl:"Guest mode",
+    createAccountStatsHint:"Create an account to save your stats, see your history and add friends.",
+    createAccountLoginBtn:"Create account / Log in",
+    noGamesYetLong:"No games recorded yet",
+    playFirstGameHint:"Play your first game to see your stats",
+    winRateLbl:"WIN RATE",
+    flip7PerGame:"FLIP 7 PER GAME",
+    bustPerGame:"BUST PER GAME",
+    bestStreak:"BEST STREAK",
+    cardsPerRound:"CARDS PER ROUND",
+    luckyCard:"LUCKY CARD",
+    bustsInARow:"BUSTS IN A ROW",
+    needAccountFriends:"You need an account to add friends",
+    inviteFriendCaps:"INVITE A FRIEND",
+    shareLinkDesc:"Share your link — when your friend opens it, they'll be automatically connected with you.",
+    shareInviteLinkBtn:"🔗 Share invite link",
+    searchByNameEmail:"OR SEARCH BY NAME / EMAIL (2+ letters)",
+    searchNameEmailPlaceholder:"Type a name or email…",
+    searchingLbl:"Searching…",
+    requestSentBtn:"+ REQUEST",
+    noResults:"No results",
+    wantsToBeFriend:"wants to be your friend",
+    acceptBtn:"✓ Accept",
+    noFriendsYetAdd:"No friends yet — add your fellow players",
+    noGamesYetShort:"No games yet",
+    winsLbl:"WINS",
+    compareHeadToHead:"Compare head to head",
+    deleteFriendTitle:"Remove friend",
+    noGamesRegisteredYet:"No games registered yet",
+    vengeanceTag:"💀 VENGEANCE",
+    ptsTotalLbl:"pts total",
+    backToMenu:"← Back to menu",
+    historyOfGames:"GAME HISTORY",
+    noHistoryYet:"No history yet",
+    backToRanking:"← Back to ranking",
+    statsCapsTitle:"📊 STATS",
+    flip7RaceTo200:"FLIP 7 · RACE TO 200",
+    loadingStats:"Loading stats...",
+    completeGameForRanking:"Complete a game to see the ranking",
+    noStatsYet:"No stats yet",
+    winsTrophy:"🏆 wins",
+    weekdayLetters:["S", "M", "T", "W", "T", "F", "S"],
+    heroPhrases:["FLIP. ADD. WIN.", "PLAY IT SAFE OR PUSH IT?", "NO REPEATS, NO BUST", "EVERY CARD COUNTS", "THE DICE ARE ROLLED", "RACE TO THE FINISH"],
+    scanTitle2:"🃏 Card Referee",
+    myCardsTitle:"🃏 My cards",
+    myCardsVengTitle:"💀 My cards",
+    manualCorrectTitle:"✏️ Fix score",
+    manualCaptureTitle:"🧮 Manual Entry",
+    loadingDots:"Loading...",
+    tapOpenCamera:"Tap to open the camera",
+    aimCardsHint:"Point at your cards and take a photo",
+    orChooseGallery:"or choose from gallery",
+    verticalPhotoDetected:"📱 Vertical photo detected",
+    verticalPhotoDesc:"The Referee reads cards better in landscape. It's not perfect with vertical photos — rotate it before analyzing.",
+    rotatePhotoBtn:"🔄 Rotate photo",
+    allCardsVisible:"Can you see all the cards clearly?",
+    refereeSupreme:"🃏 The Card Referee™ · Supreme Judge of the Deck",
+    anotherPhotoBtn:"📷 Another photo",
+    analyzeBtn:"🔍 Analyze",
+    refereeAnalyzing:"The Referee is checking the cards...",
+    retryBtn:"Retry",
+    cardsDetectedCaps:"DETECTED CARDS — tap to remove",
+    dupWarnPrefix:"appear twice in the photo — only different cards score.",
+    dupWarnBust:"If you really drew two matching numbers on your turn, that's a bust — consider marking 💀 Zero instead of confirming this score.",
+    noCardsAddFromPalette:"No cards — add from the palette",
+    totalFinalCaps:"FINAL TOTAL",
+    totalRoundCaps:"TOTAL FOR THIS ROUND",
+    baseLbl:"Base:",
+    modifiersCorrectCaps:"MODIFIERS — tap to fix",
+    modifiersHaveCaps:"MODIFIERS — tap if you have them",
+    modifiersPlayedCaps:"MODIFIERS — if someone played them on you",
+    onLbl:"ON",
+    offLbl:"OFF",
+    activeLbl:"ACTIVE",
+    flip7UniqueCaps:"FLIP 7 — 7 UNIQUE CARDS",
+    flip7DistinctCaps:"FLIP 7 — 7 DIFFERENT CARDS",
+    completeBonusActive:"Complete! Bonus activated",
+    completeBonusAuto:"Complete! Automatic bonus",
+    missingForBonus:"{n} more needed for the bonus",
+    cardsWord:"cards",
+    actionCardsDetectedCaps:"DETECTED ACTION CARDS — tap to remove if it doesn't apply",
+    actionCardsRegisterCaps:"ACTION CARDS (log if you used them)",
+    addCardPaletteCaps:"➕ ADD CARD — tap to add",
+    flip7CompletedMax:"🃏 FLIP 7 COMPLETE! Max cards reached",
+    youHavePrefix:"You have {a} + this round {b} = {c}",
+    repeatPhotoBtn2:"📷 Retake photo",
+    confirmPtsBtn:"✓ Confirm {n} pts",
+    confirmPtsVengBtn:"💀 Confirm {n} pts",
+    inclFlip7Bonus:" (incl. +15 Flip 7)",
+    plusFlip7Bonus:" (+15 Flip 7)",
+    exitWithoutScoring:"Exit without scoring",
+    zeroThisRound:"💀 Zero this round",
+    tapCardsInHand:"TAP THE CARDS IN YOUR HAND",
+    tapCardsInHand113:"TAP THE CARDS YOU HAVE (1-13)",
+    selectCardsBtn:"Select cards",
+    credentialsInvalid:"Referee credentials are invalid. Contact the admin.",
+    refereeBusy:"The Referee is busy. Wait a few seconds and try again.",
+    refereeBadFormat:"The Referee didn't return a valid format. Try again.",
+    refereeConfused:"The Referee got confused for a moment. Try again.",
+    refereeNoCredentials:"The Referee has no credentials.\nSet up the proxy in Cloudflare Workers\nor contact the admin.",
+    couldntReadImage:"Couldn't read that image. Try another one.",
+    activeDivBtn:"Active — you only have the 7. Add new cards as you draw them.",
+    unlucky7Desc:"You drew Unlucky 7 — you lose ALL your cards. You only keep the 7. You can keep drawing new cards.",
+    tapOnlyIfActivated:"tap only if you activated it by mistake",
+    lucky13Caps:"LUCKY 13",
+    unlucky7Caps:"UNLUCKY 7",
+    lucky13Allow2:"Lets you hold 2 copies of the 13 without busting",
+    active2x13:"ACTIVE — 2x13",
+    spentLbl:"spent",
+    flip7Bonus15Caps:"💀 FLIP 7 — BONUS +15",
+    missingSlash7:"/7 · {n} more for the bonus",
+    completeAutoSlash7:"/7 · Automatic bonus",
+    flip15Extra13:" (+13 extra Lucky 13)",
+    correctionOf:"Correcting",
+    currentValueLbl:"current value:",
+    pointsOf2:"Points for",
+    thisRound2:"this round",
+    errorLbl:"ERROR",
+    flip15BonusTip:"+ 15 FLIP 7 BONUS  (7 unique cards)",
+    clrKey:"CLR",
+    clrKeyClear:"CLR — Clear",
+    saveCorrection:"SAVE CORRECTION · ",
+    confirmDot:"CONFIRM · ",
+    statsMenuLbl:"Stats",
+    friendsMenuLbl:"Friends",
+    myGroupsMenuBtn:"👥 My groups",
+    gameInProgressRoomTpl:"Game in progress · room {code}",
+    signOutConfirm:"Sign out?",
+    signOutShortLbl:"sign out",
+    clearCacheLbl:"Clear cache",
+    celWinnerLbl:"WINNER!",
+    celTieLbl:"TIE!",
+    celExplosiveLbl:"EXPLOSIVE VICTORY!",
+    celExplosiveTieLbl:"EXPLOSIVE TIE!",
+    celCrownedLbl:"CROWNED!",
+    celCrownSharedLbl:"SHARED CROWN!",
+    celJungleKingLbl:"KING OF THE JUNGLE!",
+    celJungleSharedLbl:"SHARED JUNGLE!",
+    vpClose1:"What a close game!",
+    vpClose2:"Won by a hair",
+    vpClose3:"A razor-thin victory",
+    vpClose4:"Almost a tie — what a thrill",
+    vpClose5:"Decided in the final breath",
+    vpSolid1:"Solid victory",
+    vpSolid2:"With plenty of room to spare",
+    vpSolid3:"Dominated from start to finish",
+    vpSolid4:"A clear advantage",
+    vpSolid5:"Took it with authority",
+    vpCrush1:"Crushing victory!",
+    vpCrush2:"Steamrolled everyone",
+    vpCrush3:"It wasn't even close",
+    vpCrush4:"A historic blowout",
+    vpCrush5:"No one came close",
+    playersCapsHeader:"PLAYERS",
+    manualModeLbl:"Manual",
+    groupModeLbl:"Group",
+    selectedCountWord:"selected",
+    onlineDotLbl:"● online",
+    offlineDotLbl:"○ offline",
+    viewScoreboardCaps:"VIEW SCOREBOARD",
+    joinCapsLogo:"JOIN",
+    roomCodeCapsLbl:"ROOM CODE",
+    yourNameCaps:"YOUR NAME",
+    searchingRoomLbl:"⏳ Searching room",
+    joinGameCapsBtn:"🎮 JOIN GAME",
+    enterSpectatorBtn:"👁 ENTER AS SPECTATOR",
+    alreadyConnectedLbl:"already connected",
+    invitedYouToPlay:"invited you to play!",
+    gameInGroupTpl:"Game in {group}!",
+    notNowLbl:"Not now",
+    need2PlayersErr:"You need at least 2 players.",
+    code4CharsErr:"4-character code.",
+    enterNameErr:"Enter your name.",
+    roomNotFoundTpl:"Room \"{code}\" not found.",
+    askAdminCodeStep:"Ask the admin for the code",
+    roomNoLongerExistsErr:"That room no longer exists.",
+    gameAlreadyEndedErr:"That game already ended.",
+    adminEndedGameNotice:"🚪 The admin ended the game",
+    groupsFeatureLbl:"Groups",
+    yourGroupLbl:"your group",
+    sessionMetaLine:"{n} players · {r} rounds · Room {code}",
+    liveSuffixWord:"LIVE",
+    roomLiveTemplate:"ROOM {code} · LIVE",
+    liveScoreboardCaps:"📡 LIVE SCOREBOARD",
+    roomRoundTemplate:"ROOM {code} · ROUND {n}",
+    missingPtsPctTemplate:"{n} pts left · {pct}%",
+    roundWordBare:"round",
+    roundWordBarePlural:"rounds",
+    missingPtsTemplate:"{n} pts left",
+    autoCloseHint:"⚡ Auto-close round when everyone's done",
+    editOtherRowLbl:"Edit another player's row",
+    unlockedAutoRelock:"Unlocked — locks itself again after one use",
+    protectedRowHint:"Protected — prevents accidentally capturing another player's row",
+    chooseNewAdminCaps:"CHOOSE NEW ADMIN — must be online right now",
+    onlineDotWord:"● online",
+    offlineSimple:"offline",
+    endGameConfirmQ:"End the game for everyone?",
+    endGameConfirmDesc:"All players will return to the home screen. The room isn't deleted.",
+    yesEndGame:"Yes, end it",
+    adminCrownBadge:"👑 ADMIN",
+    ptsAbbrev:"pts",
+    readyBadge:"✓ READY",
+    unlockBtn:"🔒 Unlock",
+    scanIaBtn:"📷 AI Scan",
+    cardsBtnCaps:"🃏 Cards",
+    manualBtn:"🧮 Manual",
+    zeroBtn:"💀 Zero",
+    rowProtectedTapHint:"Row protected — tap to unlock and capture",
+    waitingLower:"⏳ waiting",
+    lobbyModeCaps:"ROOM IN LOBBY MODE",
+    shareCodeJoinHint:"Share this code so players can join",
+    goalShortLabel:"GOAL {n}",
+    ptsGameOverTemplate:"{pts} POINTS · GAME OVER",
+    adminDisconnectedTitle:"⚠️ The admin disconnected",
+    adminReconnectHint:"The room is still active — the admin can reconnect with the code {code}",
+    playerDisconnectedHint:"ℹ️ A player got disconnected. They can reconnect with the room code.",
+    missingOfTemplate:"{n} of {m} left",
+    ptsGoalTemplate:"{pts} POINTS · GOAL {target} POINTS",
+    rematchSamePlayers:"🔁 REMATCH · Same players",
+    waitingRematchAdmin:"⏳ Waiting for the admin's rematch...",
+    errUnknown:"Unknown error",
+    rematchTitleCaps:"REMATCH!",
+    onTheWayCaps:"ON THE WAY",
+    roundBadgeTemplate:"ROUND {n}",
+    avgScoreLbl:"Avg. score",
+    winsOfGamesLine:"{w} wins out of {g} games",
+    tabRankingEmoji:"🏆 Ranking",
+    tabGamesEmoji:"🎮 Games",
+    statsLeaderRow:"{g} games · {pct}% wins · best: {best}pts",
+    posOfTotalTemplate:"#{p} of {n}",
+    playersAbbrev:"pl.",
+    roomInlineLower:"Room {code}",
+    roundsWord:"rounds",
+    alreadyFriends:"You're already friends",
+    requestAlreadySent:"You already sent a request — wait for a reply",
+    requestSentMsg:"✅ Request sent to {name}",
+    errRemoveFriendPrefix:"Error removing:",
+    tabMe:"👤 Me",
+    tabHistory:"🎮 History",
+    statLblWins:"Wins",
+    statLblGames:"Games",
+    statLblBestScore:"Best score",
+    statLblAvgGame:"Avg. per game",
+    statLblFlip7s:"Flip 7s",
+    statLblBusts:"Busts",
+    winLossLine:"{w} wins · {l} losses",
+    winStreakCaps:"WIN STREAK",
+    lossStreakCaps:"LOSS STREAK",
+    comebackWord:"COMEBACK",
+    comebackWordPlural:"COMEBACKS",
+    modeClassicCaps:"CLASSIC",
+    modeVengCaps:"VENGEANCE",
+    gamesAbbrev:"G",
+    shareInviteTitle:"Join Flip 7!",
+    shareInviteText:"Add me as a friend on Flip 7 🃏",
+    linkCopiedWhatsapp:"✅ Link copied — paste it on WhatsApp",
+    pendingRequestsCaps:"🔴 PENDING REQUESTS ({n})",
+    playersCountPos:"{n} players · pos #{p}",
+    friendStatsLine:"{n} games · {pct}% wins · best: {best}pts · 🃏{flip7}",
+    goalTargetPts:"🏆 GOAL: {n} POINTS",
+    gameWordPlural:"games",
+    onlineWord:"Online",
+    statusInGame:"🎮 In a game",
+    statusInLobby:"🎴 In lobby",
+    statusOnline:"🟢 Online",
+    statusOffline:"Offline",
+    grpShareText:"Join our Flip 7 group!",
+    grpLinkCopied:"✅ Link copied",
+    grpJoinArrow:"Join →",
+    grpYouTag:"you",
+    grpPlayNow:"Play now",
+    grpPlayerWord:"player",
+    grpPlayerWordPlural:"players",
+    grpMemberAdded:"{name} added to the group",
+    grpAddErr:"❌ Error adding",
+    tabMyGroups:"My groups",
+    tabJoinGroup:"Join",
+    grpMembersWord:"members",
+    grpNameRequired:"Give the group a name",
+    grpCreatedMsg:"✅ Group created — code: {code}",
+    grpCodeRequired:"4-letter code",
+    grpNotFound:"Group not found",
+    grpAlreadyMember:"You're already a member of this group",
+    grpJoinedMsg:"✅ You joined {name}",
+    grpCreateRoomHint:"Create a room from the main menu and pick this group",
+    grpMemberRemoved:"✅ Member removed from group",
+    grpGroupDeleted:"✅ Group deleted",
+  },
+  pt:{
+    appTag:"Primeiro a chegar a 200 vence!",
+    createGame:"CRIAR NOVO JOGO",
+    joinGame:"ENTRAR COM CÓDIGO",
+    recentSessions:"ÚLTIMAS SESSÕES",
+    createRoom:"CRIAR SALA",
+    newGame:"Novo jogo",
+    players:"JOGADORES",
+    addPlayer:"Adicionar jogador",
+    creating:"⏳ Criando sala",
+    create:"🚀 CRIAR SALA",
+    back:"← Voltar",
+    join:"ENTRAR",
+    roomCode:"CÓDIGO DA SALA",
+    yourName:"SEU NOME",
+    joinBtn:"🎮 ENTRAR NO JOGO",
+    joining:"⏳ Conectando",
+    spectator:"MODO ESPECTADOR",
+    spectatorDesc:"Só ver o placar, sem controles",
+    spectatorBtn:"👁 ENTRAR COMO ESPECTADOR",
+    round:"🎴 Rodada",
+    table:"📊 Tabela",
+    history:"📋 Histórico",
+    players2:"JOGADORES",
+    winner:"venceu",
+    allReady:"Todos prontos! Feche a rodada.",
+    waitingHost:"Esperando o admin",
+    waitingCaps:"⏳ Esperando capturas",
+    closeRound:"🔒 FECHAR RODADA",
+    rematch:"🔁 REVANCHE",
+    endGame:"🚪 Encerrar",
+    ranking:"CLASSIFICAÇÃO",
+    rounds2:"TABELA DE RODADAS",
+    goal:"META: 200 PONTOS",
+    noSessions:"Ainda sem sessões",
+    noSessionsDesc:"Complete uma partida para vê-la aqui",
+    clearHistory:"🗑 Apagar histórico",
+    confirmClear:"Apagar todo o histórico?",
+    finalRanking:"CLASSIFICAÇÃO FINAL",
+    scanTitle:"🃏 Árbitro de Cartas",
+    turnOf:"Turno de:",
+    geminiReady:"✅ Gemini 2.5 Flash Ativo",
+    geminiDesc:"IA incluída — Pronta para usar",
+    geminiLoading:"⏳ Carregando configuração",
+    geminiLoadDesc:"A chave carrega automaticamente",
+    changeKey:"Mudar IA ou chave (opcional):",
+    tapCamera:"Toque para abrir a câmera",
+    tapHint:"Aponte para suas cartas e tire uma foto",
+    orGallery:"ou escolher da galeria",
+    goodCards:"Dá para ver todas as cartas claramente?",
+    modeNotice:"⚡ Só números base — ajuste depois",
+    anotherPhoto:"📷 Outra foto",
+    analyze:"🔍 Analisar",
+    analyzing:"Analisando com",
+    cardsDetected:"CARTAS DETECTADAS — toque ✕ para remover",
+    totalLabel:"TOTAL FINAL",
+    modifiers:"MODIFICADORES — toque para aplicar",
+    addCard:"➕ ADICIONAR CARTA",
+    whatNum:"QUE NÚMERO? (0-12)",
+    cancel:"Cancelar",
+    add:"✓ Adicionar",
+    repeatPhoto:"📷 Repetir foto",
+    confirm:"✓ Confirmar",
+    manualTitle:"🧮 Entrada Manual",
+    pointsOf:"Pontos de",
+    thisRound:"esta rodada",
+    winner2:"Vencedor!",
+    winners:"VENCEDORES",
+    ptsEach:"PONTOS CADA UM",
+    newGame2:"🔁 REVANCHE",
+    seeFinal:"Ver placar final",
+    liveBoard:"📡 PLACAR AO VIVO",
+    autoUpdate:"ATUALIZA AUTOMATICAMENTE · META 200 PTS",
+    roundProgress:"AVANÇO POR RODADAS",
+    codeLabel:"SALA",
+    correct:"✏️ Corrigir",
+
+    // ── EXTENSIÓN i18n (auto-generada) ──
+    modeClassicDesc:"Primeiro a chegar a 200 pontos. 7 cartas únicas = +15 de bônus.",
+    modeClassicRules:["Meta: 200 pontos", "Carta duplicada = estourou (0 pts na rodada)", "7 cartas únicas = +15 pts de bônus + fim da rodada", "Modificadores: x2, +2 a +10"],
+    modeVenganzaDesc:"Mesma mecânica, cartas 1-13, modificadores negativos e cartas de ação entre jogadores.",
+    modeVenganzaRules:["Meta: 200 pontos", "Cartas numéricas: 1 a 13", "Estourou por duplicata = 0 pts", "Bônus Flip 7 = +15 pts", "Modificadores NEGATIVOS: -2,-4,-6,-8,-10,/2", "Ordem: Soma -> /2 -> -N -> mín 0 -> +15", "Ações: Swap, Steal, Discard, Flip Four"],
+    errOffline:"⚡ Sem conexão.",
+    errOfflineStep:"Verifique sua internet",
+    errPermission:"🔒 Sem permissões do Firebase.",
+    errPermissionStep:"Regras → \".read\":true,\".write\":true → Publicar",
+    errNetwork:"📡 Erro de rede.",
+    errNetworkStep:"Verifique a conexão e tente novamente",
+    errGenericStep:"Recarregue a página",
+    errGoogle:"Erro com o Google",
+    errGoogleContinue:"Não foi possível continuar com o Google",
+    errEnterEmailPass:"Digite email e senha",
+    errRegisteredWithGoogle:"Este email já está registrado com o Google. Entre com o Google.",
+    errWrongCreds:"Email ou senha incorretos",
+    errLoginFailed:"Não foi possível entrar",
+    errEnterName:"Digite seu nome",
+    errMinChars:"Mínimo de 6 caracteres",
+    errEmailInUse:"Este email já tem uma conta — entre a partir de 'sair' primeiro",
+    errSignupFailed:"Erro ao criar conta",
+    errAnonDisabled:"O acesso como convidado está desabilitado",
+    errAnonFailed:"Não foi possível entrar como convidado",
+    guestLabel:"Convidado",
+    savedSessionMsg:"Salvo para esta sessão",
+    errorPrefixLbl:"Erro:",
+    feedbackEmptyErr:"Escreva algo antes de enviar.",
+    feedbackSendErr:"Não foi possível enviar. Verifique sua conexão e tente novamente.",
+    providerNone:"Sem conta",
+    providerGoogle:"Google",
+    providerPassword:"E-mail e senha",
+    providerAccount:"Conta",
+    agoNow:"agora mesmo",
+    agoMin:"há {n}min",
+    agoH:"há {n}h",
+    agoD:"há {n}d",
+    locale:"pt-BR",
+    loadingCaps:"CARREGANDO...",
+    gamePrefix:"Partida",
+    errBoundaryTitle:"Algo deu errado",
+    errBoundaryDesc:"O app teve um erro inesperado e não pode continuar nesta tela.",
+    reloadApp:"🔄 Recarregar o app",
+    loadingSlow:"Isso está demorando mais que o normal",
+    reloadPage:"🔄 Recarregar página",
+    exitBtn:"Sair",
+    confirmSignOut:"Sair da conta?",
+    roomLabelInline:"SALA:",
+    demoModeLbl:"MODO DEMO — local, sem Firebase",
+    connecting:"Conectando",
+    modeLabelClassic:"Clássico",
+    modeLabelVenganza:"Vingança",
+    modeLbl:"Modo:",
+    heroSubBrand:"FLIP 7 · UNOFFICIAL SCORETRACK",
+    warnTitle:"AVISO DO ADMINISTRADOR",
+    warnDefaultMsg:"Você recebeu um aviso da equipe de administração. Revise se o seu comportamento segue as regras da comunidade.",
+    warnCountMsg:"Avisos acumulados: {n}. Se continuar, sua conta pode ser suspensa ou bloqueada.",
+    understood:"Entendi",
+    accBlockedTitle:"CONTA BLOQUEADA",
+    accSuspendedTitle:"CONTA SUSPENSA",
+    accBlockedDesc:"Esta conta foi bloqueada e não pode mais usar o app.",
+    accSuspendedDesc:"Esta conta está suspensa temporariamente e não pode usar o app no momento.",
+    accReason:"Motivo:",
+    accReturnDate:"Você poderá entrar novamente em {date}",
+    accContact:"Se você acha que isso é um erro, entre em contato conosco a partir de outra conta usando a caixa de sugestões do app (⚙️ → Reportar bug / sugerir).",
+    signOutBtn:"Sair da conta",
+    continueGoogle:"Continuar com o Google",
+    waitingGoogle:"Aguardando o Google…",
+    continueEmail:"✉️ Continuar com E-mail",
+    waitLong:"Pode levar até 40 segundos — não feche a janela ({n}s)",
+    tryOtherMethod:"Demorando muito? Experimente este outro método",
+    orNoAccount:"OU SEM CONTA",
+    playNoAccount:"👤 Jogar sem conta",
+    noAccountWarnHist:"Sem conta, seu histórico não é salvo entre dispositivos",
+    loginTab:"Entrar",
+    createAccount:"Criar conta",
+    namePlaceholder:"Seu nome",
+    emailPlaceholder:"E-mail",
+    passwordPlaceholder:"Senha (mín. 6 caracteres)",
+    waitingDots:"⏳ ...",
+    loginBtn:"🎮 Entrar",
+    signupBtn:"🚀 Criar conta",
+    createAccountFor:"Crie sua conta para usar {feature}",
+    progressKept:"Seu progresso atual continua igual — só é vinculado.",
+    notNow:"Agora não",
+    profileTitle:"👤 PERFIL",
+    guestSessionLabel:"SEM CONTA — sessão temporária",
+    guestExplain:"Você está jogando sem conta: nada disso é salvo permanentemente, só é usado enquanto esta sessão do navegador ficar aberta. Se você fechar a aba ou entrar de outro dispositivo, isso se perde.",
+    anonNickLabel:"SEU APELIDO PARA ESTA SESSÃO",
+    anonNickPlaceholder:"Como você quer ser visto nas partidas?",
+    useThisNick:"💾 Usar este apelido",
+    wantSaveAcrossDevices:"Quer que seu emoji, cor e estatísticas sejam salvos entre partidas e dispositivos?",
+    nickForGamesLabel:"SEU APELIDO PARA AS PARTIDAS",
+    nickForGamesDesc:"Usado para preencher seu nome ao criar uma partida, sem precisar mudar seu nome real do {provider}.",
+    nickForGamesPlaceholder:"Seu nome nas partidas",
+    defaultEmojiLabel:"SEU EMOJI PADRÃO",
+    defaultColorLabel:"SUA COR PADRÃO",
+    celebrationLabel:"COMEMORAÇÃO AO GANHAR",
+    celebrationDesc:"Aplica-se só na SUA tela quando VOCÊ é quem ganha. Os outros jogadores continuam vendo o próprio sorteio deles.",
+    celebRandom:"Aleatória",
+    celebRandomSub:"Surpreende sempre (como até agora)",
+    celebOriginal:"Original",
+    celebOriginalSub:"Dourado — confete clássico",
+    celebExplosive:"Vitória Explosiva",
+    celebExplosiveSub:"Verde-azulado / roxo",
+    celebCrowned:"Coroado",
+    celebCrownedSub:"Roxo claro",
+    celebJungle:"Selva",
+    celebJungleSub:"Verde — folhas e tambores",
+    savingBtn:"⏳ Salvando...",
+    saveProfileBtn:"💾 Salvar perfil",
+    profileSaved:"✅ Perfil salvo",
+    feedbackThanks:"Obrigado!",
+    feedbackThanksBug:"Já anotamos, vamos revisar em breve.",
+    feedbackThanksSuggestion:"Sua ideia foi salva, vamos considerá-la para versões futuras.",
+    closeBtn:"Fechar",
+    feedbackTitle:"🗳️ Caixa de sugestões do Score 7",
+    reportBug:"✍️ Reportar um erro",
+    suggestGame:"💡 Sugerir jogo",
+    whichScreen:"EM QUAL TELA?",
+    whatErrorType:"QUE TIPO DE ERRO?",
+    feedbackBugPlaceholder:"Conte-nos o que aconteceu e o que você esperava que acontecesse...",
+    feedbackSuggestPlaceholder:"Que jogo ou função você gostaria de ver no app?",
+    attachScreenshot:"📎 Anexar captura de tela (opcional)",
+    screenshotAttached:"Captura anexada",
+    sendingAs:"Enviando como:",
+    sendBtn:"Enviar",
+    sendingBtn:"Enviando...",
+    noNameLabel:"Sem nome",
+    anonPlayerLabel:"Jogador anônimo (sem conta)",
+    fsHome:"🏠 Início",
+    fsCreate:"➕ Criar sala",
+    fsJoin:"🔑 Entrar em uma sala",
+    fsRound:"🎲 Rodada / Placar",
+    fsTable:"📋 Tabela de rodadas",
+    fsSpectator:"📺 Placar ao vivo (espectador)",
+    fsScanner:"📷 Scanner de cartas (IA)",
+    fsStats:"📊 Estatísticas",
+    fsProfile:"👤 Perfil",
+    fsGroups:"👥 Grupos",
+    fsOther:"❓ Outra / não tenho certeza",
+    fcCrash:"🖤 A tela ficou preta / travou",
+    fcNotSaved:"💾 Minha pontuação não foi salva",
+    fcAi:"🤖 O scanner de cartas (IA) falhou",
+    fcConnection:"📡 Não consegui entrar ou me conectar à sala",
+    fcVisual:"🎨 Algo parece errado (visual)",
+    fcOther:"❓ Outro",
+    someoneStarted:"Alguém já começou a jogar — entre agora",
+    joinNowBtn:"✅ Entrar",
+    gameModeLabel:"MODO DE JOGO",
+    requiresManual:"📋 Requer manual oficial",
+    howItWorks:"COMO FUNCIONA",
+    ruleClassicCards:"Cartas 0–12",
+    ruleClassicCardsDesc:" · some os valores da sua mão.",
+    ruleDupTitle:"Carta duplicada",
+    ruleDupDesc:" = estourou, zero pts na rodada.",
+    ruleFlip7Title:"Flip 7",
+    ruleFlip7Desc:": 7 cartas únicas = +15 pts de bônus + fim da rodada.",
+    ruleModTitle:"Modificadores:",
+    ruleModDesc:" ×2, +2 a +10 sobre sua soma.",
+    ruleGoalDesc:" · o primeiro a chegar vence.",
+    ruleVengCards:"Cartas 0–13",
+    ruleVengCardsDesc:" · inclui especiais: Zero, Unlucky 7, Lucky 13.",
+    ruleVengDupTitle:"Duplicado",
+    ruleVengDupDesc:" = estourou · Unlucky 7 = você perde suas cartas, fica só o 7.",
+    ruleVengModTitle:"Modificadores negativos",
+    ruleVengModDesc:" (jogados contra você): ÷2, −2 a −10.",
+    ruleVengActionsTitle:"Ações:",
+    ruleVengActionsDesc:" Swap, Steal, Discard, Flip Four, Just One More.",
+    goalPointsLabel:"META DE PONTOS",
+    standardLbl:"PADRÃO",
+    autoCloseRound:"⚡ Fechar rodada automaticamente quando todos terminarem",
+    canChangeLater:"Você pode mudar isso depois, dentro do jogo",
+    nextArrow:"Próximo →",
+    backToGameType:"← Tipo de jogo",
+    noFriendsYet:"Você ainda não tem amigos adicionados",
+    selectAll:"Todos",
+    selectNone:"Nenhum",
+    useSelected:"✅ Usar selecionados",
+    noGroupsYet:"Você ainda não tem grupos",
+    groupsAvailable:"GRUPOS DISPONÍVEIS",
+    tapToIncludeExclude:"Toque em cada integrante para incluí-lo ou excluí-lo desta partida.",
+    activeRoomFound:"SALA ATIVA ENCONTRADA",
+    codeLabelInline:"Código:",
+    reconnectAdmin:"⚡ Reconectar como Admin",
+    ignoreBtn:"Ignorar",
+    roomCodeTitle:"Código da sala",
+    idealForTablet:"💡 Ideal para deixar aberto em um tablet ou tela no meio da mesa — todos veem as pontuações atualizarem ao vivo, sem precisar passar o celular.",
+    joinNamePlaceholder:"Seu nome no jogo",
+    spectatorOnlyLbl:"SÓ VER O PLACAR",
+    choosePlayerHint:"Escolha seu personagem. Os marcados como \"Na sala\" já estão conectados.",
+    choosePlayerLbl:"ESCOLHA SEU JOGADOR",
+    inRoomTag:"Na sala",
+    joinAsNewLbl:"OU ENTRAR COMO NOVO JOGADOR",
+    newPlayerNamePlaceholder:"Nome do novo jogador",
+    addNewPlayerBtn:"➕ ADICIONAR NOVO JOGADOR",
+    moreOptionsAria:"Mais opções",
+    profileMenuItem:"👤 Perfil",
+    reportBugMenuItem:"🗳️ Reportar bug / sugerir",
+    changeAccount:"Trocar de conta",
+    anonExpireWarn:"⚠ Sessões anônimas são excluídas após 30 dias de inatividade",
+    spectatorMenuItem:"👁 Espectador",
+    joinArrow:"Entrar →",
+    waitingRematch:"⏳ Aguardando a revanche do admin...",
+    adminDisconnected:"⚠️ O admin desconectou",
+    playerDisconnectedInfo:"ℹ️ Um jogador está desconectado. Ele pode reconectar com o código da sala.",
+    transferAdmin:"🔁 Transferir admin",
+    endGameBtn2:"🛑 Encerrar partida",
+    chooseNewAdmin:"ESCOLHER NOVO ADMIN — precisa estar conectado agora",
+    confirmEndGame:"Encerrar a partida para todos?",
+    endGameDesc:"Todos os jogadores voltarão ao início. A sala não é excluída.",
+    yesEndGame:"Sim, encerrar",
+    youLbl:"você",
+    adminBadge:"👑 ADMIN",
+    ptsLbl:"pts",
+    readyBtn:"✓ PRONTO",
+    unlockBtn:"🔒 Desbloquear",
+    scanAiBtn:"📷 Scan IA",
+    cardsBtn:"🃏 Cartas",
+    manualBtn:"🧮 Manual",
+    zeroBtn:"💀 Zero",
+    lockedRowHint:"Linha protegida — toque para desbloquear e capturar",
+    waitingDots2:"⏳ aguardando",
+    lobbyModeLbl:"SALA EM MODO LOBBY",
+    shareCodeToJoin:"Compartilhe este código para os jogadores entrarem",
+    colPlayer:"Jogador",
+    colTotal:"Total",
+    scoreboardTitle:"PLACAR",
+    liveCaps:"AO VIVO",
+    roomCapsInline:"SALA",
+    seeScoreboard:"🏆 Ver placar final",
+    clearHistoryConfirmTitle:"🗑 Apagar histórico",
+    demoTag:"DEMO",
+    groupsTitle:"GRUPOS",
+    groupsLoginPrompt:"Crie uma conta para criar grupos com seus amigos, ver quem está online e jogar juntos toda semana.",
+    backToGroups:"← Grupos",
+    inviteBtn:"🔗 Convidar",
+    confirmReq:"Confirmar",
+    deleteGroupTitle:"Excluir grupo",
+    gameInProgress:"PARTIDA EM ANDAMENTO",
+    membersLbl:"MEMBROS",
+    tapToIncludeHint:"TOQUE EM QUEM VAI JOGAR · QUALQUER UM PODE ENTRAR DEPOIS",
+    adminLbl:"ADMIN",
+    tapToIncludeShort:"toque para incluir",
+    yesLbl:"Sim",
+    noLbl:"Não",
+    deleteMemberTitle:"Remover do grupo",
+    addFriendsToGroup:"ADICIONAR AMIGOS AO GRUPO",
+    addBtn:"+ Adicionar",
+    backToGroupsLong:"← Voltar para Grupos",
+    groupsCapsTitle:"👥 GRUPOS",
+    noGroupsYet2:"Ainda sem grupos",
+    createGroupHint:"Crie um grupo para jogar com os mesmos amigos toda semana com o mesmo código",
+    inGameTag:"🎮 EM JOGO",
+    groupNameLbl:"NOME DO GRUPO",
+    groupNamePlaceholder:"ex. Quinta à Noite 🎴",
+    createGroupBtn:"🎮 Criar grupo",
+    newGroupBtn:"+ Criar novo grupo",
+    groupCodeLbl:"CÓDIGO DO GRUPO",
+    joinGroupBtn:"👥 Entrar no grupo",
+    askGroupCode:"Peça o código de 4 letras ao admin do grupo",
+    calendarLbl:"📅 CALENDÁRIO",
+    thisMonthSuffix:"este mês",
+    lessLbl:"menos",
+    moreLbl:"mais",
+    comparingLbl:"Comparando…",
+    neverPlayedTogether:"Vocês ainda não jogaram juntos na mesma partida",
+    youAllCaps:"VOCÊ",
+    vsLbl:"vs",
+    gameWord:"partida",
+    togetherSuffix:"juntos",
+    dateColLbl:"Data",
+    youCol:"Você",
+    posAbbrev:"pos.",
+    loadingRoundsTable:"Carregando tabela de rodadas…",
+    guestModeLbl:"Modo anônimo",
+    createAccountStatsHint:"Crie uma conta para salvar suas estatísticas, ver seu histórico e adicionar amigos.",
+    createAccountLoginBtn:"Criar conta / Entrar",
+    noGamesYetLong:"Ainda sem partidas registradas",
+    playFirstGameHint:"Jogue sua primeira partida para ver suas estatísticas",
+    winRateLbl:"WIN RATE",
+    flip7PerGame:"FLIP 7 POR PARTIDA",
+    bustPerGame:"BUST POR PARTIDA",
+    bestStreak:"MELHOR SEQUÊNCIA",
+    cardsPerRound:"CARTAS POR RODADA",
+    luckyCard:"CARTA DA SORTE",
+    bustsInARow:"BUSTS SEGUIDOS",
+    needAccountFriends:"Você precisa de conta para adicionar amigos",
+    inviteFriendCaps:"CONVIDAR AMIGO",
+    shareLinkDesc:"Compartilhe seu link — quando seu amigo abrir, ele ficará conectado com você automaticamente.",
+    shareInviteLinkBtn:"🔗 Compartilhar link de convite",
+    searchByNameEmail:"OU BUSCAR POR NOME / E-MAIL (2+ letras)",
+    searchNameEmailPlaceholder:"Digite um nome ou e-mail…",
+    searchingLbl:"Buscando…",
+    requestSentBtn:"+ SOLICITAÇÃO",
+    noResults:"Sem resultados",
+    wantsToBeFriend:"quer ser seu amigo",
+    acceptBtn:"✓ Aceitar",
+    noFriendsYetAdd:"Ainda sem amigos — adicione seus companheiros de jogo",
+    noGamesYetShort:"Ainda sem partidas",
+    winsLbl:"VITÓRIAS",
+    compareHeadToHead:"Comparar cara a cara",
+    deleteFriendTitle:"Remover amigo",
+    noGamesRegisteredYet:"Ainda sem partidas registradas",
+    vengeanceTag:"💀 VINGANÇA",
+    ptsTotalLbl:"pts totais",
+    backToMenu:"← Voltar ao menu",
+    historyOfGames:"HISTÓRICO DE PARTIDAS",
+    noHistoryYet:"Ainda sem histórico",
+    backToRanking:"← Voltar ao ranking",
+    statsCapsTitle:"📊 ESTATÍSTICAS",
+    flip7RaceTo200:"FLIP 7 · RACE TO 200",
+    loadingStats:"Carregando estatísticas...",
+    completeGameForRanking:"Complete uma partida para ver o ranking",
+    noStatsYet:"Ainda sem estatísticas",
+    winsTrophy:"🏆 vitórias",
+    weekdayLetters:["D", "S", "T", "Q", "Q", "S", "S"],
+    heroPhrases:["VIRE. SOME. VENÇA.", "PARAR OU ARRISCAR?", "SEM REPETIR, SEM ESTOURAR", "CADA CARTA CONTA", "A SORTE ESTÁ LANÇADA", "CORRA PARA A META"],
+    scanTitle2:"🃏 Árbitro de Cartas",
+    myCardsTitle:"🃏 Minhas cartas",
+    myCardsVengTitle:"💀 Minhas cartas",
+    manualCorrectTitle:"✏️ Corrigir pontos",
+    manualCaptureTitle:"🧮 Entrada Manual",
+    loadingDots:"Carregando...",
+    tapOpenCamera:"Toque para abrir a câmera",
+    aimCardsHint:"Aponte para suas cartas e tire uma foto",
+    orChooseGallery:"ou escolher da galeria",
+    verticalPhotoDetected:"📱 Foto vertical detectada",
+    verticalPhotoDesc:"O Árbitro lê melhor as cartas na horizontal. Não é perfeito com fotos verticais — gire antes de analisar.",
+    rotatePhotoBtn:"🔄 Girar foto",
+    allCardsVisible:"Dá para ver todas as cartas claramente?",
+    refereeSupreme:"🃏 O Árbitro de Cartas™ · Juiz Supremo do Baralho",
+    anotherPhotoBtn:"📷 Outra foto",
+    analyzeBtn:"🔍 Analisar",
+    refereeAnalyzing:"O Árbitro está revisando as cartas...",
+    retryBtn:"Tentar novamente",
+    cardsDetectedCaps:"CARTAS DETECTADAS — toque para remover",
+    dupWarnPrefix:"aparecem duas vezes na foto — só contam cartas diferentes.",
+    dupWarnBust:"Se você realmente tirou dois números iguais no seu turno, isso é um estouro — considere marcar 💀 Zero em vez de confirmar essa pontuação.",
+    noCardsAddFromPalette:"Sem cartas — adicione da paleta",
+    totalFinalCaps:"TOTAL FINAL",
+    totalRoundCaps:"TOTAL DESTA RODADA",
+    baseLbl:"Base:",
+    modifiersCorrectCaps:"MODIFICADORES — toque para corrigir",
+    modifiersHaveCaps:"MODIFICADORES — toque se você tiver",
+    modifiersPlayedCaps:"MODIFICADORES — se alguém jogou contra você",
+    onLbl:"ON",
+    offLbl:"OFF",
+    activeLbl:"ATIVO",
+    flip7UniqueCaps:"FLIP 7 — 7 CARTAS ÚNICAS",
+    flip7DistinctCaps:"FLIP 7 — 7 CARTAS DIFERENTES",
+    completeBonusActive:"Completo! Bônus ativado",
+    completeBonusAuto:"Completo! Bônus automático",
+    missingForBonus:"Faltam {n} para o bônus",
+    cardsWord:"cartas",
+    actionCardsDetectedCaps:"CARTAS DE AÇÃO DETECTADAS — toque para remover se não se aplica",
+    actionCardsRegisterCaps:"CARTAS DE AÇÃO (registre se usou)",
+    addCardPaletteCaps:"➕ ADICIONAR CARTA — toque para somar",
+    flip7CompletedMax:"🃏 FLIP 7 COMPLETO! Máximo de cartas atingido",
+    youHavePrefix:"Você tem {a} + esta rodada {b} = {c}",
+    repeatPhotoBtn2:"📷 Repetir foto",
+    confirmPtsBtn:"✓ Confirmar {n} pts",
+    confirmPtsVengBtn:"💀 Confirmar {n} pts",
+    inclFlip7Bonus:" (incl. +15 Flip 7)",
+    plusFlip7Bonus:" (+15 Flip 7)",
+    exitWithoutScoring:"Sair sem pontuar",
+    zeroThisRound:"💀 Zero nesta rodada",
+    tapCardsInHand:"TOQUE NAS CARTAS QUE VOCÊ TEM NA MÃO",
+    tapCardsInHand113:"TOQUE NAS CARTAS QUE VOCÊ TEM (1-13)",
+    selectCardsBtn:"Selecione as cartas",
+    credentialsInvalid:"Credenciais do Árbitro inválidas. Contate o admin.",
+    refereeBusy:"O Árbitro está ocupado. Espere alguns segundos e tente novamente.",
+    refereeBadFormat:"O Árbitro não retornou um formato válido. Tente novamente.",
+    refereeConfused:"O Árbitro teve um momento de confusão. Tente novamente.",
+    refereeNoCredentials:"O Árbitro não tem credenciais.\nConfigure o proxy no Cloudflare Workers\nou contate o administrador.",
+    couldntReadImage:"Não foi possível ler essa imagem. Tente outra.",
+    activeDivBtn:"Ativo — você só tem o 7. Adicione as novas cartas que receber.",
+    unlucky7Desc:"Você tirou Unlucky 7 — perde TODAS as suas cartas. Só fica com o 7. Você pode continuar acumulando cartas novas.",
+    tapOnlyIfActivated:"toque só se ativou por engano",
+    lucky13Caps:"LUCKY 13",
+    unlucky7Caps:"UNLUCKY 7",
+    lucky13Allow2:"Permite ter 2 cartas do 13 sem estourar",
+    active2x13:"ATIVO — 2x13",
+    spentLbl:"gasto",
+    flip7Bonus15Caps:"💀 FLIP 7 — BÔNUS +15",
+    missingSlash7:"/7 · Faltam {n} para o bônus",
+    completeAutoSlash7:"/7 · Bônus automático",
+    flip15Extra13:" (+13 extra Lucky 13)",
+    correctionOf:"Correção de",
+    currentValueLbl:"valor atual:",
+    pointsOf2:"Pontos de",
+    thisRound2:"esta rodada",
+    errorLbl:"ERRO",
+    flip15BonusTip:"+ 15 BÔNUS FLIP 7  (7 cartas únicas)",
+    clrKey:"CLR",
+    clrKeyClear:"CLR — Limpar",
+    saveCorrection:"SALVAR CORREÇÃO · ",
+    confirmDot:"CONFIRMAR · ",
+    statsMenuLbl:"Estatísticas",
+    friendsMenuLbl:"Amigos",
+    myGroupsMenuBtn:"👥 Meus grupos",
+    gameInProgressRoomTpl:"Partida em andamento · sala {code}",
+    signOutConfirm:"Sair da conta?",
+    signOutShortLbl:"sair",
+    clearCacheLbl:"Limpar cache",
+    celWinnerLbl:"VENCEDOR!",
+    celTieLbl:"EMPATE!",
+    celExplosiveLbl:"VITÓRIA EXPLOSIVA!",
+    celExplosiveTieLbl:"EMPATE EXPLOSIVO!",
+    celCrownedLbl:"COROADO!",
+    celCrownSharedLbl:"COROA COMPARTILHADA!",
+    celJungleKingLbl:"REI DA SELVA!",
+    celJungleSharedLbl:"SELVA COMPARTILHADA!",
+    vpClose1:"Que jogo apertado!",
+    vpClose2:"Ganhou por pouco",
+    vpClose3:"Vitória no fio da navalha",
+    vpClose4:"Quase um empate — que emoção",
+    vpClose5:"Decidido no último suspiro",
+    vpSolid1:"Vitória sólida",
+    vpSolid2:"Com folga de sobra",
+    vpSolid3:"Dominou do início ao fim",
+    vpSolid4:"Uma vantagem clara",
+    vpSolid5:"Levou com autoridade",
+    vpCrush1:"Vitória esmagadora!",
+    vpCrush2:"Arrasou com todos",
+    vpCrush3:"Não teve disputa",
+    vpCrush4:"Um banho histórico",
+    vpCrush5:"Ninguém chegou perto",
+    playersCapsHeader:"JOGADORES",
+    manualModeLbl:"Manual",
+    groupModeLbl:"Grupo",
+    selectedCountWord:"selecionados",
+    onlineDotLbl:"● online",
+    offlineDotLbl:"○ offline",
+    viewScoreboardCaps:"VER PLACAR",
+    joinCapsLogo:"ENTRAR",
+    roomCodeCapsLbl:"CÓDIGO DA SALA",
+    yourNameCaps:"SEU NOME",
+    searchingRoomLbl:"⏳ Procurando sala",
+    joinGameCapsBtn:"🎮 ENTRAR NO JOGO",
+    enterSpectatorBtn:"👁 ENTRAR COMO ESPECTADOR",
+    alreadyConnectedLbl:"já conectado",
+    invitedYouToPlay:"te convidou para jogar!",
+    gameInGroupTpl:"Partida em {group}!",
+    notNowLbl:"Agora não",
+    need2PlayersErr:"Você precisa de pelo menos 2 jogadores.",
+    code4CharsErr:"Código de 4 caracteres.",
+    enterNameErr:"Digite seu nome.",
+    roomNotFoundTpl:"Sala \"{code}\" não encontrada.",
+    askAdminCodeStep:"Peça o código ao admin",
+    roomNoLongerExistsErr:"Essa sala não existe mais.",
+    gameAlreadyEndedErr:"Essa partida já terminou.",
+    adminEndedGameNotice:"🚪 O admin encerrou a partida",
+    groupsFeatureLbl:"Grupos",
+    yourGroupLbl:"seu grupo",
+    sessionMetaLine:"{n} jogadores · {r} rodadas · Sala {code}",
+    liveSuffixWord:"AO VIVO",
+    roomLiveTemplate:"SALA {code} · AO VIVO",
+    liveScoreboardCaps:"📡 PLACAR AO VIVO",
+    roomRoundTemplate:"SALA {code} · RODADA {n}",
+    missingPtsPctTemplate:"faltam {n} pts · {pct}%",
+    roundWordBare:"rodada",
+    roundWordBarePlural:"rodadas",
+    missingPtsTemplate:"faltam {n} pts",
+    autoCloseHint:"⚡ Fechar rodada automaticamente quando todos terminarem",
+    editOtherRowLbl:"Editar linha de outro jogador",
+    unlockedAutoRelock:"Desbloqueado — bloqueia sozinho após um uso",
+    protectedRowHint:"Protegido — evita capturar por engano a linha de outra pessoa",
+    chooseNewAdminCaps:"ESCOLHER NOVO ADMIN — precisa estar online agora",
+    onlineDotWord:"● online",
+    offlineSimple:"offline",
+    endGameConfirmQ:"Encerrar a partida para todos?",
+    endGameConfirmDesc:"Todos os jogadores voltarão para o início. A sala não é excluída.",
+    yesEndGame:"Sim, encerrar",
+    adminCrownBadge:"👑 ADMIN",
+    ptsAbbrev:"pts",
+    readyBadge:"✓ PRONTO",
+    unlockBtn:"🔒 Desbloquear",
+    scanIaBtn:"📷 Scan IA",
+    cardsBtnCaps:"🃏 Cartas",
+    manualBtn:"🧮 Manual",
+    zeroBtn:"💀 Zero",
+    rowProtectedTapHint:"Linha protegida — toque para desbloquear e capturar",
+    waitingLower:"⏳ aguardando",
+    lobbyModeCaps:"SALA EM MODO LOBBY",
+    shareCodeJoinHint:"Compartilhe este código para os jogadores entrarem",
+    goalShortLabel:"META {n}",
+    ptsGameOverTemplate:"{pts} PONTOS · FIM DE JOGO",
+    adminDisconnectedTitle:"⚠️ O admin desconectou",
+    adminReconnectHint:"A sala continua ativa — o admin pode reconectar com o código {code}",
+    playerDisconnectedHint:"ℹ️ Um jogador está desconectado. Ele pode reconectar com o código da sala.",
+    missingOfTemplate:"Faltam {n} de {m}",
+    ptsGoalTemplate:"{pts} PONTOS · META DE {target} PONTOS",
+    rematchSamePlayers:"🔁 REVANCHE · Mesmos jogadores",
+    waitingRematchAdmin:"⏳ Aguardando a revanche do admin...",
+    errUnknown:"Erro desconhecido",
+    rematchTitleCaps:"REVANCHE!",
+    onTheWayCaps:"A CAMINHO",
+    roundBadgeTemplate:"RODADA {n}",
+    avgScoreLbl:"Média de score",
+    winsOfGamesLine:"{w} vitórias em {g} partidas",
+    tabRankingEmoji:"🏆 Ranking",
+    tabGamesEmoji:"🎮 Partidas",
+    statsLeaderRow:"{g} partidas · {pct}% vitórias · melhor: {best}pts",
+    posOfTotalTemplate:"#{p} de {n}",
+    playersAbbrev:"jog.",
+    roomInlineLower:"Sala {code}",
+    roundsWord:"rodadas",
+    alreadyFriends:"Vocês já são amigos",
+    requestAlreadySent:"Você já enviou uma solicitação — espere a resposta",
+    requestSentMsg:"✅ Solicitação enviada para {name}",
+    errRemoveFriendPrefix:"Erro ao remover:",
+    tabMe:"👤 Eu",
+    tabHistory:"🎮 Histórico",
+    statLblWins:"Vitórias",
+    statLblGames:"Partidas",
+    statLblBestScore:"Melhor score",
+    statLblAvgGame:"Média por partida",
+    statLblFlip7s:"Flip 7s",
+    statLblBusts:"Busts",
+    winLossLine:"{w} vitórias · {l} derrotas",
+    winStreakCaps:"VITÓRIAS SEGUIDAS",
+    lossStreakCaps:"DERROTAS SEGUIDAS",
+    comebackWord:"VIRADA",
+    comebackWordPlural:"VIRADAS",
+    modeClassicCaps:"CLÁSSICO",
+    modeVengCaps:"VINGANÇA",
+    gamesAbbrev:"P",
+    shareInviteTitle:"Junte-se ao Flip 7!",
+    shareInviteText:"Me adicione como amigo no Flip 7 🃏",
+    linkCopiedWhatsapp:"✅ Link copiado — cole no WhatsApp",
+    pendingRequestsCaps:"🔴 SOLICITAÇÕES PENDENTES ({n})",
+    playersCountPos:"{n} jogadores · pos #{p}",
+    friendStatsLine:"{n} partidas · {pct}% vitórias · melhor: {best}pts · 🃏{flip7}",
+    goalTargetPts:"🏆 META: {n} PONTOS",
+    gameWordPlural:"partidas",
+    onlineWord:"Online",
+    statusInGame:"🎮 Em partida",
+    statusInLobby:"🎴 No lobby",
+    statusOnline:"🟢 Online",
+    statusOffline:"Offline",
+    grpShareText:"Junte-se ao nosso grupo Flip 7!",
+    grpLinkCopied:"✅ Link copiado",
+    grpJoinArrow:"Entrar →",
+    grpYouTag:"você",
+    grpPlayNow:"Jogar agora",
+    grpPlayerWord:"jogador",
+    grpPlayerWordPlural:"jogadores",
+    grpMemberAdded:"{name} adicionado ao grupo",
+    grpAddErr:"❌ Erro ao adicionar",
+    tabMyGroups:"Meus grupos",
+    tabJoinGroup:"Entrar",
+    grpMembersWord:"membros",
+    grpNameRequired:"Dê um nome ao grupo",
+    grpCreatedMsg:"✅ Grupo criado — código: {code}",
+    grpCodeRequired:"Código de 4 letras",
+    grpNotFound:"Grupo não encontrado",
+    grpAlreadyMember:"Você já é membro deste grupo",
+    grpJoinedMsg:"✅ Você entrou em {name}",
+    grpCreateRoomHint:"Crie uma sala no menu principal e escolha este grupo",
+    grpMemberRemoved:"✅ Membro removido do grupo",
+    grpGroupDeleted:"✅ Grupo excluído",
   }
 };
 
 // ── REMATCH ANIMATION — overlay con contador 3→2→1 ───────────
-function RematchOverlay({onDone}){
+function RematchOverlay({onDone,T}){
+  T=T||LANGS.es;
   const[count,setCount]=React.useState(3);
   const[key,setKey]=React.useState(0); // para re-triggear animación
   React.useEffect(()=>{
@@ -433,8 +2200,8 @@ function RematchOverlay({onDone}){
       </div>
       <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
         <div style={{fontSize:"4rem",marginBottom:12,animation:"fl 1.5s ease-in-out infinite"}}>🔁</div>
-        <div className="rematch-title">¡REVANCHA!</div>
-        <div className="rematch-sub">EN CAMINO</div>
+        <div className="rematch-title">{T.rematchTitleCaps}</div>
+        <div className="rematch-sub">{T.onTheWayCaps}</div>
         {count>0
           ? <div key={key} className="rematch-counter">{count}</div>
           : <div className="rematch-counter" style={{fontSize:"5rem",color:"var(--y)"}}>🚀</div>
@@ -448,7 +2215,8 @@ function RematchOverlay({onDone}){
 // que quedaba tapado por el header y no se notaba). Usa el mismo color
 // aleatorio que la insignia "RONDA N" persistente, para que se vea como
 // una sola cosa y no dos avisos con colores distintos.
-function RoundChangeOverlay({round,color}){
+function RoundChangeOverlay({round,color,T}){
+  T=T||LANGS.es;
   const sparks=React.useMemo(()=>Array.from({length:24},(_,i)=>({
     c:[color,"#F5C800","#ffffff"][i%3],
     l:Math.round(Math.random()*100)+"%",
@@ -469,7 +2237,7 @@ function RoundChangeOverlay({round,color}){
       </div>
       <div style={{position:"relative",zIndex:1}}>
         <img src="score7-logo.png" alt="" className="roundbig-logo"/>
-        <div className="roundbig-title" style={{color:color}}>RONDA {round}</div>
+        <div className="roundbig-title" style={{color:color}}>{T.roundBadgeTemplate.replace('{n}',round)}</div>
       </div>
     </div>
   );
@@ -558,6 +2326,51 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
               cursor:"pointer",flexShrink:0,padding:"0 2px",lineHeight:1}}>✕</button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── LANGUAGE DROPDOWN — selector ES/EN/PT con banderas (reemplaza el botón
+// que solo alternaba ES↔EN; mismo patrón visual que los demás dropdowns
+// de la app, como el de emoji/color en PlayerRow) ──────────────────────
+const LANG_OPTS=[{v:"es",flag:"🇪🇸",label:"Español"},{v:"en",flag:"🇺🇸",label:"English"},{v:"pt",flag:"🇧🇷",label:"Português"}];
+function LanguageDropdown({lang,setLang,compact}){
+  const[open,setOpen]=React.useState(false);
+  const btnRef=React.useRef(null);
+  const ddRef=React.useRef(null);
+  React.useEffect(()=>{
+    function handle(e){
+      if(open&&btnRef.current&&!btnRef.current.contains(e.target)&&ddRef.current&&!ddRef.current.contains(e.target)){setOpen(false);}
+    }
+    document.addEventListener("mousedown",handle);document.addEventListener("touchstart",handle);
+    return()=>{document.removeEventListener("mousedown",handle);document.removeEventListener("touchstart",handle);}
+  },[open]);
+  const current=LANG_OPTS.find(o=>o.v===lang)||LANG_OPTS[0];
+  return(
+    <div style={{position:"relative"}}>
+      <button ref={btnRef} onClick={()=>{snd('tap');setOpen(v=>!v);}}
+        style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
+          color:"rgba(255,255,255,.6)",borderRadius:9,cursor:"pointer",
+          fontFamily:"'Righteous',sans-serif",fontSize:".68rem",letterSpacing:1,
+          height:30,padding:"0 9px",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+        <span style={{fontSize:"1rem",lineHeight:1}}>{current.flag}</span>
+        {!compact&&<span>{current.v.toUpperCase()}</span>}
+      </button>
+      {open&&(
+        <div ref={ddRef} style={{position:"absolute",top:36,right:0,zIndex:30,minWidth:150,
+          background:"var(--dark,#14141f)",border:"1px solid rgba(255,255,255,.15)",
+          borderRadius:12,padding:6,boxShadow:"0 8px 24px rgba(0,0,0,.4)"}}>
+          {LANG_OPTS.map(o=>(
+            <button key={o.v} onClick={()=>{snd('tap');setLang(o.v);setOpen(false);}}
+              style={{width:"100%",textAlign:"left",background:o.v===lang?"rgba(245,200,0,.12)":"none",border:"none",
+                padding:"8px 10px",borderRadius:8,cursor:"pointer",
+                fontFamily:"'Righteous',sans-serif",fontSize:".76rem",
+                color:o.v===lang?"var(--y)":"rgba(255,255,255,.75)",display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:"1rem",lineHeight:1}}>{o.flag}</span><span>{o.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -804,7 +2617,7 @@ function App(){
         // en silencio y solo veían "el admin se desconectó" sin enterarse
         // de que la partida ya había terminado.
         const iWasHost=data.hostPlayerId!=null?myPlayerIdRef.current===data.hostPlayerId:!myPlayerIdRef.current;
-        if(!iWasHost)setHomeNotice("🚪 El admin terminó la partida");
+        if(!iWasHost)setHomeNotice(T.adminEndedGameNotice);
         leaveGame();
         return;
       }
@@ -1126,28 +2939,28 @@ function App(){
       <div style={{textAlign:"center"}}>
         <div style={{fontSize:"3rem",marginBottom:12,animation:"fl 1.5s infinite"}}>🎴</div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".75rem",
-          color:"rgba(255,255,255,.3)",letterSpacing:3}}>CARGANDO...</div>
+          color:"rgba(255,255,255,.3)",letterSpacing:3}}>{T.loadingCaps}</div>
         {stuckLoading&&(
           <div style={{marginTop:20}}>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
               color:"rgba(230,57,70,.7)",marginBottom:10,maxWidth:260}}>
-              Esto está tardando más de lo normal
+              {T.loadingSlow}
             </div>
             <button onClick={()=>window.location.reload()} style={{
               background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.2)",
               color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",
               fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".8rem"}}>
-              🔄 Recargar página
+              {T.reloadPage}
             </button>
           </div>
         )}
       </div>
     </div>
   );
-  if(!authUser)return<AuthScreen onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}/>;
-  if(modBlock)return<AccountBlockedScreen mod={modBlock}/>;
+  if(!authUser)return<AuthScreen T={T} onAuth={user=>{setAuthUser(user);setAuthChecked(true);}}/>;
+  if(modBlock)return<AccountBlockedScreen mod={modBlock} T={T}/>;
   if(screen==="home")return<>
-    {warnAlert&&<WarnAlertModal mod={warnAlert} onDismiss={dismissWarnAlert}/>}
+    {warnAlert&&<WarnAlertModal mod={warnAlert} onDismiss={dismissWarnAlert} T={T}/>}
     {homeNotice&&(
       <div onClick={()=>setHomeNotice(null)} style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",
         zIndex:400,maxWidth:"min(92vw,420px)",background:"linear-gradient(135deg,rgba(230,57,70,.95),rgba(123,45,139,.95))",
@@ -1162,14 +2975,14 @@ function App(){
 
   // Animación revancha para TODOS (host la ve también para sincronía visual)
   if(rematchPending){
-    return<RematchOverlay onDone={onRematchAnimDone}/>;
+    return<RematchOverlay onDone={onRematchAnimDone} T={T}/>;
   }
 
   return(
     <div className="wrap">
       <div className="hdr" style={{alignItems:"flex-start"}}>
         <div style={{display:"flex",flexDirection:"column",gap:5,minWidth:0,overflow:"hidden"}}>
-          <HeroLogoCompact/>
+          <HeroLogoCompact T={T}/>
           {room&&room.gameMode&&GAME_MODES[room.gameMode]&&(()=>{
             const gm=GAME_MODES[room.gameMode];
             return gm.image
@@ -1180,7 +2993,7 @@ function App(){
                     onError={e=>{e.target.style.display="none";}}/>
                   {gm.labelEs&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".46rem",
                     letterSpacing:.5,color:gm.color,whiteSpace:"nowrap"}}>
-                    Modo: {gm.labelEs}
+                    {T.modeLbl} {gm.id==="venganza"?T.modeLabelVenganza:T.modeLabelClassic}
                   </div>}
                 </div>
               : <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:1,
@@ -1197,19 +3010,13 @@ function App(){
             consultado durante la partida) */}
         <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
           <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}}
-              style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
-                color:"rgba(255,255,255,.6)",borderRadius:9,cursor:"pointer",
-                fontFamily:"'Righteous',sans-serif",fontSize:".68rem",letterSpacing:1,
-                width:44,height:30,display:"flex",alignItems:"center",justifyContent:"center"}}>
-              {lang==="es"?"EN":"ES"}
-            </button>
+            <LanguageDropdown lang={lang} setLang={setLang} compact/>
             <button onClick={()=>{snd('tap');leaveGame();}}
               style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",
                 color:"rgba(255,255,255,.55)",borderRadius:9,cursor:"pointer",
                 fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".72rem",
                 width:58,height:30,display:"flex",alignItems:"center",justifyContent:"center"}}>
-              Salir
+              {T.exitBtn}
             </button>
           </div>
 
@@ -1217,7 +3024,7 @@ function App(){
             <div style={{display:"flex",alignItems:"center",gap:6,
               background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.12)",
               borderRadius:20,padding:"4px 10px 4px 6px",cursor:"pointer",whiteSpace:"nowrap"}}
-              onClick={()=>{if(confirm("¿Cerrar sesión?"))signOut();}}>
+              onClick={()=>{if(confirm(T.confirmSignOut))signOut();}}>
               {authUser.photoURL
                 ? <img src={authUser.photoURL} style={{width:20,height:20,borderRadius:"50%",objectFit:"cover"}} alt=""/>
                 : <div style={{width:20,height:20,borderRadius:"50%",background:"var(--y)",
@@ -1236,7 +3043,7 @@ function App(){
 
           <div className={"badge "+(demoMode?"demo":"")} style={{margin:0}}>
             <span className={"dot "+(demoMode?"demo":"")}/>
-            {demoMode?"DEMO":<>SALA: <span className="code-mono">{roomCode}</span></>}
+            {demoMode?T.demoTag:<>{T.roomLabelInline} <span className="code-mono">{roomCode}</span></>}
           </div>
         </div>
       </div>
@@ -1246,8 +3053,8 @@ function App(){
         ))}
       </div>
       <div className="page">
-        {demoMode&&tab==="round"&&<div className="demo-banner">🟣 <span>MODO DEMO — local, sin Firebase</span></div>}
-        {tab==="round"&&!room&&<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 16px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando</p></div>}
+        {demoMode&&tab==="round"&&<div className="demo-banner">🟣 <span>{T.demoModeLbl}</span></div>}
+        {tab==="round"&&!room&&<div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 16px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>{T.connecting}</p></div>}
         {tab==="round"&&room&&<RoundTab room={room} allDone={allDone} onSubmit={submitScore} onUndo={undoScore} onFinalize={finalizeRound} myPlayerId={myPlayerId} isHost={isHost} demoMode={demoMode} aiConfig={aiConfig} setAiConfig={setAiConfig} onRematch={startRematch} onEndGame={leaveGame} onTransferHost={transferHost} onEndGameForAll={endGameForAll} roomCode={roomCode} T={T}/>}
         {tab==="scores"&&room&&<ScoreTab sorted={sorted} room={room} T={T}/>}
         {tab==="history"&&<HistoryTab sessions={sessions} onClear={()=>{setSessions([]);try{localStorage.removeItem("f7sess")}catch{}}} T={T}/>}
@@ -1300,14 +3107,14 @@ function RollingTagline({phrases=HERO_PHRASES,interval=2800,compact=false}){
   );
 }
 
-function HeroLogo(){
+function HeroLogo({T}){
   return(
     <div className="hero-logo-test">
       <div className="hero-flip-wrap">
         <img src="score7-logo.png" alt="Flip 7" className="hero-flip-img"/>
       </div>
       <div className="hero-brand-sub">FLIP 7 · UNOFFICIAL SCORETRACK</div>
-      <RollingTagline/>
+      <RollingTagline phrases={T?T.heroPhrases:HERO_PHRASES}/>
     </div>
   );
 }
@@ -1316,13 +3123,13 @@ function HeroLogo(){
 // partida en curso, donde antes iba el texto plano "FLIP7 / Race to
 // 200!". Mismo logo + "unofficial" + frase rotativa, pero a tamaño de
 // encabezado en vez de pantalla completa.
-function HeroLogoCompact(){
+function HeroLogoCompact({T}){
   return(
     <div className="hero-logo-compact">
       <img src="score7-logo.png" alt="Flip 7" className="hero-flip-img-sm"/>
       <div style={{minWidth:0,overflow:"hidden"}}>
         <div className="hero-brand-sub-sm">FLIP 7 · UNOFFICIAL SCORETRACK</div>
-        <RollingTagline compact/>
+        <RollingTagline compact phrases={T?T.heroPhrases:HERO_PHRASES}/>
       </div>
     </div>
   );
@@ -1337,30 +3144,30 @@ function HeroLogoCompact(){
 // AccountBlockedScreen, esto es un modal flotante sobre Home: el usuario
 // puede seguir usando la app con normalidad, solo se le informa que un
 // admin le llamó la atención y por qué, y lo reconoce con un botón.
-function WarnAlertModal({mod,onDismiss}){
+function WarnAlertModal({mod,onDismiss,T}){
   return(
     <div className="mbg" style={{zIndex:500}}>
       <div className="ms" style={{maxWidth:380,textAlign:"center"}}>
         <div style={{fontSize:"2.4rem",marginBottom:10}}>⚠️</div>
         <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:"var(--or)",marginBottom:8}}>
-          ADVERTENCIA DEL ADMINISTRADOR
+          {T.warnTitle}
         </div>
         <div style={{color:"rgba(255,255,255,.75)",fontSize:".85rem",lineHeight:1.5,marginBottom:14}}>
           {mod&&mod.reason
             ? mod.reason
-            : "Recibiste una advertencia por parte del equipo de administración. Revisa que tu comportamiento cumpla las reglas de la comunidad."}
+            : T.warnDefaultMsg}
         </div>
         {mod&&mod.warnCount>1&&(
           <div style={{color:"rgba(255,255,255,.4)",fontSize:".7rem",marginBottom:14}}>
-            Advertencias acumuladas: {mod.warnCount}. Si continúan, tu cuenta puede ser suspendida o bloqueada.
+            {T.warnCountMsg.replace('{n}',mod.warnCount)}
           </div>
         )}
-        <button className="btn btn-y" onClick={onDismiss} style={{width:"100%"}}>Entendido</button>
+        <button className="btn btn-y" onClick={onDismiss} style={{width:"100%"}}>{T.understood}</button>
       </div>
     </div>
   );
 }
-function AccountBlockedScreen({mod}){
+function AccountBlockedScreen({mod,T}){
   const banned=mod&&mod.status==="banned";
   return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",
@@ -1368,32 +3175,32 @@ function AccountBlockedScreen({mod}){
       <div style={{textAlign:"center",maxWidth:340}}>
         <div style={{fontSize:"3rem",marginBottom:14}}>{banned?"🚫":"⏳"}</div>
         <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.25rem",color:"var(--y)",marginBottom:8}}>
-          {banned?"CUENTA BLOQUEADA":"CUENTA SUSPENDIDA"}
+          {banned?T.accBlockedTitle:T.accSuspendedTitle}
         </div>
         <div style={{color:"rgba(255,255,255,.7)",fontSize:".85rem",lineHeight:1.5,marginBottom:12}}>
           {banned
-            ? "Esta cuenta fue bloqueada y ya no puede usar la app."
-            : "Esta cuenta está suspendida temporalmente y no puede usar la app por ahora."}
+            ? T.accBlockedDesc
+            : T.accSuspendedDesc}
         </div>
         {mod&&mod.reason&&(
           <div style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.12)",
             borderRadius:12,padding:"10px 14px",fontSize:".78rem",color:"rgba(255,255,255,.6)",marginBottom:12}}>
-            Motivo: {mod.reason}
+            {T.accReason} {mod.reason}
           </div>
         )}
         {!banned&&mod&&mod.until&&(
           <div style={{fontSize:".75rem",color:"rgba(255,255,255,.4)",marginBottom:16}}>
-            Podrás volver a entrar el {new Date(mod.until).toLocaleString("es-MX",{dateStyle:"medium",timeStyle:"short"})}
+            {T.accReturnDate.replace('{date}',new Date(mod.until).toLocaleString(T.locale,{dateStyle:"medium",timeStyle:"short"}))}
           </div>
         )}
         <div style={{fontSize:".72rem",color:"rgba(255,255,255,.35)",marginBottom:16}}>
-          Si crees que esto es un error, contáctanos desde otra cuenta usando el buzón de la app (⚙️ → Reportar bug / sugerir).
+          {T.accContact}
         </div>
         <button onClick={()=>signOut()} style={{
           background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.2)",
           color:"#fff",borderRadius:10,padding:"10px 20px",cursor:"pointer",
           fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".85rem"}}>
-          Cerrar sesión
+          {T.signOutBtn}
         </button>
       </div>
     </div>
@@ -1401,7 +3208,7 @@ function AccountBlockedScreen({mod}){
 }
 
 // ── AUTHSCREEN — Google / Email / Anónimo ──────────────────────
-function AuthScreen({onAuth}){
+function AuthScreen({onAuth,T}){
   const[mode,setMode]=React.useState("main"); // main | email-login | email-signup
   const[email,setEmail]=React.useState("");
   const[password,setPassword]=React.useState("");
@@ -1427,7 +3234,7 @@ function AuthScreen({onAuth}){
       if(e.code==="auth/popup-closed-by-user"){
         setErr(""); // cerraste la ventana a propósito, no es error real
       }else{
-        setErr(e.message||"Error con Google");
+        setErr(e.message||T.errGoogle);
       }
     }
     clearInterval(timer);setBusy(false);
@@ -1439,11 +3246,11 @@ function AuthScreen({onAuth}){
   async function handleGoogleRedirectManual(){
     snd("tap");setErr("");
     try{ await signInGoogleRedirect(); }
-    catch(e){ setErr(e.message||"No se pudo continuar con Google");setBusy(false); }
+    catch(e){ setErr(e.message||T.errGoogleContinue);setBusy(false); }
   }
 
   async function handleEmailLogin(){
-    if(!email||!password){setErr("Ingresa email y contraseña");return;}
+    if(!email||!password){setErr(T.errEnterEmailPass);return;}
     setBusy(true);setErr("");
     try{
       const r=await signInEmail(email,password);
@@ -1455,21 +3262,21 @@ function AuthScreen({onAuth}){
         try{
           const methods=await _auth.fetchSignInMethodsForEmail(email);
           if(methods.includes("google.com")&&!methods.includes("password")){
-            setErr("Esta cuenta se registró con Google, no con contraseña — usa \"Continuar con Google\" arriba.");
+            setErr(T.errRegisteredWithGoogle);
           }else{
-            setErr("Email o contraseña incorrectos");
+            setErr(T.errWrongCreds);
           }
-        }catch{setErr("Email o contraseña incorrectos");}
+        }catch{setErr(T.errWrongCreds);}
       }
-      else setErr(e.message||"Error al iniciar sesión");
+      else setErr(e.message||T.errLoginFailed);
     }
     setBusy(false);
   }
 
   async function handleEmailSignup(){
-    if(!name.trim()){setErr("Ingresa tu nombre");return;}
-    if(!email||!password){setErr("Ingresa email y contraseña");return;}
-    if(password.length<6){setErr("Mínimo 6 caracteres");return;}
+    if(!name.trim()){setErr(T.errEnterName);return;}
+    if(!email||!password){setErr(T.errEnterEmailPass);return;}
+    if(password.length<6){setErr(T.errMinChars);return;}
     setBusy(true);setErr("");
     try{
       const r=await signUpEmail(email,password,name.trim());
@@ -1477,8 +3284,8 @@ function AuthScreen({onAuth}){
       onAuth(r.user);
     }catch(e){
       if(e.code==="auth/email-already-in-use")
-        setErr("Este email ya tiene cuenta — inicia sesión");
-      else setErr(e.message||"Error al crear cuenta");
+        setErr(T.errEmailInUse);
+      else setErr(e.message||T.errSignupFailed);
     }
     setBusy(false);
   }
@@ -1490,9 +3297,9 @@ function AuthScreen({onAuth}){
       onAuth(r.user);
     }catch(e){
       if(e.code==="auth/admin-restricted-operation"){
-        setErr("Activa 'Anónimo' en Firebase Console → Authentication → Método de acceso");
+        setErr(T.errAnonDisabled);
       } else {
-        setErr(e.message||"Error al entrar sin cuenta");
+        setErr(e.message||T.errAnonFailed);
       }
     }
     setBusy(false);
@@ -1502,7 +3309,7 @@ function AuthScreen({onAuth}){
     <div className="wrap"><div className="page" style={{paddingTop:32,paddingBottom:40}}>
       {/* Logo */}
       <div style={{textAlign:"center",marginBottom:32}}>
-        {HERO_LOGO_TEST?<HeroLogo/>:<>
+        {HERO_LOGO_TEST?<HeroLogo T={T}/>:<>
         <div style={{fontSize:"3.5rem",marginBottom:8}}>🎴</div>
         <div className="hero-logo">FLIP 7</div>
         <div className="hero-tag">Race to 200!</div>
@@ -1524,19 +3331,19 @@ function AuthScreen({onAuth}){
             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
             <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
           </svg>
-          {busy?"Esperando a Google…":"Continuar con Google"}
+          {busy?T.waitingGoogle:T.continueGoogle}
         </button>
         {busy&&(
           <div style={{textAlign:"center",marginBottom:10,marginTop:-4}}>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
               color:"rgba(255,255,255,.4)"}}>
-              Puede tardar hasta 40 segundos — no cierres la ventana ({waitSecs}s)
+              {T.waitLong.replace('{n}',waitSecs)}
             </div>
             {waitSecs>=5&&(
               <div onClick={handleGoogleRedirectManual}
                 style={{marginTop:6,fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
                   color:"var(--t)",textDecoration:"underline",cursor:"pointer"}}>
-                ¿Se está tardando? Prueba con este otro método
+                {T.tryOtherMethod}
               </div>
             )}
           </div>
@@ -1548,14 +3355,14 @@ function AuthScreen({onAuth}){
           background:"rgba(255,255,255,.07)",border:"2px solid rgba(255,255,255,.15)",
           color:"rgba(255,255,255,.85)",fontSize:"1rem"
         }}>
-          ✉️ Continuar con Email
+          {T.continueEmail}
         </button>
 
         {/* Divider */}
         <div style={{display:"flex",alignItems:"center",gap:10,margin:"16px 0"}}>
           <div style={{flex:1,height:1,background:"rgba(255,255,255,.1)"}}/>
           <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
-            color:"rgba(255,255,255,.3)",letterSpacing:2}}>O SIN CUENTA</span>
+            color:"rgba(255,255,255,.3)",letterSpacing:2}}>{T.orNoAccount}</span>
           <div style={{flex:1,height:1,background:"rgba(255,255,255,.1)"}}/>
         </div>
 
@@ -1564,11 +3371,11 @@ function AuthScreen({onAuth}){
           background:"rgba(46,196,182,.1)",border:"2px solid rgba(46,196,182,.35)",
           color:"var(--t)",fontSize:".92rem",opacity:busy?.6:1
         }}>
-          👤 Jugar sin cuenta
+          {T.playNoAccount}
         </button>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
           color:"rgba(255,255,255,.2)",textAlign:"center",marginTop:8,letterSpacing:1}}>
-          Sin cuenta no se guarda tu historial entre dispositivos
+          {T.noAccountWarnHist}
         </div>
 
         {err&&<div style={{marginTop:14,padding:"10px 13px",background:"rgba(230,57,70,.15)",
@@ -1581,11 +3388,11 @@ function AuthScreen({onAuth}){
           background:"none",border:"none",color:"rgba(255,255,255,.4)",
           fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:1,
           cursor:"pointer",marginBottom:20,display:"flex",alignItems:"center",gap:5
-        }}>← Volver</button>
+        }}>{T.back}</button>
 
         {/* Tabs login / signup */}
         <div style={{display:"flex",gap:6,marginBottom:20}}>
-          {[["email-login","Iniciar sesión"],["email-signup","Crear cuenta"]].map(([m,lbl])=>(
+          {[["email-login",T.loginTab],["email-signup",T.createAccount]].map(([m,lbl])=>(
             <button key={m} onClick={()=>{setMode(m);setErr("");}} style={{
               flex:1,padding:"10px",borderRadius:11,cursor:"pointer",
               fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:1,
@@ -1597,12 +3404,12 @@ function AuthScreen({onAuth}){
         </div>
 
         {mode==="email-signup"&&(
-          <input className="inp" placeholder="Tu nombre" value={name}
+          <input className="inp" placeholder={T.namePlaceholder} value={name}
             onChange={e=>setName(e.target.value)} style={{marginBottom:8}}/>
         )}
-        <input className="inp" placeholder="Email" type="email" value={email}
+        <input className="inp" placeholder={T.emailPlaceholder} type="email" value={email}
           onChange={e=>setEmail(e.target.value)} style={{marginBottom:8}}/>
-        <input className="inp" placeholder="Contraseña (mín. 6 caracteres)" type="password"
+        <input className="inp" placeholder={T.passwordPlaceholder} type="password"
           value={password} onChange={e=>setPassword(e.target.value)} style={{marginBottom:16}}/>
 
         {err&&<div style={{marginBottom:12,padding:"10px 13px",background:"rgba(230,57,70,.15)",
@@ -1611,7 +3418,7 @@ function AuthScreen({onAuth}){
 
         <button className="btn btn-y" disabled={busy}
           onClick={mode==="email-login"?handleEmailLogin:handleEmailSignup}>
-          {busy?"⏳ ...":(mode==="email-login"?"🎮 Iniciar sesión":"🚀 Crear cuenta")}
+          {busy?T.waitingDots:(mode==="email-login"?T.loginBtn:T.signupBtn)}
         </button>
       </>)}
     </div></div>
@@ -1620,17 +3427,19 @@ function AuthScreen({onAuth}){
 
 // Formatea "hace cuánto" para últimas conexiones — global, la usan tanto
 // GroupsScreen como PersonalDashboard (Amigos).
-function fmtAgo(ts){
+function fmtAgo(ts,T){
+  T=T||LANGS.es;
   const diff=Date.now()-ts;
-  if(diff<60000)return"hace un momento";
-  if(diff<3600000)return"hace "+Math.floor(diff/60000)+"min";
-  if(diff<86400000)return"hace "+Math.floor(diff/3600000)+"h";
-  return"hace "+Math.floor(diff/86400000)+"d";
+  if(diff<60000)return T.agoNow;
+  if(diff<3600000)return T.agoMin.replace('{n}',Math.floor(diff/60000));
+  if(diff<86400000)return T.agoH.replace('{n}',Math.floor(diff/3600000));
+  return T.agoD.replace('{n}',Math.floor(diff/86400000));
 }
 
 // ── UPGRADE ACCOUNT MODAL — se dispara al tocar algo bloqueado en modo
 // anónimo. Vincula la sesión actual en vez de crear una cuenta nueva.
-function UpgradeAccountModal({onClose,onDone,featureLabel}){
+function UpgradeAccountModal({onClose,onDone,featureLabel,T}){
+  T=T||LANGS.es;
   const[mode,setMode]=React.useState("main");
   const[email,setEmail]=React.useState("");
   const[password,setPassword]=React.useState("");
@@ -1651,7 +3460,7 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
       }
     }catch(e){
       if(e.code==="auth/popup-closed-by-user")setErr("");
-      else setErr(e.message||"Error con Google");
+      else setErr(e.message||T.errGoogle);
     }
     clearInterval(timer);setBusy(false);
   }
@@ -1660,12 +3469,12 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
   async function handleGoogleRedirectManual(){
     snd("tap");setErr("");
     try{ await linkAnonToGoogleRedirect(); }
-    catch(e){ setErr(e.message||"No se pudo continuar con Google");setBusy(false); }
+    catch(e){ setErr(e.message||T.errGoogleContinue);setBusy(false); }
   }
   async function handleEmail(){
-    if(!name.trim()){setErr("Ingresa tu nombre");return;}
-    if(!email||!password){setErr("Ingresa email y contraseña");return;}
-    if(password.length<6){setErr("Mínimo 6 caracteres");return;}
+    if(!name.trim()){setErr(T.errEnterName);return;}
+    if(!email||!password){setErr(T.errEnterEmailPass);return;}
+    if(password.length<6){setErr(T.errMinChars);return;}
     setBusy(true);setErr("");
     try{
       const r=await linkAnonToEmail(email,password,name.trim());
@@ -1673,8 +3482,8 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
       onDone(r.user);
     }catch(e){
       if(e.code==="auth/email-already-in-use")
-        setErr("Este email ya tiene cuenta — inicia sesión desde 'salir' primero");
-      else setErr(e.message||"Error al crear cuenta");
+        setErr(T.errEmailInUse);
+      else setErr(e.message||T.errSignupFailed);
     }
     setBusy(false);
   }
@@ -1689,11 +3498,11 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
         <div style={{textAlign:"center",marginBottom:16}}>
           <div style={{fontSize:"2rem",marginBottom:6}}>🔒</div>
           <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:"1.05rem",color:"#fff"}}>
-            Crea tu cuenta para usar {featureLabel}
+            {T.createAccountFor.replace('{feature}',featureLabel)}
           </div>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
             color:"rgba(255,255,255,.4)",marginTop:6}}>
-            Tu progreso actual se queda igual — solo se vincula.
+            {T.progressKept}
           </div>
         </div>
 
@@ -1709,17 +3518,17 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
               <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
               <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
             </svg>
-            {busy?"Esperando a Google…":"Continuar con Google"}
+            {busy?T.waitingGoogle:T.continueGoogle}
           </button>
           {busy&&(
             <div style={{textAlign:"center",marginBottom:8,fontFamily:"'Righteous',sans-serif",
               fontSize:".6rem",color:"rgba(255,255,255,.4)"}}>
-              Puede tardar hasta 40 segundos — no cierres la ventana ({waitSecs}s)
+              {T.waitLong.replace('{n}',waitSecs)}
               {waitSecs>=5&&(
                 <div onClick={handleGoogleRedirectManual}
                   style={{marginTop:6,fontSize:".64rem",color:"var(--t)",
                     textDecoration:"underline",cursor:"pointer"}}>
-                  ¿Se está tardando? Prueba con este otro método
+                  {T.tryOtherMethod}
                 </div>
               )}
             </div>
@@ -1729,19 +3538,19 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
             border:"2px solid rgba(255,255,255,.15)",borderRadius:12,cursor:"pointer",
             fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".9rem",
             color:"rgba(255,255,255,.85)"}}>
-            ✉️ Continuar con Email
+            {T.continueEmail}
           </button>
         </>)}
 
         {mode==="email"&&(<>
-          <input className="inp" placeholder="Tu nombre" value={name}
+          <input className="inp" placeholder={T.namePlaceholder} value={name}
             onChange={e=>setName(e.target.value)} style={{marginBottom:8}}/>
-          <input className="inp" placeholder="Email" type="email" value={email}
+          <input className="inp" placeholder={T.emailPlaceholder} type="email" value={email}
             onChange={e=>setEmail(e.target.value)} style={{marginBottom:8}}/>
-          <input className="inp" placeholder="Contraseña (mín. 6 caracteres)" type="password"
+          <input className="inp" placeholder={T.passwordPlaceholder} type="password"
             value={password} onChange={e=>setPassword(e.target.value)} style={{marginBottom:10}}/>
           <button className="btn btn-y" disabled={busy} onClick={handleEmail} style={{marginBottom:8}}>
-            {busy?"⏳ ...":"🚀 Crear cuenta"}
+            {busy?T.waitingDots:T.signupBtn}
           </button>
         </>)}
 
@@ -1752,7 +3561,7 @@ function UpgradeAccountModal({onClose,onDone,featureLabel}){
         <button onClick={onClose} style={{width:"100%",background:"none",border:"none",
           color:"rgba(255,255,255,.35)",fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
           letterSpacing:1,cursor:"pointer",padding:"6px",marginTop:2}}>
-          Ahora no
+          {T.notNow}
         </button>
       </div>
     </div>
@@ -1800,21 +3609,21 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
       };
       await _db.ref('users/'+uid).update(profile);
       snd('join');
-      setOk('✅ Perfil guardado');
+      setOk(T.profileSaved);
       if(onSaved)onSaved(profile);
-    }catch(e){setOk('❌ Error: '+e.message);}
+    }catch(e){setOk('❌ '+T.errorPrefixLbl+' '+e.message);}
     setSaving(false);
   }
 
   if(isAnon){
-    const label=authUser.email||authUser.displayName||('Invitado '+uid.slice(0,5));
+    const label=authUser.email||authUser.displayName||(T.guestLabel+' '+uid.slice(0,5));
     return(
     <div className="wrap"><div className="page" style={{paddingTop:16}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
         <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
           color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
-          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
-        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:2,color:"var(--y)"}}>👤 PERFIL</div>
+          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>{T.back}</button>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:2,color:"var(--y)"}}>{T.profileTitle}</div>
       </div>
 
       {/* Identidad actual */}
@@ -1826,34 +3635,33 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
           <div style={{fontWeight:900,fontSize:".85rem",color:"rgba(255,255,255,.85)",
             whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{label}</div>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",letterSpacing:1,marginTop:2}}>
-            SIN CUENTA — sesión temporal
+            {T.guestSessionLabel}
           </div>
         </div>
       </div>
 
       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.4)",
         lineHeight:1.6,marginBottom:16}}>
-        Estás jugando sin cuenta: nada de esto se guarda de forma permanente, solo se usa mientras
-        siga abierta esta sesión del navegador. Si cierras la pestaña o entras desde otro dispositivo, se pierde.
+        {T.guestExplain}
       </div>
 
       {/* Seudónimo temporal */}
-      <p className="sec">TU SEUDÓNIMO PARA ESTA SESIÓN</p>
-      <input className="inp" value={anonNick} maxLength={20} placeholder="¿Cómo quieres que te vean en las partidas?"
+      <p className="sec">{T.anonNickLabel}</p>
+      <input className="inp" value={anonNick} maxLength={20} placeholder={T.anonNickPlaceholder}
         onChange={e=>setAnonNick(e.target.value)} style={{marginBottom:10}}/>
       {anonOk&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--gr)",
         textAlign:"center",marginBottom:10}}>{anonOk}</div>}
       <button className="btn btn-y" style={{marginBottom:20}} onClick={()=>{
         setAnonNickname(anonNick.trim());snd('join');
-        setAnonOk('✅ Guardado para esta sesión');
-      }}>💾 Usar este seudónimo</button>
+        setAnonOk('✅ '+T.savedSessionMsg);
+      }}>{T.useThisNick}</button>
 
       <div style={{borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:16,textAlign:"center"}}>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",
           marginBottom:12,lineHeight:1.5}}>
-          ¿Quieres que tu emoji, color y estadísticas se guarden entre partidas y dispositivos?
+          {T.wantSaveAcrossDevices}
         </div>
-        <button onClick={()=>signOut()} className="btn btn-g" style={{maxWidth:280,margin:"0 auto"}}>Crear cuenta</button>
+        <button onClick={()=>signOut()} className="btn btn-g" style={{maxWidth:280,margin:"0 auto"}}>{T.createAccount}</button>
       </div>
     </div></div>
     );
@@ -1864,13 +3672,13 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
         <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
           color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
-          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
-        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:2,color:"var(--y)"}}>👤 PERFIL</div>
+          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>{T.back}</button>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:2,color:"var(--y)"}}>{T.profileTitle}</div>
       </div>
 
       {loading?(
         <div style={{textAlign:"center",paddingTop:30,color:"rgba(255,255,255,.3)",
-          fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:2}}>CARGANDO...</div>
+          fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:2}}>{T.loadingCaps}</div>
       ):(<>
         {/* Identidad actual */}
         <div style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,.03)",
@@ -1886,7 +3694,7 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontWeight:900,fontSize:".85rem",color:"rgba(255,255,255,.85)",
               whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-              {authUser.displayName||authUser.email||"Cuenta"}
+              {authUser.displayName||authUser.email||T.providerAccount}
             </div>
             {authUser.email&&authUser.displayName&&
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",
@@ -1894,7 +3702,7 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
           </div>
           <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"var(--t)",
             background:"rgba(46,196,182,.1)",border:"1px solid rgba(46,196,182,.3)",borderRadius:20,
-            padding:"4px 9px",letterSpacing:1,flexShrink:0,whiteSpace:"nowrap"}}>{providerLabel(authUser)}</span>
+            padding:"4px 9px",letterSpacing:1,flexShrink:0,whiteSpace:"nowrap"}}>{providerLabel(authUser,T)}</span>
         </div>
 
         {/* Preview */}
@@ -1905,17 +3713,17 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
         </div>
 
         {/* Seudónimo para partidas */}
-        <p className="sec">TU SEUDÓNIMO PARA PARTIDAS</p>
+        <p className="sec">{T.nickForGamesLabel}</p>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",
           marginBottom:8,lineHeight:1.5}}>
-          Se usa para pre-llenar tu nombre al crear una partida, sin tener que cambiar tu nombre real de {providerLabel(authUser)}.
+          {T.nickForGamesDesc.replace('{provider}',providerLabel(authUser,T))}
         </div>
         <input className="inp" value={nickname} maxLength={20}
-          placeholder={authUser.displayName||(authUser.email||"").split("@")[0]||"Tu nombre en partidas"}
+          placeholder={authUser.displayName||(authUser.email||"").split("@")[0]||T.nickForGamesPlaceholder}
           onChange={e=>setNickname(e.target.value)} style={{marginBottom:16}}/>
 
         {/* Emoji por defecto */}
-        <p className="sec">TU EMOJI POR DEFECTO</p>
+        <p className="sec">{T.defaultEmojiLabel}</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6,marginBottom:16}}>
           {EMOJIS.map((e,i)=>(
             <button key={i} onClick={()=>{snd('tap');setEmoji(e);}}
@@ -1927,7 +3735,7 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
         </div>
 
         {/* Color por defecto */}
-        <p className="sec">TU COLOR POR DEFECTO</p>
+        <p className="sec">{T.defaultColorLabel}</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:18}}>
           {COLORS.map((c,i)=>(
             <button key={i} onClick={()=>{snd('tap');setColor(c);}}
@@ -1938,18 +3746,18 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
         </div>
 
         {/* Celebración favorita */}
-        <p className="sec">CELEBRACIÓN AL GANAR</p>
+        <p className="sec">{T.celebrationLabel}</p>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",
           marginBottom:10,lineHeight:1.5}}>
-          Se aplica solo en TU pantalla cuando SOS quien gana. Los demás jugadores siguen viendo su propio sorteo.
+          {T.celebrationDesc}
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
           {[
-            {v:'random',icon:'🎲',label:'Aleatoria',sub:'Sorprende cada vez (como hasta ahora)'},
-            {v:0,icon:'🏆',label:'Original',sub:'Dorado — confeti clásico'},
-            {v:1,icon:'🎆',label:'Victoria Explosiva',sub:'Teal / morado'},
-            {v:2,icon:'👑',label:'Coronado',sub:'Morado claro'},
-            {v:3,icon:'🐒',label:'Selva',sub:'Verde — hojas y tambores'},
+            {v:'random',icon:'🎲',label:T.celebRandom,sub:T.celebRandomSub},
+            {v:0,icon:'🏆',label:T.celebOriginal,sub:T.celebOriginalSub},
+            {v:1,icon:'🎆',label:T.celebExplosive,sub:T.celebExplosiveSub},
+            {v:2,icon:'👑',label:T.celebCrowned,sub:T.celebCrownedSub},
+            {v:3,icon:'🐒',label:T.celebJungle,sub:T.celebJungleSub},
           ].map(opt=>(
             <button key={opt.v} onClick={()=>{snd('tap');setCelebration(opt.v);}}
               style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",borderRadius:12,cursor:"pointer",
@@ -1968,7 +3776,7 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
 
         {ok&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
           color:ok.indexOf('✅')===0?"var(--gr)":"var(--r)",textAlign:"center",marginBottom:10}}>{ok}</div>}
-        <button className="btn btn-y" disabled={saving} onClick={save}>{saving?"⏳ Guardando...":"💾 Guardar perfil"}</button>
+        <button className="btn btn-y" disabled={saving} onClick={save}>{saving?T.savingBtn:T.saveProfileBtn}</button>
       </>)}
     </div></div>
   );
@@ -1978,34 +3786,27 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
 // Modal accesible desde el menú de Home. Cualquier jugador (con cuenta o
 // anónimo) puede reportar un error o sugerir un juego nuevo -- se guarda en
 // Firebase y aparece en el panel administrativo (admin.html).
-const FEEDBACK_SCREENS=[
-  {v:"home",l:"🏠 Inicio"},
-  {v:"create",l:"➕ Crear sala"},
-  {v:"join",l:"🔑 Unirse a una sala"},
-  {v:"round",l:"🎲 Ronda / Marcador"},
-  {v:"table",l:"📋 Tabla de rondas"},
-  {v:"spectator",l:"📺 Marcador en vivo (espectador)"},
-  {v:"scanner",l:"📷 Escáner de cartas (IA)"},
-  {v:"stats",l:"📊 Estadísticas"},
-  {v:"profile",l:"👤 Perfil"},
-  {v:"groups",l:"👥 Grupos"},
-  {v:"other",l:"❓ Otra / no estoy seguro"}
-];
-const FEEDBACK_CATEGORIES=[
-  {v:"crash",l:"🖤 Se puso en negro / se cerró"},
-  {v:"notsaved",l:"💾 No se guardó mi puntaje"},
-  {v:"ai",l:"🤖 El escáner de cartas (IA) falló"},
-  {v:"connection",l:"📡 No pude entrar o conectarme a la sala"},
-  {v:"visual",l:"🎨 Algo se ve mal (visual)"},
-  {v:"other",l:"❓ Otro"}
-];
+function feedbackScreens(T){
+  return[
+    {v:"home",l:T.fsHome},{v:"create",l:T.fsCreate},{v:"join",l:T.fsJoin},
+    {v:"round",l:T.fsRound},{v:"table",l:T.fsTable},{v:"spectator",l:T.fsSpectator},
+    {v:"scanner",l:T.fsScanner},{v:"stats",l:T.fsStats},{v:"profile",l:T.fsProfile},
+    {v:"groups",l:T.fsGroups},{v:"other",l:T.fsOther}
+  ];
+}
+function feedbackCategories(T){
+  return[
+    {v:"crash",l:T.fcCrash},{v:"notsaved",l:T.fcNotSaved},{v:"ai",l:T.fcAi},
+    {v:"connection",l:T.fcConnection},{v:"visual",l:T.fcVisual},{v:"other",l:T.fcOther}
+  ];
+}
 // Los <select> nativos no siempre heredan bien los colores del tema en el
 // popup de opciones (queda texto claro sobre fondo blanco en varios
 // navegadores/WebViews, invisible) -- forzando el estilo directo en cada
 // <option> se ve consistente en Chrome/Android (el WebView que usará el APK).
 const OPTION_STYLE={background:"#1a1a2e",color:"#fff"};
 
-function FeedbackModal({onClose,authUser}){
+function FeedbackModal({onClose,authUser,T}){
   const[type,setType]=React.useState("bug"); // bug | suggestion
   const[text,setText]=React.useState("");
   const[screen,setScreen]=React.useState("home");
@@ -2016,13 +3817,15 @@ function FeedbackModal({onClose,authUser}){
   const[sent,setSent]=React.useState(false);
   const[err,setErr]=React.useState("");
   const fileRef=React.useRef();
+  const FEEDBACK_SCREENS=feedbackScreens(T);
+  const FEEDBACK_CATEGORIES=feedbackCategories(T);
 
   // Identidad FIJA, tomada de la misma cuenta con la que se inició sesión
   // (el mismo nombre que se ve en el pill del encabezado) -- ya no es un
   // campo de texto libre, así nadie puede escribir un nombre de broma.
   const identityLabel = (authUser&&!authUser.isAnonymous)
-    ? (authUser.displayName||(authUser.email||"").split("@")[0]||"Sin nombre")
-    : "Jugador anónimo (sin cuenta)";
+    ? (authUser.displayName||(authUser.email||"").split("@")[0]||T.noNameLabel)
+    : T.anonPlayerLabel;
 
   // Comprime la captura igual que las fotos del escáner de cartas (mismo
   // patrón que ScanModal.handleFile): máx 1024px de lado, JPEG calidad .7.
@@ -2041,14 +3844,14 @@ function FeedbackModal({onClose,authUser}){
         var compressed=canvas.toDataURL("image/jpeg",.7);
         setImage({b64:compressed.split(",")[1],mime:"image/jpeg",preview:compressed});
       };
-      imgEl.onerror=function(){setImgErr("No se pudo leer esa imagen. Intenta con otra.");};
+      imgEl.onerror=function(){setImgErr(T.couldntReadImage);};
       imgEl.src=ev.target.result;
     };
     r.readAsDataURL(f);
   }
 
   async function handleSubmit(){
-    if(!text.trim()){setErr("Escribe algo antes de enviar.");return;}
+    if(!text.trim()){setErr(T.feedbackEmptyErr);return;}
     setSending(true);setErr("");
     try{
       var path=type==="bug"?"feedback/bugs":"feedback/suggestions";
@@ -2072,7 +3875,7 @@ function FeedbackModal({onClose,authUser}){
       snd("score");
       setSent(true);
     }catch(e){
-      setErr("No se pudo enviar. Revisa tu conexión e intenta de nuevo.");
+      setErr(T.feedbackSendErr);
     }finally{
       setSending(false);
     }
@@ -2089,29 +3892,29 @@ function FeedbackModal({onClose,authUser}){
         {sent ? (
           <div style={{textAlign:"center",padding:"18px 6px"}}>
             <div style={{fontSize:"2.5rem",marginBottom:10}}>✅</div>
-            <div style={{fontWeight:900,fontSize:"1rem",marginBottom:6}}>¡Gracias!</div>
+            <div style={{fontWeight:900,fontSize:"1rem",marginBottom:6}}>{T.feedbackThanks}</div>
             <div style={{color:"rgba(255,255,255,.6)",fontSize:".82rem",marginBottom:16,lineHeight:1.4}}>
               {type==="bug"
-                ? "Ya lo tenemos anotado, lo revisamos pronto."
-                : "Tu idea quedó guardada, la consideramos para futuras versiones."}
+                ? T.feedbackThanksBug
+                : T.feedbackThanksSuggestion}
             </div>
-            <button className="mo" style={{width:"100%"}} onClick={onClose}>Cerrar</button>
+            <button className="mo" style={{width:"100%"}} onClick={onClose}>{T.closeBtn}</button>
           </div>
         ) : (
           <>
-            <div className="mt2">🗳️ Buzón de Score 7</div>
+            <div className="mt2">{T.feedbackTitle}</div>
             <div style={{display:"flex",gap:8,marginBottom:12,marginTop:10}}>
-              <button className={type==="bug"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("bug");}}>✍️ Reportar un error</button>
-              <button className={type==="suggestion"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("suggestion");}}>💡 Sugerir juego</button>
+              <button className={type==="bug"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("bug");}}>{T.reportBug}</button>
+              <button className={type==="suggestion"?"mo":"mc"} style={{flex:1}} onClick={()=>{snd("tap");setType("suggestion");}}>{T.suggestGame}</button>
             </div>
 
             {type==="bug" && (<>
-              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:5}}>¿EN QUÉ PANTALLA?</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:5}}>{T.whichScreen}</div>
               <select value={screen} onChange={e=>setScreen(e.target.value)} style={selectStyle}>
                 {FEEDBACK_SCREENS.map(o=><option key={o.v} value={o.v} style={OPTION_STYLE}>{o.l}</option>)}
               </select>
 
-              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:5}}>¿QUÉ TIPO DE ERROR?</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:5}}>{T.whatErrorType}</div>
               <select value={category} onChange={e=>setCategory(e.target.value)} style={selectStyle}>
                 {FEEDBACK_CATEGORIES.map(o=><option key={o.v} value={o.v} style={OPTION_STYLE}>{o.l}</option>)}
               </select>
@@ -2119,8 +3922,8 @@ function FeedbackModal({onClose,authUser}){
 
             <textarea value={text} onChange={e=>setText(e.target.value)} rows={5}
               placeholder={type==="bug"
-                ? "Cuéntanos qué pasó y qué esperabas que pasara..."
-                : "¿Qué juego o función te gustaría ver en la app?"}
+                ? T.feedbackBugPlaceholder
+                : T.feedbackSuggestPlaceholder}
               style={{width:"100%",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.15)",
                 borderRadius:10,padding:10,color:"#fff",fontFamily:"'Nunito',sans-serif",fontSize:".85rem",
                 resize:"vertical",marginBottom:10,boxSizing:"border-box"}}/>
@@ -2132,13 +3935,13 @@ function FeedbackModal({onClose,authUser}){
                 style={{width:"100%",background:"rgba(255,255,255,.04)",border:"1px dashed rgba(255,255,255,.25)",
                   borderRadius:10,padding:10,color:"rgba(255,255,255,.55)",fontFamily:"'Nunito',sans-serif",
                   fontSize:".8rem",marginBottom:10,cursor:"pointer"}}>
-                📎 Adjuntar captura de pantalla (opcional)
+                {T.attachScreenshot}
               </button>
             ) : (
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,
                 background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.12)",borderRadius:10,padding:8}}>
                 <img src={image.preview} alt="captura" style={{width:52,height:52,objectFit:"cover",borderRadius:8}}/>
-                <div style={{flex:1,fontSize:".72rem",color:"rgba(255,255,255,.6)"}}>Captura adjunta</div>
+                <div style={{flex:1,fontSize:".72rem",color:"rgba(255,255,255,.6)"}}>{T.screenshotAttached}</div>
                 <button type="button" onClick={()=>{snd("tap");setImage(null);if(fileRef.current)fileRef.current.value="";}}
                   style={{background:"none",border:"none",color:"rgba(255,255,255,.5)",fontSize:"1rem",cursor:"pointer"}}>✕</button>
               </div>
@@ -2147,14 +3950,14 @@ function FeedbackModal({onClose,authUser}){
 
             <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,
               background:"rgba(255,255,255,.04)",borderRadius:10,padding:"8px 10px"}}>
-              <span style={{fontSize:".7rem",color:"rgba(255,255,255,.4)"}}>Enviando como:</span>
+              <span style={{fontSize:".7rem",color:"rgba(255,255,255,.4)"}}>{T.sendingAs}</span>
               <span style={{fontSize:".78rem",fontWeight:800,color:"#fff"}}>{identityLabel}</span>
             </div>
 
             {err&&<div style={{color:"#FF5A5A",fontSize:".75rem",marginBottom:8,textAlign:"center"}}>{err}</div>}
             <div className="mr2">
-              <button className="mc" onClick={()=>{snd("tap");onClose();}}>Cancelar</button>
-              <button className="mo" disabled={sending} onClick={handleSubmit}>{sending?"Enviando...":"Enviar"}</button>
+              <button className="mc" onClick={()=>{snd("tap");onClose();}}>{T.cancel}</button>
+              <button className="mo" disabled={sending} onClick={handleSubmit}>{sending?T.sendingBtn:T.sendBtn}</button>
             </div>
           </>
         )}
@@ -2368,7 +4171,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
   },[names.length]);
 
   const isAnonHome=authUser&&authUser.isAnonymous;
-  const LOCKED_VIEWS={grupos:"Grupos",perfil:"Perfil"}; // stats NO se bloquea: ya tiene fallback público (StatsScreen)
+  const LOCKED_VIEWS={grupos:T.groupsFeatureLbl,perfil:T.profileMenuItem.replace("👤 ","")}; // stats NO se bloquea: ya tiene fallback público (StatsScreen)
   const[joinIntent,setJoinIntent]=React.useState("play"); // play | spectate
   const go=v=>{
     if(isAnonHome&&LOCKED_VIEWS[v]){
@@ -2429,7 +4232,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
   },[authUser]);
   const[dashboardMode,setDashboardMode]=React.useState("stats");
   const goDashboard=tab=>{
-    if(isAnonHome&&tab==="friends"){snd('tap');setUpgradeModal({label:"Amigos"});return;}
+    if(isAnonHome&&tab==="friends"){snd('tap');setUpgradeModal({label:T.friendsMenuLbl});return;}
     snd('tap');setDashboardTab(tab);setDashboardMode(tab==="friends"?"friends":"stats");setView("stats");
   };
 
@@ -2441,7 +4244,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
     // todos los que venían después.
     const idxs=names.map((n,i)=>i).filter(i=>names[i].trim());
     const ns=idxs.map(i=>names[i]);
-    if(ns.length<2){setErr({msg:"Necesitas al menos 2 jugadores.",steps:[]});return;}
+    if(ns.length<2){setErr({msg:T.need2PlayersErr,steps:[]});return;}
     setBusy(true);setErr(null);
     try{
       await onEnter({names:ns,demo:false,
@@ -2450,17 +4253,17 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
         customUids:idxs.map(i=>playerUids[i]),
         hostName:jname.trim()||ns[0],gameMode:gameMode,groupId:selectedGroup?selectedGroup.id:null,winTarget:winTarget,autoCloseRound:autoCloseRound});
     }
-    catch(e){setErr(classifyError(e));}
+    catch(e){setErr(classifyError(e,T));}
     setBusy(false);
   }
 
   async function tryJoin(asSpectator=false){
-    if(jcode.length<4){setErr({msg:"Código de 4 caracteres.",steps:[]});return;}
-    if(!asSpectator&&!jname.trim()){setErr({msg:"Ingresa tu nombre.",steps:[]});return;}
+    if(jcode.length<4){setErr({msg:T.code4CharsErr,steps:[]});return;}
+    if(!asSpectator&&!jname.trim()){setErr({msg:T.enterNameErr,steps:[]});return;}
     setBusy(true);setErr(null);
     try{
       const db=makeDB(false);const r=await db.get("rooms/"+jcode.toUpperCase());
-      if(!r){setErr({msg:"Sala \""+jcode.toUpperCase()+"\" no encontrada.",steps:["Pide el código al admin"]});setBusy(false);return;}
+      if(!r){setErr({msg:T.roomNotFoundTpl.replace('{code}',jcode.toUpperCase()),steps:[T.askAdminCodeStep]});setBusy(false);return;}
       if(asSpectator){snd('join');await onEnter({demo:false,spectator:true,code:jcode.toUpperCase()});setBusy(false);return;}
       const inputName=jname.trim().toLowerCase();
       // Buscar si hay un jugador con ese nombre
@@ -2488,18 +4291,18 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
           setRoomPlayers(r.players);setPickingPlayer(true);
         }
       }
-    }catch(e){setErr(classifyError(e));}
+    }catch(e){setErr(classifyError(e,T));}
     setBusy(false);
   }
 
   async function pickPlayer(player){
     snd('join');
     try{await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:player.id});}
-    catch(e){setErr(classifyError(e));}
+    catch(e){setErr(classifyError(e,T));}
   }
 
   async function joinAsNew(){
-    if(!jname.trim()){setErr({msg:"Ingresa tu nombre.",steps:[]});return;}
+    if(!jname.trim()){setErr({msg:T.enterNameErr,steps:[]});return;}
     setBusy(true);setErr(null);
     try{
       const r=await makeDB(false).get("rooms/"+jcode.toUpperCase());
@@ -2514,7 +4317,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
       r.players=[...r.players,newP];
       await _db.ref("rooms/"+jcode.toUpperCase()).set(r);
       snd('join');await onEnter({demo:false,spectator:false,code:jcode.toUpperCase(),playerId:newP.id});
-    }catch(e){setErr(classifyError(e));}
+    }catch(e){setErr(classifyError(e,T));}
     setBusy(false);
   }
 
@@ -2530,12 +4333,12 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
     try{
       const db=makeDB(false);const r=await db.get("rooms/"+code.toUpperCase());
       if(!r){
-        setErr({msg:"Esa sala ya no existe.",steps:[]});
+        setErr({msg:T.roomNoLongerExistsErr,steps:[]});
         if(onMissing)onMissing();
         setBusy(false);return;
       }
       if(r.finished||r.forceEnded){
-        setErr({msg:"Esa partida ya terminó.",steps:[]});
+        setErr({msg:T.gameAlreadyEndedErr,steps:[]});
         if(onMissing)onMissing();
         setBusy(false);return;
       }
@@ -2556,7 +4359,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
           setRoomPlayers(r.players);setPickingPlayer(true);
         }
       }
-    }catch(e){setErr(classifyError(e));}
+    }catch(e){setErr(classifyError(e,T));}
     setBusy(false);
   }
   async function quickJoinGroup(g){
@@ -2576,12 +4379,12 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
         <div style={{fontSize:"2.2rem",marginBottom:8}}>🎮</div>
         <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:"1.1rem",color:"#fff",marginBottom:4}}>
           {roomInvite.source==="friend"
-            ? "¡"+roomInvite.hostName+" te invitó a jugar!"
-            : "¡Partida en "+roomInvite.group.name+"!"}
+            ? "¡"+roomInvite.hostName+" "+T.invitedYouToPlay
+            : "¡"+T.gameInGroupTpl.replace('{group}',roomInvite.group.name)}
         </div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
           color:"rgba(255,255,255,.4)",marginBottom:18}}>
-          Alguien ya empezó a jugar — únete ahora
+          {T.someoneStarted}
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>{
@@ -2594,7 +4397,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
             }
           }} style={{flex:1,background:"var(--gr)",border:"none",borderRadius:12,padding:"11px",
               cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".85rem",color:"#fff"}}>
-            ✅ Unirme
+            {T.joinNowBtn}
           </button>
           <button onClick={()=>{
             if(roomInvite.source==="friend")_db.ref("users/"+authUser.uid+"/pendingInvite").set(null).catch(()=>{});
@@ -2602,7 +4405,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
           }} style={{flex:1,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
               borderRadius:12,padding:"11px",cursor:"pointer",fontFamily:"'Nunito',sans-serif",
               fontWeight:900,fontSize:".85rem",color:"rgba(255,255,255,.6)"}}>
-            Ahora no
+            {T.notNowLbl}
           </button>
         </div>
       </div>
@@ -2620,7 +4423,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
       <div className="create-body">
       {(<>
         {/* ── SELECTOR DE MODO ── */}
-        <p className="sec" style={{marginBottom:8}}>MODO DE JUEGO</p>
+        <p className="sec" style={{marginBottom:8}}>{T.gameModeLabel}</p>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
           {Object.values(GAME_MODES).map(mode=>{
             const isSel=gameMode===mode.id;
@@ -2665,12 +4468,12 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
                 <div style={{fontFamily:"'Nunito',sans-serif",fontSize:".65rem",
                   color:"rgba(255,255,255,.45)",fontWeight:700,lineHeight:1.4}}>
                   {mode.comingSoon
-                    ? <span style={{color:mode.color,fontFamily:"'Righteous',sans-serif",fontSize:".6rem"}}>📋 Requiere manual oficial</span>
-                    : mode.desc}
+                    ? <span style={{color:mode.color,fontFamily:"'Righteous',sans-serif",fontSize:".6rem"}}>{T.requiresManual}</span>
+                    : (mode.id==="venganza"?T.modeVenganzaDesc:T.modeClassicDesc)}
                 </div>
                 {isSel&&!mode.comingSoon&&(
                   <div style={{marginTop:8,borderTop:"1px solid "+mode.color+"33",paddingTop:8}}>
-                    {mode.rules.map((r,ri)=>(
+                    {(mode.id==="venganza"?T.modeVenganzaRules:T.modeClassicRules).map((r,ri)=>(
                       <div key={ri} style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
                         color:mode.color,letterSpacing:.5,display:"flex",gap:4,marginBottom:2}}>
                         <span style={{opacity:.6}}>▸</span><span>{r}</span>
@@ -2693,34 +4496,34 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
           <div style={{marginTop:0,background:"rgba(245,200,0,.06)",border:"1px solid rgba(245,200,0,.18)",
             borderRadius:12,padding:"10px 13px",marginBottom:10}}>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"var(--y)",
-              letterSpacing:2,marginBottom:6}}>CÓMO FUNCIONA</div>
+              letterSpacing:2,marginBottom:6}}>{T.howItWorks}</div>
             <div style={{fontSize:".76rem",color:"rgba(255,255,255,.6)",lineHeight:1.75,fontWeight:700}}>
-              🃏 <b style={{color:"rgba(255,255,255,.85)"}}>Cartas 0–12</b> · suma los valores de tu mano.<br/>
-              💀 <b style={{color:"rgba(255,255,255,.85)"}}>Carta duplicada</b> = bust, cero pts en la ronda.<br/>
-              ⭐ <b style={{color:"var(--y)"}}>Flip 7</b>: 7 cartas únicas = +15 pts bonus + fin de ronda.<br/>
-              🔧 <b style={{color:"rgba(255,255,255,.85)"}}>Modificadores:</b> ×2, +2 al +10 sobre tu suma.<br/>
-              🏆 <b style={{color:"var(--y)"}}>Meta {winTarget} pts</b> · primero en llegar gana.
+              🃏 <b style={{color:"rgba(255,255,255,.85)"}}>{T.ruleClassicCards}</b>{T.ruleClassicCardsDesc}<br/>
+              💀 <b style={{color:"rgba(255,255,255,.85)"}}>{T.ruleDupTitle}</b>{T.ruleDupDesc}<br/>
+              ⭐ <b style={{color:"var(--y)"}}>{T.ruleFlip7Title}</b>{T.ruleFlip7Desc}<br/>
+              🔧 <b style={{color:"rgba(255,255,255,.85)"}}>{T.ruleModTitle}</b>{T.ruleModDesc}<br/>
+              🏆 <b style={{color:"var(--y)"}}>{T.goalPointsLabel.charAt(0)+T.goalPointsLabel.slice(1).toLowerCase()} {winTarget} pts</b>{T.ruleGoalDesc}
             </div>
           </div>
         ):(
           <div style={{marginTop:0,background:"rgba(230,57,70,.06)",border:"1px solid rgba(230,57,70,.2)",
             borderRadius:12,padding:"10px 13px",marginBottom:10}}>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"var(--r)",
-              letterSpacing:2,marginBottom:6}}>CÓMO FUNCIONA</div>
+              letterSpacing:2,marginBottom:6}}>{T.howItWorks}</div>
             <div style={{fontSize:".76rem",color:"rgba(255,255,255,.6)",lineHeight:1.75,fontWeight:700}}>
-              💀 <b style={{color:"rgba(255,255,255,.85)"}}>Cartas 0–13</b> · incluye especiales: Zero, Unlucky 7, Lucky 13.<br/>
-              🔴 <b style={{color:"rgba(255,255,255,.85)"}}>Duplicado</b> = bust · Unlucky 7 = pierdes tus cartas, queda el 7.<br/>
-              ⭐ <b style={{color:"var(--r)"}}>Flip 7</b>: 7 cartas únicas = +15 pts bonus + fin de ronda.<br/>
-              🔧 <b style={{color:"rgba(255,255,255,.85)"}}>Modificadores negativos</b> (te los juegan): ÷2, −2 al −10.<br/>
-              ⚡ <b style={{color:"rgba(255,255,255,.85)"}}>Acciones:</b> Swap, Steal, Discard, Flip Four, Just One More.<br/>
-              🏆 <b style={{color:"var(--r)"}}>Meta {winTarget} pts</b> · primero en llegar gana.
+              💀 <b style={{color:"rgba(255,255,255,.85)"}}>{T.ruleVengCards}</b>{T.ruleVengCardsDesc}<br/>
+              🔴 <b style={{color:"rgba(255,255,255,.85)"}}>{T.ruleVengDupTitle}</b>{T.ruleVengDupDesc}<br/>
+              ⭐ <b style={{color:"var(--r)"}}>{T.ruleFlip7Title}</b>{T.ruleFlip7Desc}<br/>
+              🔧 <b style={{color:"rgba(255,255,255,.85)"}}>{T.ruleVengModTitle}</b>{T.ruleVengModDesc}<br/>
+              ⚡ <b style={{color:"rgba(255,255,255,.85)"}}>{T.ruleVengActionsTitle}</b>{T.ruleVengActionsDesc}<br/>
+              🏆 <b style={{color:"var(--r)"}}>{T.goalPointsLabel.charAt(0)+T.goalPointsLabel.slice(1).toLowerCase()} {winTarget} pts</b>{T.ruleGoalDesc}
             </div>
           </div>
         )}
 
         {/* Meta de puntos configurable — 200 es el estándar oficial, 150
             es la alternativa más común para partidas más cortas */}
-        <p className="sec" style={{marginBottom:8}}>META DE PUNTOS</p>
+        <p className="sec" style={{marginBottom:8}}>{T.goalPointsLabel}</p>
         <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
           {[100,150,200,250,300].map(t=>(
             <button key={t} onClick={()=>{snd('tap');setWinTarget(t);}}
@@ -2730,7 +4533,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
                 border:"1.5px solid "+(winTarget===t?"transparent":"rgba(255,255,255,.12)"),
                 color:winTarget===t?"var(--dark)":"rgba(255,255,255,.55)"}}>
               {t}{t===200&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".45rem",
-                letterSpacing:0,marginTop:1,opacity:.7}}>ESTÁNDAR</div>}
+                letterSpacing:0,marginTop:1,opacity:.7}}>{T.standardLbl}</div>}
             </button>
           ))}
         </div>
@@ -2746,11 +4549,11 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
           <div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",
               color:autoCloseRound?"var(--gr)":"rgba(255,255,255,.5)",letterSpacing:.5}}>
-              ⚡ Auto-cerrar ronda cuando todos terminen
+              {T.autoCloseRound}
             </div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
               color:"rgba(255,255,255,.3)",marginTop:2}}>
-              Puedes cambiarlo después, dentro del juego
+              {T.canChangeLater}
             </div>
           </div>
           <div style={{width:34,height:19,borderRadius:20,position:"relative",flexShrink:0,
@@ -2766,7 +4569,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
         <div className="create-footer">
           <button className="btn btn-y" style={{marginBottom:8}}
             onClick={()=>{snd('tap');setCreateStep("players");}}>
-            Siguiente →
+            {T.nextArrow}
           </button>
           <button className="btn btn-g" onClick={()=>go("main")}>{T.back}</button>
         </div>
@@ -2803,14 +4606,14 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
         return(
         <div className="create-body" style={{paddingTop:0}}>
           <button className="btn2 btn2-off" onClick={()=>{snd('tap');setCreateStep("mode");}}
-            style={{padding:"7px 14px",fontSize:".68rem",width:"auto"}}>← Tipo de juego</button>
+            style={{padding:"7px 14px",fontSize:".68rem",width:"auto"}}>{T.backToGameType}</button>
           <div style={{textAlign:"center",fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",
             color:"var(--y)",letterSpacing:3,margin:"14px 0 16px",
-            textShadow:"0 0 20px rgba(245,200,0,.3)"}}>JUGADORES</div>
+            textShadow:"0 0 20px rgba(245,200,0,.3)"}}>{T.playersCapsHeader}</div>
 
           {/* Selector de modo para llenar jugadores */}
           <div style={{display:"flex",gap:6,marginBottom:14}}>
-            {[["manual","✍️ Manual"],["amigos","👥 Amigos"],["grupo","🎭 Grupo"]].map(([id,lbl])=>(
+            {[["manual","✍️ "+T.manualModeLbl],["amigos","👥 "+T.friendsMenuLbl],["grupo","🎭 "+T.groupModeLbl]].map(([id,lbl])=>(
               <button key={id} className={"btn2 "+(playerMode===id?"btn2-on":"btn2-off")}
                 onClick={()=>{snd('tap');setPlayerMode(id);}}
                 style={{flex:1,padding:"11px 4px",fontSize:".7rem"}}>
@@ -2825,18 +4628,18 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
               {friendsHome.length===0
                 ? <div style={{textAlign:"center",padding:"14px",color:"rgba(255,255,255,.3)",
                     fontFamily:"'Righteous',sans-serif",fontSize:".7rem"}}>
-                    Aún no tienes amigos agregados
+                    {T.noFriendsYet}
                   </div>
                 : <>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                       <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)"}}>
-                        {Object.values(pickedFriends).filter(Boolean).length} seleccionados
+                        {Object.values(pickedFriends).filter(Boolean).length} {T.selectedCountWord||T.grpMembersWord}
                       </span>
                       <span style={{display:"flex",gap:10}}>
                         <span onClick={()=>{const all={};friendsHome.forEach(f=>all[f.uid]=true);setPickedFriends(all);}}
-                          style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",cursor:"pointer"}}>Todos</span>
+                          style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",cursor:"pointer"}}>{T.selectAll}</span>
                         <span onClick={()=>setPickedFriends({})}
-                          style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",cursor:"pointer"}}>Ninguno</span>
+                          style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",cursor:"pointer"}}>{T.selectNone}</span>
                       </span>
                     </div>
                     {friendsHome.map(f=>{
@@ -2864,7 +4667,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
                               color:sel?"var(--gr)":"rgba(255,255,255,.75)"}}>{f.name}</div>
                             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
                               letterSpacing:1,color:isOnline?"var(--gr)":"rgba(255,255,255,.25)"}}>
-                              {isOnline?"● en línea":"○ offline"}
+                              {isOnline?T.onlineDotLbl:T.offlineDotLbl}
                             </div>
                           </div>
                           {sel&&<span style={{color:"var(--gr)",fontSize:"1rem"}}>✓</span>}
@@ -2877,7 +4680,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
                     }} disabled={!Object.values(pickedFriends).some(Boolean)}
                       style={{marginTop:6,fontSize:".82rem",padding:"10px",
                         opacity:Object.values(pickedFriends).some(Boolean)?1:.4}}>
-                      ✅ Usar seleccionados
+                      {T.useSelected}
                     </button>
                   </>
               }
@@ -2890,10 +4693,10 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
               {myGroupsHome.length===0
                 ? <div style={{textAlign:"center",padding:"14px",color:"rgba(255,255,255,.3)",
                     fontFamily:"'Righteous',sans-serif",fontSize:".7rem"}}>
-                    Aún no tienes grupos
+                    {T.noGroupsYet}
                   </div>
                 : <>
-                    <p className="sec" style={{marginBottom:8,marginTop:0}}>GRUPOS DISPONIBLES</p>
+                    <p className="sec" style={{marginBottom:8,marginTop:0}}>{T.groupsAvailable}</p>
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
                       {myGroupsHome.map(g=>(
                         <button key={g.id} onClick={()=>{
@@ -2919,21 +4722,21 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
                     {pickedGroupForPlayers&&(<>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)"}}>
-                          {Object.values(pickedGroupMembers).filter(Boolean).length} seleccionados
+                          {Object.values(pickedGroupMembers).filter(Boolean).length} {T.selectedCountWord||T.grpMembersWord}
                         </span>
                         <span style={{display:"flex",gap:10}}>
                           <span onClick={()=>{
                             const all={};
                             Object.keys(pickedGroupForPlayers.members||{}).forEach(muid=>{if(muid!==authUser.uid)all[muid]=true;});
                             setPickedGroupMembers(all);
-                          }} style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",cursor:"pointer"}}>Todos</span>
+                          }} style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",cursor:"pointer"}}>{T.selectAll}</span>
                           <span onClick={()=>setPickedGroupMembers({})}
-                            style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",cursor:"pointer"}}>Ninguno</span>
+                            style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",cursor:"pointer"}}>{T.selectNone}</span>
                         </span>
                       </div>
                       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
                         color:"rgba(255,255,255,.3)",marginBottom:10,lineHeight:1.5}}>
-                        Toca a cada integrante para incluirlo o excluirlo de esta partida.
+                        {T.tapToIncludeExclude}
                       </div>
                     </>)}
                     {pickedGroupForPlayers&&Object.entries(pickedGroupForPlayers.members||{}).map(([muid,m])=>{
@@ -2967,7 +4770,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
                       }} disabled={!Object.values(pickedGroupMembers).some(Boolean)}
                         style={{marginTop:6,fontSize:".82rem",padding:"10px",
                           opacity:Object.values(pickedGroupMembers).some(Boolean)?1:.4}}>
-                        ✅ Usar seleccionados
+                        {T.useSelected}
                       </button>
                     )}
                   </>
@@ -3014,18 +4817,18 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
       {/* Banner de reconexión rápida */}
       {reconnectReady&&lastKnownCode&&(
         <div style={{background:"linear-gradient(135deg,rgba(46,196,182,.18),rgba(46,196,182,.08))",border:"2px solid rgba(46,196,182,.5)",borderRadius:16,padding:"14px 16px",marginBottom:14,position:"relative"}}>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:2,marginBottom:4}}>SALA ACTIVA ENCONTRADA</div>
-          <div style={{fontWeight:900,fontSize:".96rem",marginBottom:10}}>Código: <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:3}}>{lastKnownCode}</span></div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:2,marginBottom:4}}>{T.activeRoomFound}</div>
+          <div style={{fontWeight:900,fontSize:".96rem",marginBottom:10}}>{T.codeLabelInline} <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:3}}>{lastKnownCode}</span></div>
           <div style={{display:"flex",gap:8}}>
-            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>⚡ Reconectarme como Admin</button>
-            <button className="btn btn-g" style={{flex:1,padding:"10px",fontSize:".78rem"}} onClick={()=>{snd("tap");onDismissReconnect();}}>Ignorar</button>
+            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>{T.reconnectAdmin}</button>
+            <button className="btn btn-g" style={{flex:1,padding:"10px",fontSize:".78rem"}} onClick={()=>{snd("tap");onDismissReconnect();}}>{T.ignoreBtn}</button>
           </div>
         </div>
       )}
       <div className="hero">
         <div style={{fontSize:"2.8rem",marginBottom:6}}>{joinIntent==="spectate"?"👁":"🎮"}</div>
-        <div className="hero-logo" style={{fontSize:"2.4rem"}}>{joinIntent==="spectate"?"VER MARCADOR":"UNIRSE"}</div>
-        <div className="hero-tag">Código de sala</div>
+        <div className="hero-logo" style={{fontSize:"2.4rem"}}>{joinIntent==="spectate"?T.viewScoreboardCaps:T.joinCapsLogo}</div>
+        <div className="hero-tag">{T.roomCodeTitle}</div>
       </div>
       {/* Movido aquí (antes solo aparecía DENTRO de la pantalla en vivo) —
           la idea es invitar a usarlo ANTES de que decidan cómo van a ver
@@ -3034,41 +4837,40 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
         <div style={{textAlign:"center",background:"rgba(46,196,182,.06)",border:"1px solid rgba(46,196,182,.25)",
           borderRadius:13,padding:"10px 14px",marginBottom:14,fontFamily:"'Righteous',sans-serif",
           fontSize:".68rem",color:"rgba(255,255,255,.6)",lineHeight:1.6}}>
-          💡 Ideal para dejar abierta en una tablet o pantalla en medio de la mesa — todos ven los puntajes
-          actualizarse en vivo, sin que nadie tenga que pasarse el celular.
+          {T.idealForTablet}
         </div>
       )}
       {!pickingPlayer&&(<>
-        <p className="sec">CÓDIGO DE SALA</p>
+        <p className="sec">{T.roomCodeCapsLbl}</p>
         <input className="inp code-inp" placeholder="XXXX" maxLength={4} value={jcode}
           onChange={e=>setJcode(e.target.value.toUpperCase())} onFocus={()=>snd('tap')}/>
         {joinIntent==="spectate"?(<>
           <div className="g12"/>
           {err&&<ErrBox err={err}/>}
           <button className="btn btn-t" onClick={()=>{snd('tap');tryJoin(true);}} disabled={busy||jcode.length<4}>
-            {busy?"⏳":"👁 ENTRAR COMO ESPECTADOR"}
+            {busy?"⏳":T.enterSpectatorBtn}
           </button>
         </>):(<>
-          <p className="sec" style={{marginTop:12}}>TU NOMBRE</p>
-          <input className="inp" placeholder="Tu nombre en el juego" value={jname}
+          <p className="sec" style={{marginTop:12}}>{T.yourNameCaps}</p>
+          <input className="inp" placeholder={T.joinNamePlaceholder} value={jname}
             onChange={e=>setJname(e.target.value)} onFocus={()=>snd('tap')}/>
           {err&&<ErrBox err={err}/>}
           <div className="g12"/>
           <button className="btn btn-y" onClick={()=>{snd('tap');tryJoin(false);}} disabled={busy||jcode.length<4||!jname.trim()}>
-            {busy?"⏳ Buscando sala":"🎮 UNIRME AL JUEGO"}
+            {busy?T.searchingRoomLbl:T.joinGameCapsBtn}
           </button>
           <div className="div"/>
-          <p className="sec">SOLO VER MARCADOR</p>
+          <p className="sec">{T.spectatorOnlyLbl}</p>
           <button className="btn btn-t" onClick={()=>{snd('tap');tryJoin(true);}} disabled={busy||jcode.length<4}>
-            {busy?"⏳":"👁 ENTRAR COMO ESPECTADOR"}
+            {busy?"⏳":T.enterSpectatorBtn}
           </button>
         </>)}
       </>)}
       {pickingPlayer&&roomPlayers&&(<>
         <div className="alert al-y" style={{marginBottom:14}}>
-          ℹ <span>Elige tu personaje. Los marcados como "En sala" ya están conectados.</span>
+          ℹ <span>{T.choosePlayerHint}</span>
         </div>
-        <p className="sec">ELIGE TU JUGADOR</p>
+        <p className="sec">{T.choosePlayerLbl}</p>
         {roomPlayers.map(p=>{
           // Verificar si el jugador ya tiene presencia activa en Firebase
           const onlineIds = roomPlayersOnline||[];
@@ -3083,7 +4885,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
               <div style={{flex:1}}>
                 <div style={{fontWeight:900,fontSize:"1rem"}}>{p.name}</div>
                 <div style={{fontSize:".72rem",color:isOnline?"var(--r)":"rgba(255,255,255,.4)",fontWeight:700}}>
-                  {isOnline?"🔴 En sala — ya conectado":p.total+" pts · "+(p.rounds||[]).length+" rondas"}
+                  {isOnline?"🔴 "+T.inRoomTag+" — "+T.alreadyConnectedLbl:p.total+" pts · "+(p.rounds||[]).length+" "+T.roundWordBarePlural}
                 </div>
               </div>
               <div style={{color:"rgba(255,255,255,.3)",fontSize:"1.2rem"}}>{isOnline?"🔒":"›"}</div>
@@ -3091,11 +4893,11 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
           );
         })}
         <div className="div"/>
-        <p className="sec">O UNIRME COMO JUGADOR NUEVO</p>
-        <input className="inp" placeholder="Nombre del nuevo jugador" value={jname}
+        <p className="sec">{T.joinAsNewLbl}</p>
+        <input className="inp" placeholder={T.newPlayerNamePlaceholder} value={jname}
           onChange={e=>setJname(e.target.value)} onFocus={()=>snd('tap')}/>
         <button className="btn btn-y" onClick={()=>{snd('tap');joinAsNew();}} disabled={busy||!jname.trim()}>
-          ➕ AGREGAR JUGADOR NUEVO
+          {T.addNewPlayerBtn}
         </button>
       </>)}
       <div className="g8"/><button className="btn btn-g" onClick={()=>go("main")}>{T.back}</button>
@@ -3111,7 +4913,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
     onJoinRoom={code=>{
       // Mismo arreglo que en el banner de Home: unirse directo, sin
       // formulario manual — reconstituimos el objeto grupo a partir del código.
-      const g=myGroupsHome.find(x=>x.currentRoom===code)||{currentRoom:code,name:"tu grupo"};
+      const g=myGroupsHome.find(x=>x.currentRoom===code)||{currentRoom:code,name:T.yourGroupLbl};
       quickJoinGroup(g);
     }}
     onPlay={async({names,groupId,groupName})=>{
@@ -3153,18 +4955,18 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
       {/* Banner de reconexión rápida */}
       {reconnectReady&&lastKnownCode&&(
         <div style={{background:"linear-gradient(135deg,rgba(46,196,182,.18),rgba(46,196,182,.08))",border:"2px solid rgba(46,196,182,.5)",borderRadius:16,padding:"14px 16px",marginBottom:14,position:"relative"}}>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:2,marginBottom:4}}>SALA ACTIVA ENCONTRADA</div>
-          <div style={{fontWeight:900,fontSize:".96rem",marginBottom:10}}>Código: <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:3}}>{lastKnownCode}</span></div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:2,marginBottom:4}}>{T.activeRoomFound}</div>
+          <div style={{fontWeight:900,fontSize:".96rem",marginBottom:10}}>{T.codeLabelInline} <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:3}}>{lastKnownCode}</span></div>
           <div style={{display:"flex",gap:8}}>
-            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>⚡ Reconectarme como Admin</button>
-            <button className="btn btn-g" style={{flex:1,padding:"10px",fontSize:".78rem"}} onClick={()=>{snd("tap");onDismissReconnect();}}>Ignorar</button>
+            <button className="btn btn-t" style={{flex:2,padding:"10px",fontSize:".86rem"}} onClick={()=>{snd("join");onReconnect(true);}}>{T.reconnectAdmin}</button>
+            <button className="btn btn-g" style={{flex:1,padding:"10px",fontSize:".78rem"}} onClick={()=>{snd("tap");onDismissReconnect();}}>{T.ignoreBtn}</button>
           </div>
         </div>
       )}
       <div className="hero">
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8,position:"relative"}}>
           <button onClick={()=>{snd('tap');setShowSecondaryMenu(v=>!v);}}
-            aria-label="Más opciones"
+            aria-label={T.moreOptionsAria}
             style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
               color:"rgba(255,255,255,.6)",borderRadius:9,width:32,height:32,cursor:"pointer",
               fontSize:"1rem",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -3174,32 +4976,38 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
             <div style={{position:"absolute",top:38,right:0,zIndex:20,minWidth:180,
               background:"var(--dark,#14141f)",border:"1px solid rgba(255,255,255,.15)",
               borderRadius:12,padding:6,boxShadow:"0 8px 24px rgba(0,0,0,.4)"}}>
-              <button onClick={()=>{snd('tap');setLang(l=>l==="es"?"en":"es");}}
-                style={{width:"100%",textAlign:"left",background:"none",border:"none",
-                  padding:"9px 10px",borderRadius:8,cursor:"pointer",
-                  fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
-                  color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",gap:8}}>
-                🌐 {lang==="es"?"English":"Español"}
-              </button>
+              <div style={{display:"flex",gap:4,padding:"2px 4px 8px"}}>
+                {LANG_OPTS.map(o=>(
+                  <button key={o.v} onClick={()=>{snd('tap');setLang(o.v);}}
+                    style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,
+                      background:o.v===lang?"rgba(245,200,0,.12)":"none",
+                      border:"1px solid "+(o.v===lang?"rgba(245,200,0,.4)":"rgba(255,255,255,.1)"),
+                      borderRadius:8,padding:"6px 2px",cursor:"pointer"}}>
+                    <span style={{fontSize:"1.05rem",lineHeight:1}}>{o.flag}</span>
+                    <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".5rem",
+                      color:o.v===lang?"var(--y)":"rgba(255,255,255,.5)"}}>{o.v.toUpperCase()}</span>
+                  </button>
+                ))}
+              </div>
               <button onClick={()=>{setShowSecondaryMenu(false);go('perfil');}}
                 style={{width:"100%",textAlign:"left",background:"none",border:"none",
                   padding:"9px 10px",borderRadius:8,cursor:"pointer",
                   fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
                   color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",gap:8}}>
-                👤 Perfil
+                {T.profileMenuItem}
               </button>
               <button onClick={()=>{snd('tap');setShowSecondaryMenu(false);setShowFeedbackModal(true);}}
                 style={{width:"100%",textAlign:"left",background:"none",border:"none",
                   padding:"9px 10px",borderRadius:8,cursor:"pointer",
                   fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
                   color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",gap:8}}>
-                🗳️ Reportar bug / sugerir
+                {T.reportBugMenuItem}
               </button>
             </div>
           )}
-          {showFeedbackModal&&<FeedbackModal authUser={authUser} onClose={()=>setShowFeedbackModal(false)}/>}
+          {showFeedbackModal&&<FeedbackModal authUser={authUser} T={T} onClose={()=>setShowFeedbackModal(false)}/>}
         </div>
-        {HERO_LOGO_TEST?<HeroLogo/>:<>
+        {HERO_LOGO_TEST?<HeroLogo T={T}/>:<>
         <div style={{fontSize:"3.5rem",marginBottom:8}}>🎴</div>
         <div className="hero-logo">FLIP 7</div>
         <div className="hero-tag">Race to 200!</div>
@@ -3221,11 +5029,11 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
               color:"rgba(255,255,255,.7)",letterSpacing:1}}>
               {authUser.displayName||(authUser.email||"").split("@")[0]}
             </span>
-            <span onClick={()=>{if(confirm("¿Cerrar sesión?"))signOut();}}
+            <span onClick={()=>{if(confirm(T.signOutConfirm))signOut();}}
               style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
                 color:"rgba(255,255,255,.25)",letterSpacing:1,cursor:"pointer",
                 borderLeft:"1px solid rgba(255,255,255,.1)",paddingLeft:8}}>
-              salir
+              {T.signOutShortLbl}
             </span>
           </div>
         ):authUser&&authUser.isAnonymous?(
@@ -3235,19 +5043,19 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
               borderRadius:20,padding:"4px 12px 4px 8px"}}>
               <span style={{fontSize:"1rem"}}>👤</span>
               <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
-                color:"rgba(255,255,255,.4)",letterSpacing:1}}>Modo anónimo</span>
+                color:"rgba(255,255,255,.4)",letterSpacing:1}}>{T.guestModeLbl}</span>
               <span onClick={()=>signOut()}
                 style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
                   color:"var(--t)",letterSpacing:1,cursor:"pointer",
                   borderLeft:"1px solid rgba(255,255,255,.1)",paddingLeft:8}}>
-                Cambiar cuenta
+                {T.changeAccount}
               </span>
             </div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
               color:"rgba(230,57,70,.5)",letterSpacing:1,maxWidth:260,textAlign:"center",
               background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.2)",
               borderRadius:8,padding:"4px 10px"}}>
-              ⚠ Las sesiones anónimas se eliminan tras 30 días de inactividad
+              {T.anonExpireWarn}
             </div>
           </div>
         ):(
@@ -3261,8 +5069,8 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
       {/* Accesos secundarios en grid 2x2: Estadísticas · Amigos · Mis grupos · Espectador */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
         {[
-          {key:"stats",label:"Estadísticas",icon:"📊",cls:"btn3-y",locked:false,onClick:()=>goDashboard("me")},
-          {key:"friends",label:"Amigos",icon:"👥",cls:"btn3-y",locked:isAnonHome,onClick:()=>goDashboard("friends")},
+          {key:"stats",label:T.statsMenuLbl,icon:"📊",cls:"btn3-y",locked:false,onClick:()=>goDashboard("me")},
+          {key:"friends",label:T.friendsMenuLbl,icon:"👥",cls:"btn3-y",locked:isAnonHome,onClick:()=>goDashboard("friends")},
         ].map(b=>(
           <button key={b.key} className={"btn3 "+b.cls} onClick={b.onClick} style={{
             position:"relative",padding:"12px 4px",fontSize:".8rem",
@@ -3286,7 +5094,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
           opacity:isAnonHome?.55:1
         }}>
           {isAnonHome&&<span style={{position:"absolute",top:4,right:6,fontSize:".7rem"}}>🔒</span>}
-          👥 Mis grupos
+          {T.myGroupsMenuBtn}
           {!isAnonHome&&myGroupsHome.length>0&&(()=>{
             const onlineCount=myGroupsHome.reduce((acc,g)=>{
               const members=g.members||{};
@@ -3302,11 +5110,11 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
 
         <button className="btn3 btn3-y" onClick={()=>{snd('tap');setJoinIntent("spectate");go("join");}} style={{
           padding:"12px 4px",fontSize:".8rem"}}>
-          👁 Espectador
+          {T.spectatorMenuItem}
         </button>
       </div>
       {upgradeModal&&(
-        <UpgradeAccountModal featureLabel={upgradeModal.label}
+        <UpgradeAccountModal featureLabel={upgradeModal.label} T={T}
           onClose={()=>setUpgradeModal(null)}
           onDone={()=>{setUpgradeModal(null);}}/>
       )}
@@ -3326,13 +5134,13 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
                 color:"var(--gr)",letterSpacing:1,fontWeight:900}}>{g.name}</div>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-                color:"rgba(255,255,255,.4)",letterSpacing:1}}>Partida en curso · sala {g.currentRoom}</div>
+                color:"rgba(255,255,255,.4)",letterSpacing:1}}>{T.gameInProgressRoomTpl.replace('{code}',g.currentRoom)}</div>
             </div>
             <button onClick={()=>{snd('tap');quickJoinGroup(g);}}
               style={{background:"var(--gr)",border:"none",borderRadius:9,
               padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",
               fontSize:".65rem",color:"#fff",fontWeight:900,flexShrink:0}}>
-              Unirme →
+              {T.joinArrow}
             </button>
           </div>
         ));
@@ -3344,7 +5152,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
           style={{display:"block",margin:"6px auto 0",background:"none",border:"none",
             color:"rgba(255,255,255,.15)",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
             cursor:"pointer",letterSpacing:1,textDecoration:"underline"}}>
-          {lang==="es"?"Limpiar caché":"Clear cache"}
+          {T.clearCacheLbl}
         </button>
       </div>
     </div></div>
@@ -3451,13 +5259,13 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         <div style={{background:"linear-gradient(135deg,rgba(245,200,0,.15),rgba(255,107,53,.1))",
           border:"2px solid rgba(245,200,0,.4)",borderRadius:16,padding:"16px",marginBottom:14,textAlign:"center"}}>
           <div style={{fontSize:"2.5rem",marginBottom:4}}>🏆</div>
-          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"var(--y)",letterSpacing:2,marginBottom:2}}>{room.winner.name} ganó!</div>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:2,marginBottom:14}}>{room.winner.total} PUNTOS · FIN DEL JUEGO</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:"var(--y)",letterSpacing:2,marginBottom:2}}>{room.winner.name} {T.winner}!</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.5)",letterSpacing:2,marginBottom:14}}>{T.ptsGameOverTemplate.replace('{pts}',room.winner.total)}</div>
           <div style={{display:"flex",gap:8}}>
             {/* Solo el host puede iniciar revancha */}
             {isHost
               ? <button className="btn btn-y" style={{flex:1,minWidth:0,fontSize:".9rem",padding:"12px"}} onClick={()=>onRematch(room.players)}>{T.rematch}</button>
-              : <div style={{flex:1,minWidth:0,padding:"12px",background:"rgba(255,255,255,.05)",borderRadius:14,fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:1,display:"flex",alignItems:"center",justifyContent:"center"}}>⏳ Esperando revancha del admin</div>
+              : <div style={{flex:1,minWidth:0,padding:"12px",background:"rgba(255,255,255,.05)",borderRadius:14,fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:1,display:"flex",alignItems:"center",justifyContent:"center"}}>{T.waitingRematchAdmin}</div>
             }
             {/* Si sos host, "Terminar" cierra la partida para TODOS (avisa a
                 los demás y los regresa a Home) — antes solo te sacaba a vos,
@@ -3472,14 +5280,14 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
       {/* Aviso admin desconectado */}
       {!isHost&&room.hostOnline===false&&(
         <div className="alert al-r" style={{marginBottom:10}}>
-          <div style={{fontWeight:900}}>⚠️ El admin se desconectó</div>
-          <div style={{fontSize:".78rem",opacity:.8,marginTop:3}}>La sala sigue activa — el admin puede reconectarse con el código {roomCode}</div>
+          <div style={{fontWeight:900}}>{T.adminDisconnectedTitle}</div>
+          <div style={{fontSize:".78rem",opacity:.8,marginTop:3}}>{T.adminReconnectHint.replace('{code}',roomCode)}</div>
         </div>
       )}
       {/* Jugadores desconectados */}
       {room.players.some(p=>room.presence&&room.presence[p.id]===undefined&&p.id!==myPlayerId)&&isHost&&(
         <div className="alert al-y" style={{marginBottom:8,fontSize:".76rem"}}>
-          ℹ️ Algún jugador está desconectado. Puede reconectarse con el código de sala.
+          {T.playerDisconnectedHint}
         </div>
       )}
       {!room.finished&&allDone&&(
@@ -3498,7 +5306,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           <div className="alert al-y" style={{flexDirection:"column",gap:6}}>
             <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
               <span style={{fontSize:"1rem"}}>⏳</span>
-              <span style={{fontWeight:900}}>Faltan {pending.length} de {room.players.length}</span>
+              <span style={{fontWeight:900}}>{T.missingOfTemplate.replace('{n}',pending.length).replace('{m}',room.players.length)}</span>
             </div>
             <div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:2}}>
               {pending.map(p=>(
@@ -3518,14 +5326,14 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
       })()}
       {/* Antes era un pill chiquito pegado al header y se perdía — ahora
           es una animación de pantalla completa (ver RoundChangeOverlay). */}
-      {roundToast&&<RoundChangeOverlay round={room.round} color={roundColor}/>}
+      {roundToast&&<RoundChangeOverlay round={room.round} color={roundColor} T={T}/>}
       {/* Meta de la partida — visible arriba de todo para que quede claro
           a cuánto se está jugando, sin tener que ir a la pestaña Tabla. */}
       <div style={{textAlign:"center",marginBottom:10}}>
         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",letterSpacing:2,
           color:"var(--y)",background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.3)",
           borderRadius:20,padding:"4px 13px",display:"inline-flex",alignItems:"center",gap:5}}>
-          🏆 META: {target} PUNTOS
+          {T.goalTargetPts.replace('{n}',target)}
         </span>
       </div>
       <div className="rsb" style={{marginBottom:10}}>
@@ -3534,7 +5342,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
             al lado de RONDA era redundante, así que se quitó de este renglón. */}
         <div className="rbd" style={{background:"linear-gradient(135deg,"+roundColor+","+roundColor+"cc)",
           boxShadow:"0 2px 10px "+roundColor+"55",transition:"background .3s"}}>
-          RONDA {room.round}
+          {T.roundBadgeTemplate.replace('{n}',room.round)}
         </div>
       </div>
       {/* Controles de host — solo visibles para quien tiene el rol */}
@@ -3562,7 +5370,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
             borderRadius:10,padding:"8px 12px",marginBottom:10}}>
           <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",
             color:room.autoCloseRound?"var(--gr)":"rgba(255,255,255,.45)",letterSpacing:.5}}>
-            ⚡ Auto-cerrar ronda cuando todos terminen
+            {T.autoCloseHint}
           </span>
           <div style={{width:34,height:19,borderRadius:20,position:"relative",flexShrink:0,
             background:room.autoCloseRound?"var(--gr)":"rgba(255,255,255,.15)",transition:"background .2s"}}>
@@ -3584,11 +5392,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           <div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".64rem",
               color:otherRowUnlocked?"var(--r)":"rgba(255,255,255,.45)",letterSpacing:.5}}>
-              {otherRowUnlocked?"🔓":"🔒"} Editar fila de otro jugador
+              {otherRowUnlocked?"🔓":"🔒"} {T.editOtherRowLbl}
             </div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
               color:"rgba(255,255,255,.3)",marginTop:2}}>
-              {otherRowUnlocked?"Desbloqueado — se bloquea solo después de usarlo":"Protegido — evita capturar por error la fila de alguien más"}
+              {otherRowUnlocked?T.unlockedAutoRelock:T.protectedRowHint}
             </div>
           </div>
           <div style={{width:34,height:19,borderRadius:20,position:"relative",flexShrink:0,
@@ -3603,7 +5411,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           borderRadius:12,padding:10,marginBottom:10}}>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
             color:"rgba(255,255,255,.4)",letterSpacing:1,marginBottom:8}}>
-            ELEGIR NUEVO ADMIN — debe estar conectado ahora mismo
+            {T.chooseNewAdminCaps}
           </div>
           {room.players.filter(p=>p.id!==myPlayerId).map(p=>{
             const online=room.presence&&room.presence[p.id];
@@ -3617,7 +5425,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                 <span style={{color:p.color}}>{p.emoji}</span>
                 <span style={{flex:1,textAlign:"left",fontWeight:900,fontSize:".8rem",color:"#fff"}}>{p.name}</span>
                 <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                  color:online?"var(--gr)":"rgba(255,255,255,.25)"}}>{online?"● en línea":"desconectado"}</span>
+                  color:online?"var(--gr)":"rgba(255,255,255,.25)"}}>{online?T.onlineDotWord:T.offlineSimple}</span>
               </button>
             );
           })}
@@ -3627,21 +5435,21 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
         <div style={{background:"rgba(230,57,70,.08)",border:"2px solid rgba(230,57,70,.3)",
           borderRadius:12,padding:12,marginBottom:10,textAlign:"center"}}>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--r)",
-            marginBottom:8,fontWeight:900}}>¿Terminar la partida para todos?</div>
+            marginBottom:8,fontWeight:900}}>{T.endGameConfirmQ}</div>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
             color:"rgba(255,255,255,.4)",marginBottom:10}}>
-            Todos los jugadores volverán al inicio. La sala no se borra.
+            {T.endGameConfirmDesc}
           </div>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>{snd('tap');onEndGameForAll();}}
               style={{flex:1,background:"var(--r)",border:"none",borderRadius:9,padding:"9px",
                 cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".78rem",color:"#fff"}}>
-              Sí, terminar
+              {T.yesEndGame}
             </button>
             <button onClick={()=>setConfirmEnd(false)}
               style={{flex:1,background:"rgba(255,255,255,.07)",border:"none",borderRadius:9,padding:"9px",
                 cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".78rem",color:"rgba(255,255,255,.6)"}}>
-              Cancelar
+              {T.cancel}
             </button>
           </div>
         </div>
@@ -3670,17 +5478,17 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                 <div className="pr-name" style={{display:"flex",alignItems:"center",gap:5}}>
                   {/* nombre con color del jugador */}
                   <span style={{color:p.color,textShadow:"0 0 8px "+p.color+"55"}}>{p.name}</span>
-                  {myPlayerId===p.id&&<span className="me-tag">tú</span>}
+                  {myPlayerId===p.id&&<span className="me-tag">{T.grpYouTag}</span>}
                   {room.hostPlayerId===p.id&&(
                     <span style={{display:"inline-flex",alignItems:"center",gap:2,
                       background:"rgba(245,200,0,.18)",border:"1px solid rgba(245,200,0,.4)",
                       borderRadius:20,padding:"1px 7px",fontFamily:"'Righteous',sans-serif",
-                      fontSize:".55rem",color:"var(--y)",letterSpacing:1,fontWeight:900}}>👑 ADMIN</span>
+                      fontSize:".55rem",color:"var(--y)",letterSpacing:1,fontWeight:900}}>{T.adminCrownBadge}</span>
                   )}
                 </div>
                 <div style={{display:"flex",alignItems:"baseline",gap:4,flexShrink:0}}>
                   <span style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",color:p.color,lineHeight:1,textShadow:"2px 2px 0 rgba(0,0,0,.4)"}}>{p.total}</span>
-                  <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>pts</span>
+                  <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>{T.ptsAbbrev}</span>
                 </div>
               </div>
               <div style={{height:3,background:"rgba(255,255,255,.07)",borderRadius:2,marginTop:4,overflow:"hidden"}}>
@@ -3710,14 +5518,14 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                     borderRadius:20,padding:"2px 9px",
                     fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
                     color:"var(--gr)",letterSpacing:1,fontWeight:900
-                  }}>✓ LISTO</span>
+                  }}>{T.readyBadge}</span>
                   {mine&&!room.finished&&!rowLocked&&(
                     <button onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:entry.score});}}
                       style={{background:"rgba(46,196,182,.12)",border:"1px solid rgba(46,196,182,.3)",
                         color:"var(--t)",borderRadius:8,padding:"3px 10px",cursor:"pointer",
                         fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,
                         marginLeft:"auto"}}>
-                      ✏️ Corregir
+                      {T.correct}
                     </button>
                   )}
                   {mine&&!room.finished&&rowLocked&&(
@@ -3726,22 +5534,22 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                         color:"var(--r)",borderRadius:8,padding:"3px 10px",cursor:"pointer",
                         fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,
                         marginLeft:"auto"}}>
-                      🔒 Desbloquear
+                      {T.unlockBtn}
                     </button>
                   )}
                 </div>
               ):mine&&!rowLocked?(
                 <div style={{display:"flex",flexDirection:"column",gap:12,marginTop:6}}>
                   <div className="ar" style={{marginTop:0}}>
-                    {!demoMode&&<button className="ab ab-s" style={{flex:1}} onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>📷 Scan IA</button>}
+                    {!demoMode&&<button className="ab ab-s" style={{flex:1}} onClick={()=>{snd('tap');setScan({pid:p.id,name:p.name});}}>{T.scanIaBtn}</button>}
                     {isVenganza
-                      ? <button className="ab ab-c" style={{flex:1}} onClick={()=>{snd('tap');setVengCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
-                      : <button className="ab ab-c" style={{flex:1}} onClick={()=>{snd('tap');setCard({pid:p.id,name:p.name});}}>🃏 Cartas</button>
+                      ? <button className="ab ab-c" style={{flex:1}} onClick={()=>{snd('tap');setVengCard({pid:p.id,name:p.name});}}>{T.cardsBtnCaps}</button>
+                      : <button className="ab ab-c" style={{flex:1}} onClick={()=>{snd('tap');setCard({pid:p.id,name:p.name});}}>{T.cardsBtnCaps}</button>
                     }
-                    <button className="ab ab-m" style={{flex:1}} onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:null});}}>🧮 Manual</button>
+                    <button className="ab ab-m" style={{flex:1}} onClick={()=>{snd('tap');setMan({pid:p.id,name:p.name,initialScore:null});}}>{T.manualBtn}</button>
                   </div>
                   {/* 💀 Cero: registra 0 pts. En Venganza: si te obligan (Just One More y salió duplicado), o si activaste The Zero card, o si hiciste bust. Solo hay un tipo de Cero. — su propia fila, más ancho, para que resalte como acción distinta */}
-                  <button className="ab ab-z" style={{width:"100%",justifyContent:"center",padding:"9px 10px"}} onClick={()=>handleZero(p.id)}>💀 Cero</button>
+                  <button className="ab ab-z" style={{width:"100%",justifyContent:"center",padding:"9px 10px"}} onClick={()=>handleZero(p.id)}>{T.zeroBtn}</button>
                 </div>
               ):mine&&rowLocked?(
                 <div onClick={()=>{snd('tap');setOtherRowUnlocked(true);}}
@@ -3750,10 +5558,10 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                     borderRadius:10,padding:"9px 12px"}}>
                   <span style={{fontSize:"1rem"}}>🔒</span>
                   <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
-                    color:"rgba(230,57,70,.85)",letterSpacing:.5}}>Fila protegida — toca para desbloquear y capturar</span>
+                    color:"rgba(230,57,70,.85)",letterSpacing:.5}}>{T.rowProtectedTapHint}</span>
                 </div>
               ):(
-                <div style={{fontSize:".72rem",color:"rgba(255,255,255,.28)",marginTop:3,fontWeight:700}}>⏳ esperando</div>
+                <div style={{fontSize:".72rem",color:"rgba(255,255,255,.28)",marginTop:3,fontWeight:700}}>{T.waitingLower}</div>
               )}
             </div>
             {done&&mine&&!room.finished&&!rowLocked&&<button className="undo" onClick={()=>undoWithLock(p.id)}>↩</button>}
@@ -3764,10 +5572,10 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
       {room.players.length===0&&(
         <div style={{textAlign:"center",padding:"24px 10px",borderRadius:16,
           border:"2px dashed rgba(245,200,0,.3)",marginBottom:14}}>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:10}}>SALA EN MODO LOBBY</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:10}}>{T.lobbyModeCaps}</div>
           <div className="lobby-code code-mono">{roomCode}</div>
           <div style={{fontSize:".78rem",color:"rgba(255,255,255,.4)",fontWeight:700,marginTop:8}}>
-            Comparte este código para que los jugadores se unan
+            {T.shareCodeJoinHint}
           </div>
         </div>
       )}
@@ -3778,11 +5586,11 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           </button>
         </div>
       )}
-      {scanModal&&<ScanModal playerName={scanModal.name} currentTotal={room.players.find(p=>p.id===scanModal.pid)?.total||0} aiConfig={aiConfig} setAiConfig={setAiConfig} gameMode={gameMode} onResult={(s,bd)=>{submitWithLock(scanModal.pid,s,"scan",bd);setScan(null);}} onClose={()=>setScan(null)}/>}
-      {cardModal&&<CardPickerModal playerName={cardModal.name} currentTotal={room.players.find(p=>p.id===cardModal.pid)?.total||0} onSubmit={function(s,bd){submitWithLock(cardModal.pid,s,"cards",bd);setCard(null);}} onClose={()=>setCard(null)}/>}
+      {scanModal&&<ScanModal playerName={scanModal.name} currentTotal={room.players.find(p=>p.id===scanModal.pid)?.total||0} aiConfig={aiConfig} setAiConfig={setAiConfig} gameMode={gameMode} T={T} onResult={(s,bd)=>{submitWithLock(scanModal.pid,s,"scan",bd);setScan(null);}} onClose={()=>setScan(null)}/>}
+      {cardModal&&<CardPickerModal playerName={cardModal.name} currentTotal={room.players.find(p=>p.id===cardModal.pid)?.total||0} T={T} onSubmit={function(s,bd){submitWithLock(cardModal.pid,s,"cards",bd);setCard(null);}} onClose={()=>setCard(null)}/>}
       {/* ManualModal recibe initialScore para permitir corrección */}
-      {manModal&&<ManualModal playerName={manModal.name} currentTotal={room.players.find(p=>p.id===manModal.pid)?.total||0} initialScore={manModal.initialScore} gameMode={gameMode} onSubmit={s=>{submitWithLock(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
-      {vengCardModal&&<VenganzaCardPickerModal playerName={vengCardModal.name} currentTotal={room.players.find(p=>p.id===vengCardModal.pid)?.total||0} onSubmit={function(s,bd){submitWithLock(vengCardModal.pid,s,"cards",bd);setVengCard(null);}} onClose={()=>setVengCard(null)}/>}
+      {manModal&&<ManualModal playerName={manModal.name} currentTotal={room.players.find(p=>p.id===manModal.pid)?.total||0} initialScore={manModal.initialScore} gameMode={gameMode} T={T} onSubmit={s=>{submitWithLock(manModal.pid,s,"manual");setMan(null);}} onClose={()=>setMan(null)}/>}
+      {vengCardModal&&<VenganzaCardPickerModal playerName={vengCardModal.name} currentTotal={room.players.find(p=>p.id===vengCardModal.pid)?.total||0} T={T} onSubmit={function(s,bd){submitWithLock(vengCardModal.pid,s,"cards",bd);setVengCard(null);}} onClose={()=>setVengCard(null)}/>}
     </>
   );
 }
@@ -3817,7 +5625,8 @@ function AnimatedChartLine({d,color,delay}){
   return<path ref={ref} d={d} fill="none" stroke={color} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
     style={{filter:"drop-shadow(0 0 3px "+color+") drop-shadow(0 0 7px "+color+"aa)"}}/>;
 }
-function RoundProgressChart({sorted,target,mr}){
+function RoundProgressChart({sorted,target,mr,T}){
+  T=T||LANGS.es;
   if(mr<=0||!sorted||sorted.length===0)return null;
   const W=300,H=160,padL=6,padR=6,padT=10,padB=18;
   const innerW=W-padL-padR,innerH=H-padT-padB;
@@ -3848,7 +5657,7 @@ function RoundProgressChart({sorted,target,mr}){
         <line x1={padL} y1={targetY} x2={W-padR} y2={targetY}
           stroke="rgba(245,200,0,.45)" strokeWidth="1" strokeDasharray="3,3"/>
         <text x={W-padR} y={Math.max(8,targetY-4)} textAnchor="end" fontSize="6.5"
-          fill="rgba(245,200,0,.7)" fontFamily="'Righteous',sans-serif">META {target}</text>
+          fill="rgba(245,200,0,.7)" fontFamily="'Righteous',sans-serif">{T.goalShortLabel.replace('{n}',target)}</text>
         <path d={"M"+x(0)+","+floorY+" L"+leader.pts.map((v,i)=>x(i)+","+y(v)).join(" L")+" L"+x(mr)+","+floorY+" Z"}
           fill={leader.p.color} className="chart-area-fade"/>
         {series.map(({p,pts},pi)=>(
@@ -3883,7 +5692,7 @@ function ScoreTab({sorted,room,T}){
   const mr=room.finished?room.round:room.round-1; // finished=last round shown
   const target=room.winTarget||WIN;
   return(<>
-    <p className="sec">CLASIFICACIÓN</p>
+    <p className="sec">{T.ranking}</p>
     <div className="sg">
       {sorted.map((p,i)=>{
         const cls=i===0?"first":i===1?"second":i===2?"third":"";
@@ -3897,7 +5706,7 @@ function ScoreTab({sorted,room,T}){
                 <span style={{color:p.color,textShadow:"0 0 12px "+p.color+"55"}}>{p.name}</span>
               </div>
               <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>
-                {(p.rounds||[]).length} ronda{(p.rounds||[]).length!==1?"s":""} · faltan {Math.max(0,target-p.total)} pts
+                {(p.rounds||[]).length} {(p.rounds||[]).length!==1?T.roundWordBarePlural:T.roundWordBare} · {T.missingPtsTemplate.replace('{n}',Math.max(0,target-p.total))}
               </div>
             </div>
             <AnimatedScore className="sc-pts" value={p.total}/>
@@ -3909,10 +5718,10 @@ function ScoreTab({sorted,room,T}){
     </div>
     {mr>0&&(<>
       <div className="div"/>
-      <p className="sec">TABLA DE RONDAS</p>
+      <p className="sec">{T.rounds2}</p>
       <div className="tw">
         <table>
-          <thead><tr><th>Jugador</th>{Array.from({length:mr},(_,i)=><th key={i}>R{i+1}</th>)}<th>Total</th></tr></thead>
+          <thead><tr><th>{T.colPlayer}</th>{Array.from({length:mr},(_,i)=><th key={i}>R{i+1}</th>)}<th>{T.colTotal}</th></tr></thead>
           <tbody>{sorted.map((p,ri)=>(
             <tr key={p.id} className={ri===0?"lr":""}>
               <td><span style={{color:p.color}}>{p.emoji}</span> <span style={{color:p.color}}>{p.name}</span></td>
@@ -3935,11 +5744,11 @@ function ScoreTab({sorted,room,T}){
       </div>
       <p style={{textAlign:"center",color:"var(--y)",fontFamily:"'Anton',sans-serif",
         fontSize:"1rem",letterSpacing:3,textShadow:"0 0 14px rgba(245,200,0,.35)",marginTop:2}}>
-        🏆 META: {target} PUNTOS
+        {T.goalTargetPts.replace('{n}',target)}
       </p>
       <div className="div"/>
       <p className="sec">{T.roundProgress||"AVANCE POR RONDA"}</p>
-      <RoundProgressChart key={mr} sorted={sorted} target={target} mr={mr}/>
+      <RoundProgressChart key={mr} sorted={sorted} target={target} mr={mr} T={T}/>
     </>)}
   </>);
 }
@@ -3991,7 +5800,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchA
   const maxRound=(room?.round||1)-1;
 
   if(showRematch){
-    return<RematchOverlay onDone={()=>{setShowRematch(false);onRematchAnimDone&&onRematchAnimDone();}}/>;
+    return<RematchOverlay onDone={()=>{setShowRematch(false);onRematchAnimDone&&onRematchAnimDone();}} T={T}/>;
   }
 
   return(
@@ -4000,33 +5809,33 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchA
         <style>{`@keyframes fadeOut{0%{opacity:1}70%{opacity:1}100%{opacity:0;pointer-events:none}} @keyframes zoomIn{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.15) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}} @keyframes slidePill{0%{transform:translateY(40px);opacity:0}100%{transform:translateY(0);opacity:1}}`}</style>
         <div style={{animation:"zoomIn .6s cubic-bezier(.34,1.56,.64,1) forwards",textAlign:"center"}}>
           <div style={{fontSize:"5rem",marginBottom:10}}>📡</div>
-          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--t),#1A9A94)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:6}}>MARCADOR</div>
-          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--y),var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:20}}>EN VIVO</div>
-          <div style={{animation:"slidePill .5s .4s both",fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)",letterSpacing:3,background:"rgba(255,255,255,.06)",padding:"8px 20px",borderRadius:30,border:"1px solid rgba(255,255,255,.1)"}}>SALA <span className="code-mono">{roomCode}</span> · LIVE</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--t),#1A9A94)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:6}}>{T.scoreboardTitle}</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.8rem",letterSpacing:4,background:"linear-gradient(135deg,var(--y),var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:20}}>{T.liveCaps}</div>
+          <div style={{animation:"slidePill .5s .4s both",fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"rgba(255,255,255,.5)",letterSpacing:3,background:"rgba(255,255,255,.06)",padding:"8px 20px",borderRadius:30,border:"1px solid rgba(255,255,255,.1)"}}>{T.roomCapsInline} <span className="code-mono">{roomCode}</span> · {T.liveSuffixWord}</div>
         </div>
       </div>}
-      {roundToast&&<RoundChangeOverlay round={room.round} color={roundColor}/>}
+      {roundToast&&<RoundChangeOverlay round={room.round} color={roundColor} T={T}/>}
       {showWinnerOverlay&&winner&&(
         <div style={{position:"fixed",inset:0,zIndex:400,background:"radial-gradient(circle at 50% 35%,#2a1800 0%,#0F0F1A 65%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:28,overflow:"hidden"}}>
           {Array.from({length:40},(_,i)=>({c:["#F5C800","#E63946","#2EC4B6","#FF6B35","#fff","#3BB273"][i%6],l:Math.random()*100+"%",dl:Math.random()*2.5+"s",dr:2.5+Math.random()*2.5+"s",sz:7+Math.random()*10+"px",sh:Math.random()>.5?"2px":"50%"})).map((d,i)=>(
             <div key={i} style={{position:"absolute",background:d.c,width:d.sz,height:d.sz,left:d.l,top:-20,borderRadius:d.sh,animation:"cf "+d.dr+" "+d.dl+" linear infinite"}}/>
           ))}
           <div style={{fontSize:"5rem",animation:"fl 2s ease-in-out infinite",marginBottom:8}}>🏆</div>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase",marginBottom:8}}>Ganador!</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase",marginBottom:8}}>{T.winner2}</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"5rem",letterSpacing:3,background:"linear-gradient(135deg,var(--y) 30%,var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:10}}>FLIP 7</div>
           <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:"3.2rem",color:"white",letterSpacing:2,lineHeight:1.1,marginBottom:6,textShadow:"0 0 30px rgba(245,200,0,.5)"}}>
             {winner.emoji} {winner.name}
           </div>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:"1.1rem",color:"var(--y)",marginBottom:30,letterSpacing:2}}>
-            {winner.total} PUNTOS · META A {target} PUNTOS
+            {T.ptsGoalTemplate.replace('{pts}',winner.total).replace('{target}',target)}
           </div>
-          <button className="btn btn-y" onClick={()=>setShowWinnerOverlay(false)} style={{maxWidth:260,marginBottom:10}}>🏆 Ver marcador final</button>
-          <button className="btn btn-g" onClick={onBack} style={{maxWidth:260}}>Salir</button>
+          <button className="btn btn-y" onClick={()=>setShowWinnerOverlay(false)} style={{maxWidth:260,marginBottom:10}}>{T.seeScoreboard}</button>
+          <button className="btn btn-g" onClick={onBack} style={{maxWidth:260}}>{T.exitBtn}</button>
         </div>
       )}
       <div className="hdr" style={{alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0,overflow:"hidden"}}>
-          <HeroLogoCompact/>
+          <HeroLogoCompact T={T}/>
           {room&&room.gameMode&&GAME_MODES[room.gameMode]&&GAME_MODES[room.gameMode].image&&(
             <img src={GAME_MODES[room.gameMode].image} alt="" style={{height:22,width:"auto",flexShrink:0,
               filter:"drop-shadow(0 0 5px "+GAME_MODES[room.gameMode].glow+") drop-shadow(0 2px 4px rgba(0,0,0,.4))"}}
@@ -4035,17 +5844,17 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchA
         </div>
         <div style={{display:"flex",gap:6,flexShrink:0}}>
           <div className="badge spec"><span className="dot"/> <span className="code-mono">{roomCode}</span></div>
-          <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>Salir</button>
+          <button className="btn btn-g btn-sm" onClick={()=>{snd('tap');onBack();}}>{T.exitBtn}</button>
         </div>
       </div>
       <div style={{padding:"10px 16px 0",textAlign:"center"}}>
-        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:5,color:"var(--t)"}}>📡 MARCADOR EN VIVO</div>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",letterSpacing:5,color:"var(--t)"}}>{T.liveScoreboardCaps}</div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"rgba(255,255,255,.3)",letterSpacing:2,display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginTop:3}}>
-          <span className="dot"/>SALA <span className="code-mono">{roomCode}</span> · RONDA {room?.round||""}
+          <span className="dot"/>{T.roomCapsInline} <span className="code-mono">{roomCode}</span> · {T.roundBadgeTemplate.replace('{n}',room?.round||"")}
         </div>
       </div>
       {!room?(
-        <div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Conectando</p></div>
+        <div style={{textAlign:"center",paddingTop:60}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>{T.connecting}</p></div>
       ):(
         <div style={{padding:"10px 12px 80px",overflowY:"auto"}}>
           <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
@@ -4067,7 +5876,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchA
                   <div style={{flex:1,minWidth:0}}>
                     {/* nombre con color del jugador en espectador */}
                     <div style={{fontWeight:900,fontSize:nameSize,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:p.color,textShadow:"0 0 12px "+p.color+"55"}}>{p.emoji} {p.name}</div>
-                    <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>faltan {Math.max(0,target-p.total)} pts · {Math.round(pct)}%</div>
+                    <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>{T.missingPtsPctTemplate.replace('{n}',Math.max(0,target-p.total)).replace('{pct}',Math.round(pct))}</div>
                     <div style={{height:isFirst?6:4,background:"rgba(255,255,255,.08)",borderRadius:3,marginTop:5,overflow:"hidden"}}>
                       <div style={{height:"100%",width:pct+"%",background:"linear-gradient(90deg,"+p.color+","+p.color+"cc)",borderRadius:3,transition:"width 1.2s cubic-bezier(.4,0,.2,1)"}}/>
                     </div>
@@ -4080,10 +5889,10 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchA
           </div>
           {maxRound>0&&(<>
             <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"4px 0 12px"}}/>
-            <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>TABLA DE RONDAS</p>
+            <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>{T.rounds2}</p>
             <div className="tw">
               <table>
-                <thead><tr><th>Jugador</th>{Array.from({length:maxRound},(_,i)=><th key={i}>R{i+1}</th>)}<th>Total</th></tr></thead>
+                <thead><tr><th>{T.colPlayer}</th>{Array.from({length:maxRound},(_,i)=><th key={i}>R{i+1}</th>)}<th>{T.colTotal}</th></tr></thead>
                 <tbody>{sorted.map((p,ri)=>(
                   <tr key={p.id} className={ri===0?"lr":""}>
                     <td style={{fontSize:".82rem",color:p.color}}>{p.emoji} {p.name}</td>
@@ -4105,11 +5914,11 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchA
               </table>
             </div>
           </>)}
-          <p style={{textAlign:"center",color:"var(--y)",fontFamily:"'Anton',sans-serif",fontSize:".9rem",letterSpacing:2,textShadow:"0 0 12px rgba(245,200,0,.3)",marginBottom:maxRound>0?0:10}}>🏆 META: {target} PUNTOS</p>
+          <p style={{textAlign:"center",color:"var(--y)",fontFamily:"'Anton',sans-serif",fontSize:".9rem",letterSpacing:2,textShadow:"0 0 12px rgba(245,200,0,.3)",marginBottom:maxRound>0?0:10}}>{T.goalTargetPts.replace('{n}',target)}</p>
           {maxRound>0&&(<>
             <div style={{height:1,background:"rgba(255,255,255,.07)",margin:"12px 0"}}/>
             <p style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:3,color:"rgba(255,255,255,.3)",textTransform:"uppercase",marginBottom:8}}>{T.roundProgress||"AVANCE POR RONDA"}</p>
-            <RoundProgressChart key={maxRound} sorted={sorted} target={target} mr={maxRound}/>
+            <RoundProgressChart key={maxRound} sorted={sorted} target={target} mr={maxRound} T={T}/>
           </>)}
         </div>
       )}
@@ -4122,8 +5931,8 @@ function HistoryTab({sessions,onClear,T}){
   if(!sessions.length)return(
     <div className="es">
       <div style={{fontSize:"2.8rem",marginBottom:10}}>📋</div>
-      <p style={{fontWeight:700}}>Sin sesiones aún</p>
-      <p style={{fontSize:".8rem",marginTop:6,color:"rgba(255,255,255,.3)"}}>Completa una partida para verla aquí</p>
+      <p style={{fontWeight:700}}>{T.noSessions}</p>
+      <p style={{fontSize:".8rem",marginTop:6,color:"rgba(255,255,255,.3)"}}>{T.noSessionsDesc}</p>
     </div>
   );
   return<SesCards sessions={sessions} onClear={onClear} T={T}/>;
@@ -4136,7 +5945,7 @@ function SesCards({sessions,onClear,T}){
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
           <button onClick={()=>{if(window.confirm(T.confirmClear))onClear();}}
             style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.3)",color:"var(--r)",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".65rem",letterSpacing:1}}>
-            🗑 Borrar historial
+            {T.clearHistory}
           </button>
         </div>
       )}
@@ -4147,11 +5956,11 @@ function SesCards({sessions,onClear,T}){
           <div key={s.id} className="hc" style={{cursor:"pointer"}} onClick={()=>{snd('tap');setExpanded(isOpen?null:s.id);}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
               <div>
-                <div style={{fontWeight:900,fontSize:".84rem"}}>{fmtDate(s.date)}</div>
-                <div style={{fontSize:".7rem",color:"rgba(255,255,255,.32)",fontWeight:700}}>{s.players.length} jugadores · {s.rounds} rondas · Sala {s.code}</div>
+                <div style={{fontWeight:900,fontSize:".84rem"}}>{fmtDate(s.date,T)}</div>
+                <div style={{fontSize:".7rem",color:"rgba(255,255,255,.32)",fontWeight:700}}>{T.sessionMetaLine.replace('{n}',s.players.length).replace('{r}',s.rounds).replace('{code}',s.code)}</div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
-                {s.demo&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"var(--pu)",background:"rgba(123,45,139,.2)",padding:"2px 6px",borderRadius:10}}>DEMO</span>}
+                {s.demo&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"var(--pu)",background:"rgba(123,45,139,.2)",padding:"2px 6px",borderRadius:10}}>{T.demoTag}</span>}
                 <span style={{color:"rgba(255,255,255,.3)",fontSize:".9rem"}}>{isOpen?"▲":"▼"}</span>
               </div>
             </div>
@@ -4181,7 +5990,8 @@ function SesCards({sessions,onClear,T}){
 }
 
 // ── SCANMODAL — Árbitro de Cartas™ (motor interno, key de Firebase) ──
-function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode}){
+function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode,T}){
+  T=T||LANGS.es;
   var isVenganza=gameMode==="venganza";
   var useState=React.useState,useRef=React.useRef,useEffect=React.useEffect;
   var ph=useState("pick"),img_=useState(null),b64_=useState(null),mime_=useState("image/jpeg");
@@ -4306,7 +6116,7 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
             if(key)setClaudeKey(key);
           }catch(e){}
         }
-        if(!key){setErrMsg("El Árbitro no tiene credenciales.\nConfigura el proxy en Cloudflare Workers\no contacta al administrador.");setPhase("error");return;}
+        if(!key){setErrMsg(T.refereeNoCredentials);setPhase("error");return;}
         resp=await fetch("https://api.anthropic.com/v1/messages",{
           method:"POST",
           headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
@@ -4316,8 +6126,8 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
 
       if(!resp.ok){
         var errBody=await resp.text();
-        if(resp.status===401||resp.status===403)throw new Error("Credenciales del Árbitro inválidas. Contacta al admin.");
-        if(resp.status===429)throw new Error("El Árbitro está ocupado. Espera unos segundos e intenta de nuevo.");
+        if(resp.status===401||resp.status===403)throw new Error(T.credentialsInvalid);
+        if(resp.status===429)throw new Error(T.refereeBusy);
         throw new Error("Error "+resp.status+": "+errBody.slice(0,120));
       }
       var d=await resp.json();
@@ -4326,12 +6136,12 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
       var clean=txt.replace(/```json/gi,"").replace(/```/g,"").trim();
       // Extraer solo el objeto JSON (entre { y })
       var js=clean.indexOf("{"),je=clean.lastIndexOf("}")+1;
-      if(js<0||je<=js)throw new Error("El Árbitro no devolvió un formato válido. Intenta de nuevo.");
+      if(js<0||je<=js)throw new Error(T.refereeBadFormat);
       clean=clean.slice(js,je);
       // Validar que es JSON válido antes de parsear
       var parsed;
       try{ parsed=JSON.parse(clean); }
-      catch(pe){ throw new Error("El Árbitro tuvo un momento confuso. Intenta de nuevo."); }
+      catch(pe){ throw new Error(T.refereeConfused); }
       // BUG FIX — pantalla en negro al analizar: la IA a veces devuelve
       // "cards"/"plus_cards" en un formato distinto al esperado (string,
       // objeto, o ausente) en vez de un array. ResultEditor asume que son
@@ -4376,25 +6186,25 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
     React.createElement("div",{className:"mbg"},
       React.createElement("div",{className:"ms"},
         React.createElement("div",{className:"mh"}),
-        React.createElement("div",{className:"mt2"},"🃏 Árbitro de Cartas"),
-        React.createElement("div",{className:"msub"},"Turno de: ",React.createElement("b",{style:{color:"#fff"}},playerName)),
+        React.createElement("div",{className:"mt2"},T.scanTitle2),
+        React.createElement("div",{className:"msub"},T.turnOf+" ",React.createElement("b",{style:{color:"#fff"}},playerName)),
 
         phase==="pick"&&React.createElement(React.Fragment,null,
           // Indicador de estado minimal — sin mostrar la key ni config visible
           !keyLoaded&&React.createElement("div",{style:{textAlign:"center",padding:"8px 0",marginBottom:8}},
             React.createElement("div",{style:{display:"inline-flex",alignItems:"center",gap:6,fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--t)"}},
-              React.createElement("div",{className:"spin",style:{width:16,height:16,borderWidth:2}}),"Cargando..."
+              React.createElement("div",{className:"spin",style:{width:16,height:16,borderWidth:2}}),T.loadingDots
             )
           ),
           React.createElement("input",{ref:fileRef,type:"file",accept:"image/*",capture:"environment",style:{display:"none"},onChange:handleFile}),
           React.createElement("div",{className:"ce",onClick:function(){snd("tap");if(fileRef.current)fileRef.current.click();}},
             React.createElement("div",{style:{fontSize:"2.8rem"}},"📷"),
-            React.createElement("div",null,"Toca para abrir la cámara"),
-            React.createElement("div",{style:{fontSize:".7rem",opacity:.5}},"Apunta a tus cartas y toma foto")
+            React.createElement("div",null,T.tapOpenCamera),
+            React.createElement("div",{style:{fontSize:".7rem",opacity:.5}},T.aimCardsHint)
           ),
           React.createElement("p",{style:{textAlign:"center",color:"rgba(255,255,255,.3)",fontSize:".75rem",fontWeight:700,cursor:"pointer",marginBottom:12},
-            onClick:function(){snd("tap");if(fileRef.current){fileRef.current.removeAttribute("capture");fileRef.current.click();setTimeout(function(){if(fileRef.current)fileRef.current.setAttribute("capture","environment");},600);}}},"o elegir de galería"),
-          React.createElement("div",{className:"mr2"},React.createElement("button",{className:"mc",onClick:function(){snd("tap");retake();onClose();}},"Cancelar"))
+            onClick:function(){snd("tap");if(fileRef.current){fileRef.current.removeAttribute("capture");fileRef.current.click();setTimeout(function(){if(fileRef.current)fileRef.current.setAttribute("capture","environment");},600);}}},T.orChooseGallery),
+          React.createElement("div",{className:"mr2"},React.createElement("button",{className:"mc",onClick:function(){snd("tap");retake();onClose();}},T.cancel))
         ),
 
         phase==="preview"&&React.createElement(React.Fragment,null,
@@ -4404,17 +6214,17 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
           // de fallar en silencio, y le damos la opción de corregirlo aquí
           // mismo antes de analizar.
           dims&&dims.h>dims.w&&React.createElement("div",{style:{background:"rgba(246,166,35,.1)",border:"1px solid rgba(246,166,35,.3)",borderRadius:10,padding:"8px 12px",marginBottom:8,textAlign:"center"}},
-            React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--y)",letterSpacing:.5,marginBottom:4}},"📱 Foto en vertical detectada"),
-            React.createElement("div",{style:{fontSize:".72rem",color:"rgba(255,255,255,.6)",lineHeight:1.4,marginBottom:8}},"El Árbitro lee mejor las cartas en horizontal. No es perfecto con fotos verticales — gírala antes de analizar."),
-            React.createElement("button",{className:"mc",style:{width:"100%"},onClick:function(){rotateImage();}},"🔄 Girar foto")
+            React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--y)",letterSpacing:.5,marginBottom:4}},T.verticalPhotoDetected),
+            React.createElement("div",{style:{fontSize:".72rem",color:"rgba(255,255,255,.6)",lineHeight:1.4,marginBottom:8}},T.verticalPhotoDesc),
+            React.createElement("button",{className:"mc",style:{width:"100%"},onClick:function(){rotateImage();}},T.rotatePhotoBtn)
           ),
-          React.createElement("p",{style:{textAlign:"center",color:"rgba(255,255,255,.45)",fontWeight:700,fontSize:".82rem",marginBottom:8}},"¿Se ven bien todas las cartas?"),
+          React.createElement("p",{style:{textAlign:"center",color:"rgba(255,255,255,.45)",fontWeight:700,fontSize:".82rem",marginBottom:8}},T.allCardsVisible),
           React.createElement("div",{style:{background:"rgba(46,196,182,.08)",border:"1px solid rgba(46,196,182,.2)",borderRadius:10,padding:"8px 12px",marginBottom:8,textAlign:"center"}},
-            React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}},"🃏 El Árbitro de Cartas™ · Juez Supremo del Mazo")
+            React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--t)",letterSpacing:1}},T.refereeSupreme)
           ),
           React.createElement("div",{className:"mr2"},
-            React.createElement("button",{className:"mc",onClick:function(){snd("tap");retake();}},"📷 Otra foto"),
-            React.createElement("button",{className:"mo",onClick:function(){snd("tap");analyze();}},"🔍 Analizar")
+            React.createElement("button",{className:"mc",onClick:function(){snd("tap");retake();}},T.anotherPhotoBtn),
+            React.createElement("button",{className:"mo",onClick:function(){snd("tap");analyze();}},T.analyzeBtn)
           )
         ),
 
@@ -4422,11 +6232,11 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
           React.createElement("img",{src:img,alt:"",style:{opacity:.4,width:"100%",height:"100%",objectFit:"cover",display:"block"}}),
           React.createElement("div",{className:"sov"},
             React.createElement("div",{className:"spin"}),
-            React.createElement("div",{style:{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}},"El Árbitro está revisando las cartas...")
+            React.createElement("div",{style:{fontFamily:"'Lilita One',sans-serif",color:"var(--y)",fontSize:"1rem"}},T.refereeAnalyzing)
           )
         ),
 
-        phase==="result"&&res&&React.createElement(ResultEditor,{key:scanAttempt,res:res,onResult:onResult,onRetake:retake,onClose:onClose,currentTotal:currentTotal,gameMode:gameMode}),
+        phase==="result"&&res&&React.createElement(ResultEditor,{key:scanAttempt,res:res,onResult:onResult,onRetake:retake,onClose:onClose,currentTotal:currentTotal,gameMode:gameMode,T:T}),
 
         phase==="error"&&React.createElement(React.Fragment,null,
           React.createElement("div",{style:{textAlign:"center",padding:"16px 0"}},
@@ -4434,8 +6244,8 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
             React.createElement("p",{style:{fontWeight:800,marginBottom:10,fontSize:".82rem",lineHeight:1.5,background:"rgba(0,0,0,.3)",padding:"10px",borderRadius:10,textAlign:"left",wordBreak:"break-all"}},errMsg)
           ),
           React.createElement("div",{className:"mr2"},
-            React.createElement("button",{className:"mc",onClick:function(){snd("tap");onClose();}},"Cerrar"),
-            React.createElement("button",{className:"mo",onClick:function(){snd("tap");retake();}},"Reintentar")
+            React.createElement("button",{className:"mc",onClick:function(){snd("tap");onClose();}},T.closeBtn),
+            React.createElement("button",{className:"mo",onClick:function(){snd("tap");retake();}},T.retryBtn)
           )
         )
       )
@@ -4444,7 +6254,8 @@ function ScanModal({playerName,currentTotal,onResult,onClose,aiConfig,gameMode})
 }
 
 // ── RESULTEDITOR — cartas grandes + paleta rápida + regla 1 carta/número ──
-function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
+function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode,T}){
+  T=T||LANGS.es;
   const isVenganza=gameMode==="venganza";
   const NUM_MAX=isVenganza?13:12;
   // Regla: máximo 1 de cada número. Si IA detectó duplicados, filtrar y avisar.
@@ -4530,19 +6341,19 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
     React.createElement(React.Fragment,null,
       // Cartas detectadas — más grandes
       React.createElement("div",{style:{marginBottom:12}},
-        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:10,textAlign:"center"}},"CARTAS DETECTADAS — toca para quitar"),
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.35)",letterSpacing:3,marginBottom:10,textAlign:"center"}},T.cardsDetectedCaps),
         // Aviso si el Árbitro detectó números duplicados (regla: 1 por número)
         // + recordatorio de que en Flip 7 sacar un número repetido es un
         // reventón — antes solo se avisaba que "no puntúan cartas
         // duplicadas", sin recordar explícitamente que eso significa perder
         // la ronda si de verdad ocurrió durante el turno.
         duplicatesFound.length>0&&React.createElement("div",{style:{background:"rgba(245,200,0,.1)",border:"1px solid rgba(245,200,0,.3)",borderRadius:10,padding:"7px 12px",marginBottom:10,fontFamily:"'Righteous',sans-serif",fontSize:".68rem",color:"var(--y)",letterSpacing:1,textAlign:"center",lineHeight:1.5}},
-          "⚠️ "+duplicatesFound.join(", ")+" aparecen dos veces en la foto — solo puntúan cartas diferentes.",
+          "⚠️ "+duplicatesFound.join(", ")+" "+T.dupWarnPrefix,
           React.createElement("br"),
-          React.createElement("span",{style:{opacity:.85,fontWeight:500}},"Si de verdad sacaste dos números iguales en tu turno, eso es un reventón — considera anotar 💀 Cero en vez de confirmar este puntaje.")
+          React.createElement("span",{style:{opacity:.85,fontWeight:500}},T.dupWarnBust)
         ),
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:10,justifyContent:"center",minHeight:56,alignItems:"center",padding:"4px 0"}},
-          cards.length===0&&React.createElement("div",{style:{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}},"Sin cartas — agrega de la paleta"),
+          cards.length===0&&React.createElement("div",{style:{color:"rgba(255,255,255,.3)",fontWeight:700,fontSize:".85rem"}},T.noCardsAddFromPalette),
           cards.map((n,i)=>React.createElement("div",{key:i,className:"card-chip",onClick:()=>removeCard(i)},
             React.createElement("span",{className:"card-chip-num",style:{color:colorFor(n)}},n),
             React.createElement("button",{className:"card-chip-rm",onClick:(e)=>{e.stopPropagation();removeCard(i);}},"✕")
@@ -4552,13 +6363,13 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
 
       // Total
       React.createElement("div",{style:{textAlign:"center",padding:"8px 0 10px",borderTop:"1px solid rgba(255,255,255,.08)",borderBottom:"1px solid rgba(255,255,255,.08)",marginBottom:12}},
-        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2}},"TOTAL FINAL"),
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2}},T.totalFinalCaps),
         React.createElement("div",{style:{fontFamily:"'Anton',sans-serif",fontSize:"4.5rem",color:isVenganza?"var(--r)":"var(--y)",lineHeight:1,textShadow:"4px 4px 0 "+(isVenganza?"rgba(230,57,70,.4)":"var(--or)")}},total),
         cards.length>0&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.35)",marginTop:4,lineHeight:1.6}},
           isVenganza
             ? (hasDivTwo||negMods.length>0||flip7
                 ? React.createElement(React.Fragment,null,
-                    React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},"Base: "+cards.join("+"+(cards.length>1?" ":""))+" = "+baseTotal),
+                    React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},T.baseLbl+" "+cards.join("+"+(cards.length>1?" ":""))+" = "+baseTotal),
                     hasDivTwo&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(230,57,70,.8)"}},"÷2 = "+afterDiv)),
                     negMods.length>0&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(230,57,70,.8)"}},negMods.join("")+" = "+afterNeg+(afterNeg<afterDiv?" (min 0)":""))),
                     flip7&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"var(--y)",fontWeight:700}},"+ 15 Flip 7 = "+total))
@@ -4566,7 +6377,7 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
                 : React.createElement("span",null,cards.length>1?cards.join(" + ")+" = "+baseTotal:""))
             : (multiplier||plusCards.length>0||flip7
                 ? React.createElement(React.Fragment,null,
-                    React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},"Base: "+cards.join("+"+(cards.length>1?" ":""))+" = "+baseTotal),
+                    React.createElement("span",{style:{color:"rgba(255,255,255,.5)"}},T.baseLbl+" "+cards.join("+"+(cards.length>1?" ":""))+" = "+baseTotal),
                     multiplier&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(255,120,120,.8)"}},"x"+multiplier+" = "+(baseTotal*multiplier))),
                     plusCards.length>0&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"rgba(100,220,150,.8)"}},"+ "+plusCards.join("+")+" = "+afterMult+plusCards.reduce(function(a,b){return a+Number(b);},0))),
                     flip7&&React.createElement(React.Fragment,null,React.createElement("br"),React.createElement("span",{style:{color:"var(--y)",fontWeight:700}},"+ 15 Flip 7 = "+total))
@@ -4581,25 +6392,25 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
       // este bloque ya los muestra pre-marcados, aunque siempre se pueden
       // corregir a mano tocándolos).
       React.createElement("div",{style:{marginBottom:12}},
-        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6,textAlign:"center"}},"MODIFICADORES — toca para corregir"),
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:6,textAlign:"center"}},T.modifiersCorrectCaps),
         isVenganza
           ? React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"center",marginBottom:6}},
               React.createElement("button",{onClick:()=>{snd("op");setHasDivTwo(v=>!v);},
                 style:{border:"2px solid "+(hasDivTwo?"var(--r)":"rgba(230,57,70,.25)"),background:hasDivTwo?"var(--r)":"rgba(230,57,70,.07)",borderRadius:10,padding:"8px 12px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:hasDivTwo?"#fff":"var(--r)",transition:"all .2s",minWidth:52,textAlign:"center"}},
-                "÷2",hasDivTwo&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"#fff",letterSpacing:1,marginTop:1}},"ON")
+                "÷2",hasDivTwo&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"#fff",letterSpacing:1,marginTop:1}},T.onLbl)
               ),
               [2,4,6,8,10].map(n=>{
                 const active=negMods.includes(-n);
                 return React.createElement("button",{key:n,onClick:()=>{snd("op");setNegMods(p=>active?p.filter(x=>x!==-n):[...p,-n]);},
                   style:{border:"2px solid "+(active?"var(--r)":"rgba(230,57,70,.2)"),background:active?"var(--r)":"rgba(230,57,70,.05)",borderRadius:10,padding:"8px 10px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.1rem",color:active?"#fff":"var(--r)",transition:"all .2s",minWidth:44,textAlign:"center"}},
-                  "-"+n,active&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"#fff",letterSpacing:1,marginTop:1}},"ON")
+                  "-"+n,active&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"#fff",letterSpacing:1,marginTop:1}},T.onLbl)
                 );
               })
             )
           : React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",marginBottom:6}},
               React.createElement("button",{onClick:()=>{snd("op");setMultiplier(m=>m?null:2);},
                 style:{border:"2px solid "+(multiplier===2?MOD_TEXT_COLOR:"rgba(242,90,122,.3)"),background:multiplier===2?MOD_BG_COLOR:"rgba(246,166,35,.1)",borderRadius:10,padding:"8px 14px",cursor:"pointer",fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:multiplier===2?"#fff":MOD_TEXT_COLOR,transition:"all .2s",minWidth:56,textAlign:"center"}},
-                "x2",multiplier===2&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}},"ACTIVO")
+                "x2",multiplier===2&&React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"#fff",letterSpacing:1,marginTop:1}},T.activeLbl)
               ),
               [2,4,6,8,10].map(n=>{
                 const active=plusCards.includes(n);
@@ -4622,14 +6433,14 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
         React.createElement("div",{style:{flex:1}},
           React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
             color:flip7?"var(--y)":"rgba(255,255,255,.4)",letterSpacing:2,fontWeight:700}},
-            "FLIP 7 — 7 CARTAS ÚNICAS"
+            T.flip7UniqueCaps
           ),
           React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
             color:"rgba(255,255,255,.35)",marginTop:2}},
-            cards.length+"/7 cartas · "+
+            cards.length+"/7 "+T.cardsWord+" · "+
             (cards.length===MAX_CARDS
-              ? "¡Completo! Bonus activado"
-              : "Faltan "+(MAX_CARDS-cards.length)+" para el bonus")
+              ? T.completeBonusActive
+              : T.missingForBonus.replace('{n}',MAX_CARDS-cards.length))
           )
         ),
         React.createElement("div",{style:{
@@ -4649,7 +6460,7 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
           color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:7,textAlign:"center"
-        }},"CARTAS DE ACCIÓN DETECTADAS — toca para quitar si no aplica"),
+        }},T.actionCardsDetectedCaps),
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center"}},
           actionCardNames.map(name=>{
             const count=actionCardCounts[name];
@@ -4672,14 +6483,14 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
 
       // Paleta rápida — cartas disponibles (1 clic para agregar)
       React.createElement("div",{style:{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:"10px 12px",marginBottom:12}},
-        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8,textAlign:"center"}},"➕ AGREGAR CARTA — toca para sumar"),
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8,textAlign:"center"}},T.addCardPaletteCaps),
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center"}},
           // Paleta desactivada si ya hay 7 cartas
           cards.length>=MAX_CARDS
             ? React.createElement("div",{style:{width:"100%",textAlign:"center",
                 fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
                 color:"var(--y)",letterSpacing:2,padding:"6px 0"}},
-                "🃏 ¡FLIP 7 COMPLETADO! Máximo de cartas alcanzado"
+                T.flip7CompletedMax
               )
             : availableCards.map(n=>
                 React.createElement("button",{key:n,className:"avail-card",onClick:()=>addCard(n),
@@ -4694,25 +6505,25 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
       currentTotal!==undefined&&cards.length>0&&React.createElement("div",{style:{
         fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
         color:"rgba(255,255,255,.35)",marginBottom:8,letterSpacing:.5,textAlign:"center"
-      }},"Tienes "+currentTotal+" + esta ronda "+total+" = "+(currentTotal+total)),
+      }},T.youHavePrefix.replace('{a}',currentTotal).replace('{b}',total).replace('{c}',currentTotal+total)),
 
       // Botones confirm/retake
       React.createElement("div",{className:"mr2"},
-        React.createElement("button",{className:"mc",onClick:()=>{snd("tap");onRetake();}},"📷 Repetir foto"),
+        React.createElement("button",{className:"mc",onClick:()=>{snd("tap");onRetake();}},T.repeatPhotoBtn2),
         React.createElement("button",{className:"mo",onClick:()=>{
           snd("score");
           const bd=isVenganza
             ?{cards:cards.slice(),flip7,divTwo:hasDivTwo,negMods:negMods.slice(),actionCards:actionCards.slice()}
             :{cards:cards.slice(),flip7,multiplier,plusCards:plusCards.slice(),actionCards:actionCards.slice()};
           onResult(total,bd);
-        },disabled:cards.length===0},"✓ Confirmar "+total+(flip7?" (incl. +15 Flip 7)":"")+" pts")
+        },disabled:cards.length===0},T.confirmPtsBtn.replace('{n}',total+(flip7?T.inclFlip7Bonus:'')))
       ),
       // Cancelar (cierra el modal sin anotar) + Cero directo -- para cuando
       // el jugador se reventó y no necesita ajustar cartas, solo anotar 0.
       onClose&&React.createElement("div",{style:{display:"flex",gap:8,marginTop:8}},
         React.createElement("button",{className:"mc",style:{flex:1},
           onClick:()=>{snd("tap");onClose();}
-        },"Salir sin anotar"),
+        },T.exitWithoutScoring),
         React.createElement("button",{
           onClick:handleZero,
           style:{
@@ -4723,7 +6534,7 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
             color:"rgba(255,255,255,.75)",letterSpacing:.5,
             transition:"all .2s",fontWeight:700
           }
-        },"💀 Cero esta ronda")
+        },T.zeroThisRound)
       )
     )
   );
@@ -4733,7 +6544,8 @@ function ResultEditor({res,onResult,onRetake,onClose,currentTotal,gameMode}){
 // ── CARDPICKERMODAL — selector directo de cartas + modificadores ──
 // El jugador toca las cartas que tiene en su mano (1 clic = agregar/quitar)
 // Misma lógica que ResultEditor pero como modal de captura primaria
-function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
+function CardPickerModal({playerName,currentTotal,onSubmit,onClose,T}){
+  T=T||LANGS.es;
   var useState=React.useState,useEffect=React.useEffect;
   // Cartas seleccionadas — Set de números (0-12), máx 1 por número (regla del juego)
   var selState=useState([]);
@@ -4781,8 +6593,8 @@ function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
   return React.createElement("div",{className:"mbg"},
     React.createElement("div",{className:"ms",style:{paddingBottom:40}},
       React.createElement("div",{className:"mh"}),
-      React.createElement("div",{className:"mt2"},"🃏 Mis cartas"),
-      React.createElement("div",{className:"msub"},"Turno de: ",React.createElement("b",{style:{color:"#fff"}},playerName)),
+      React.createElement("div",{className:"mt2"},T.myCardsTitle),
+      React.createElement("div",{className:"msub"},T.turnOf+" ",React.createElement("b",{style:{color:"#fff"}},playerName)),
 
       // ── DISPLAY TOTAL ────────────────────────────────────────
       React.createElement("div",{style:{
@@ -4792,7 +6604,7 @@ function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
           color:"rgba(255,255,255,.3)",letterSpacing:3,marginBottom:2
-        }},"TOTAL DE ESTA RONDA"),
+        }},T.totalRoundCaps),
         React.createElement("div",{style:{
           fontFamily:"'Anton',sans-serif",fontSize:"5rem",
           color:selected.length===0?"rgba(255,255,255,.15)":"var(--y)",
@@ -4804,7 +6616,7 @@ function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         currentTotal!==undefined&&React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
           color:"rgba(255,255,255,.35)",marginTop:6,letterSpacing:.5
-        }},"Tienes "+currentTotal+(total>0?" + esta ronda "+total+" = "+(currentTotal+total):"")),
+        }},total>0?T.youHavePrefix.replace('{a}',currentTotal).replace('{b}',total).replace('{c}',currentTotal+total):(T.youHavePrefix.split(' + ')[0].replace('{a}',currentTotal))),
         // Fórmula desglosada
         selected.length>0&&React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
@@ -4845,7 +6657,7 @@ function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
           color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:10,textAlign:"center"
-        }},"TOCA LAS CARTAS QUE TIENES EN MANO"),
+        }},T.tapCardsInHand),
         React.createElement("div",{style:{
           display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6
         }},
@@ -4946,13 +6758,13 @@ function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("div",{style:{flex:1}},
           React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
             color:flip7?"var(--y)":"rgba(255,255,255,.4)",letterSpacing:2}},
-            "FLIP 7 — 7 CARTAS ÚNICAS"
+            T.flip7UniqueCaps
           ),
           React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
             color:"rgba(255,255,255,.35)",marginTop:2}},
-            selected.length+"/7 cartas"+
-            (selected.length===MAX_CARDS?" · ¡Completo! Bonus automático":
-             " · Faltan "+(MAX_CARDS-selected.length)+" para el bonus")
+            selected.length+"/7 "+T.cardsWord+" · "+
+            (selected.length===MAX_CARDS?T.completeBonusActive:
+             T.missingForBonus.replace('{n}',MAX_CARDS-selected.length))
           )
         ),
         React.createElement("div",{style:{
@@ -4970,7 +6782,7 @@ function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
           color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"
-        }},"MODIFICADORES — toca si los tienes"),
+        }},T.modifiersHaveCaps),
         React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}},
           // x2
           React.createElement("button",{
@@ -5009,7 +6821,7 @@ function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("button",{className:"mc",
           style:{flex:1},
           onClick:function(){snd("tap");onClose();}
-        },"Cancelar"),
+        },T.cancel),
         React.createElement("button",{
           style:{
             flex:2,padding:"13px",
@@ -5024,8 +6836,8 @@ function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
           disabled:selected.length===0,
           onClick:handleConfirm
         },selected.length===0
-          ?"Selecciona cartas"
-          :"✓ Confirmar "+total+(flip7?" (+15 Flip 7)":"")+" pts")
+          ?T.selectCardsBtn
+          :T.confirmPtsBtn.replace('{n}',total+(flip7?T.inclFlip7Bonus:'')))
       ),
       // Botón Cero separado
       React.createElement("button",{
@@ -5038,7 +6850,7 @@ function CardPickerModal({playerName,currentTotal,onSubmit,onClose}){
           color:"rgba(255,255,255,.75)",letterSpacing:1,
           transition:"all .2s",fontWeight:700
         }
-      },"💀 Cero esta ronda")
+      },T.zeroThisRound)
     )
   );
 }
@@ -5054,7 +6866,8 @@ const VENG_CARD_TEXT={
 const VENG_CARD_BG="#FFF8F0"; // crema ligeramente distinto al classic
 
 // ── VENGANZA CARD PICKER MODAL ─────────────────────────────────
-function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
+function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose,T}){
+  T=T||LANGS.es;
   var useState=React.useState,useEffect=React.useEffect;
   var selState=useState([]);
   var selected=selState[0],setSelected=selState[1];
@@ -5159,13 +6972,13 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
       // Header con color rojo Venganza
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:3}},
         React.createElement("div",{style:{fontFamily:"'Lilita One',sans-serif",fontSize:"1.4rem",
-          color:"var(--r)",letterSpacing:1.5}},"💀 Mis cartas"),
+          color:"var(--r)",letterSpacing:1.5}},T.myCardsVengTitle),
         React.createElement("span",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
           background:"rgba(230,57,70,.15)",border:"1px solid rgba(230,57,70,.4)",
           color:"var(--r)",padding:"2px 8px",borderRadius:20,letterSpacing:1}},
-          "VENGANZA")
+          T.modeVengCaps)
       ),
-      React.createElement("div",{className:"msub"},"Turno de: ",
+      React.createElement("div",{className:"msub"},T.turnOf+" ",
         React.createElement("b",{style:{color:"#fff"}},playerName)),
 
       // ── TOTAL DISPLAY ───────────────────────────────────────────
@@ -5176,7 +6989,7 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".58rem",letterSpacing:3,marginBottom:2,
           color:flip7?"var(--r)":"rgba(255,255,255,.3)",transition:"color .3s"
-        }},flip7?"💀 FLIP 7 — BONUS +15":"TOTAL DE ESTA RONDA"),
+        }},flip7?T.flip7Bonus15Caps:T.totalRoundCaps),
         React.createElement("div",{style:{
           fontFamily:"'Anton',sans-serif",
           fontSize:selected.length===0?"3rem":"5rem",
@@ -5188,13 +7001,13 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         currentTotal!==undefined&&React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
           color:"rgba(255,255,255,.35)",marginTop:6,letterSpacing:.5
-        }},"Tienes "+currentTotal+(total>0?" + esta ronda "+total+" = "+(currentTotal+total):"")),
+        }},total>0?T.youHavePrefix.replace('{a}',currentTotal).replace('{b}',total).replace('{c}',currentTotal+total):(T.youHavePrefix.split(' + ')[0].replace('{a}',currentTotal))),
         // Desglose del calculo
         selected.length>0&&React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
           color:"rgba(255,255,255,.4)",marginTop:6,lineHeight:1.8
         }},
-          React.createElement("span",null,"Base: "+selected.slice().sort(function(a,b){return a-b;}).join("+")+" = "+baseTotal),
+          React.createElement("span",null,T.baseLbl+" "+selected.slice().sort(function(a,b){return a-b;}).join("+")+" = "+baseTotal),
           hasDivTwo&&React.createElement(React.Fragment,null,
             React.createElement("br"),
             React.createElement("span",{style:{color:"rgba(230,57,70,.8)"}},"÷2 = "+afterDiv)
@@ -5217,7 +7030,7 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
           color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8,textAlign:"center"
-        }},"TOCA LAS CARTAS QUE TIENES (1-13)"),
+        }},T.tapCardsInHand113),
         // Fila 1-7
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5,marginBottom:5}},
           [0,1,2,3,4,5,6].map(function(n){
@@ -5312,11 +7125,11 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
           React.createElement("div",{style:{
             fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
             color:lucky13?"#cc88ff":"rgba(255,255,255,.4)",letterSpacing:2
-          }},"LUCKY 13"),
+          }},T.lucky13Caps),
           React.createElement("div",{style:{
             fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
             color:"rgba(255,255,255,.3)",marginTop:2,lineHeight:1.4
-          }},"Permite tener 2 cartas del 13 sin bustear")
+          }},T.lucky13Allow2)
         ),
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
@@ -5327,8 +7140,8 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
             ? React.createElement("span",{style:{
                 background:"rgba(123,45,139,.4)",padding:"2px 8px",
                 borderRadius:20,fontSize:".65rem",color:"#cc88ff"
-              }},"ACTIVO — 2x13")
-            : React.createElement("span",null,"OFF")
+              }},T.active2x13)
+            : React.createElement("span",null,T.offLbl)
         )
       ),
       // ── UNLUCKY 7 ────────────────────────────────────────────────
@@ -5348,13 +7161,13 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
           React.createElement("div",{style:{
             fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
             color:unlucky7?"var(--r)":"rgba(255,255,255,.4)",letterSpacing:2
-          }},"UNLUCKY 7"),
+          }},T.unlucky7Caps),
           React.createElement("div",{style:{
             fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
             color:"rgba(255,255,255,.3)",marginTop:2,lineHeight:1.4
           }},unlucky7
-            ?"Activo — solo tienes el 7. Agrega las cartas nuevas que te lleguen."
-            :"Te cayo Unlucky 7 — pierdes TODAS tus cartas. Solo te quedas con el 7. Puedes seguir acumulando cartas nuevas.")
+            ?T.activeDivBtn
+            :T.unlucky7Desc)
         ),
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".62rem",letterSpacing:1,
@@ -5362,10 +7175,10 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         }},unlucky7
           ? React.createElement(React.Fragment,null,
               React.createElement("div",{style:{background:"rgba(230,57,70,.35)",padding:"2px 8px",
-                borderRadius:20,color:"var(--r)",fontSize:".62rem",marginBottom:3}},"ACTIVO"),
-              React.createElement("div",{style:{fontSize:".55rem",color:"rgba(255,255,255,.3)"}},"tap solo si lo activaste por error")
+                borderRadius:20,color:"var(--r)",fontSize:".62rem",marginBottom:3}},T.activeLbl),
+              React.createElement("div",{style:{fontSize:".55rem",color:"rgba(255,255,255,.3)"}},T.tapOnlyIfActivated)
             )
-          : "OFF")
+          : T.offLbl)
       ),
       // ── FLIP 7 BONUS — solo informativo, se activa automáticamente ─
       React.createElement("div",{
@@ -5382,14 +7195,14 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("div",{style:{flex:1}},
           React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",
             fontSize:".7rem",color:flip7?"var(--r)":"rgba(255,255,255,.4)",letterSpacing:2}},
-            "FLIP 7 — 7 CARTAS DISTINTAS"),
+            T.flip7DistinctCaps),
           React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",
             fontSize:".58rem",color:"rgba(255,255,255,.3)",marginTop:2}},
             (function(){
               var dc=distinctCount(selected);
               var dup13=selected.filter(function(x){return x===13;}).length===2;
-              if(dc===7)return dc+"/7 · Bonus automatico"+(dup13?" (+13 extra Lucky 13)":"");
-              return dc+"/7 · Faltan "+(7-dc);
+              if(dc===7)return dc+T.completeAutoSlash7+(dup13?T.flip15Extra13:"");
+              return dc+T.missingSlash7.replace('{n}',7-dc);
             })())
         ),
         React.createElement("div",{style:{
@@ -5408,7 +7221,7 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
           color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8,textAlign:"center"
-        }},"MODIFICADORES — si alguien te los jugo"),
+        }},T.modifiersPlayedCaps),
         React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"center"}},
           // Carta /2 — se aplica ANTES que los -N
           React.createElement("button",{
@@ -5467,7 +7280,7 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
         React.createElement("div",{style:{
           fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
           color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:7,textAlign:"center"
-        }},"CARTAS DE ACCION (registrar si las usaste)"),
+        }},T.actionCardsRegisterCaps),
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:5,justifyContent:"center"}},
           ACTION_CARDS.map(function(a,ai){
             var active=actionCards.includes(a);
@@ -5502,7 +7315,7 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
       React.createElement("div",{style:{display:"flex",gap:8,marginBottom:8}},
         React.createElement("button",{style:{flex:1,padding:"13px",background:"rgba(255,255,255,.1)",border:"2px solid rgba(255,255,255,.25)",color:"rgba(255,255,255,.8)",borderRadius:11,fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:".9rem",cursor:"pointer"},
           onClick:function(){snd("tap");onClose();}
-        },"Cancelar"),
+        },T.cancel),
         React.createElement("button",{
           disabled:selected.length===0,
           onClick:function(){
@@ -5521,8 +7334,8 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
             transition:"all .2s"
           }
         },selected.length===0
-          ?"Selecciona cartas"
-          :"💀 Confirmar "+total+(flip7?" (+15)":"")+" pts")
+          ?T.selectCardsBtn
+          :T.confirmPtsBtn.replace('{n}',total+(flip7?T.inclFlip7Bonus:'')))
       ),
       React.createElement("button",{
         onClick:function(){snd("zero");onSubmit(0,{cards:[],bust:true});},
@@ -5534,13 +7347,14 @@ function VenganzaCardPickerModal({playerName,currentTotal,onSubmit,onClose}){
           color:"rgba(255,255,255,.75)",letterSpacing:1,
           transition:"all .2s",fontWeight:700
         }
-      },"💀 Cero esta ronda")
+      },T.zeroThisRound)
     )
   );
 }
 
 // ── MANUALMODAL — soporta initialScore para corrección ────────
-function ManualModal({playerName,currentTotal,initialScore,onSubmit,onClose,gameMode}){
+function ManualModal({playerName,currentTotal,initialScore,onSubmit,onClose,gameMode,T}){
+  T=T||LANGS.es;
   const[expr,setExpr]=useState(initialScore!=null&&initialScore>0?String(initialScore):"");
   const[calcResult,setCalcResult]=useState(initialScore!=null?initialScore:0);
   const[error,setError]=useState(false);
@@ -5559,22 +7373,22 @@ function ManualModal({playerName,currentTotal,initialScore,onSubmit,onClose,game
   return(
     React.createElement("div",{className:"mbg"},React.createElement("div",{className:"ms"},
       React.createElement("div",{className:"mh"}),
-      React.createElement("div",{className:"mt2"},isCorrection?"✏️ Corregir puntos":"🧮 Captura Manual"),
+      React.createElement("div",{className:"mt2"},isCorrection?T.manualCorrectTitle:T.manualCaptureTitle),
       React.createElement("div",{className:"msub"},
         isCorrection
-          ? React.createElement(React.Fragment,null,"Corrección de ",React.createElement("b",{style:{color:"#fff"}},playerName)," — valor actual: ",React.createElement("b",{style:{color:"var(--y)"}},initialScore))
-          : React.createElement(React.Fragment,null,"Puntos de ",React.createElement("b",{style:{color:"#fff"}},playerName)," esta ronda")
+          ? React.createElement(React.Fragment,null,T.correctionOf+" ",React.createElement("b",{style:{color:"#fff"}},playerName)," — "+T.currentValueLbl+" ",React.createElement("b",{style:{color:"var(--y)"}},initialScore))
+          : React.createElement(React.Fragment,null,T.pointsOf2+" ",React.createElement("b",{style:{color:"#fff"}},playerName)," "+T.thisRound2)
       ),
       React.createElement("div",{className:"calc-display"},
         React.createElement("div",{className:"calc-expr"},display),
-        React.createElement("div",{className:"calc-result"+(error?" error":"")},error?"ERROR":finalVal)
+        React.createElement("div",{className:"calc-result"+(error?" error":"")},error?T.errorLbl:finalVal)
       ),
       // Total tentativo personal — no aplica en corrección (ahí currentTotal
       // ya no representa "antes de esta ronda" de forma clara)
       !isCorrection&&currentTotal!==undefined&&React.createElement("div",{style:{
         fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
         color:"rgba(255,255,255,.35)",marginTop:-6,marginBottom:10,letterSpacing:.5,textAlign:"center"
-      }},"Tienes "+currentTotal+(!error&&finalVal>0?" + esta ronda "+finalVal+" = "+(currentTotal+finalVal):"")),
+      }},!error&&finalVal>0?T.youHavePrefix.replace('{a}',currentTotal).replace('{b}',finalVal).replace('{c}',currentTotal+finalVal):T.youHavePrefix.split(' + ')[0].replace('{a}',currentTotal)),
       // Tip: botón rápido +15 para Flip 7 bonus
       React.createElement("div",{style:{marginBottom:10}},
         React.createElement("button",{
@@ -5594,7 +7408,7 @@ function ManualModal({playerName,currentTotal,initialScore,onSubmit,onClose,game
           }
         },
           React.createElement("span",{style:{fontSize:"1.1rem"}},"🃏"),
-          "+ 15 FLIP 7 BONUS  (7 cartas únicas)"
+          T.flip15BonusTip
         )
       ),
       React.createElement("div",{className:"np-grid"},
@@ -5610,15 +7424,15 @@ function ManualModal({playerName,currentTotal,initialScore,onSubmit,onClose,game
         React.createElement("button",{className:"npb op-key",onClick:()=>pressOp("*")}," × "),
         gameMode==="venganza"
           ? React.createElement("button",{className:"npb op-key",style:{fontSize:"1.2rem"},onClick:()=>pressOp("/")},"÷")
-          : React.createElement("button",{className:"npb clr-key",onClick:pressClear},"CLR")
+          : React.createElement("button",{className:"npb clr-key",onClick:pressClear},T.clrKey)
       ),
-      gameMode==="venganza"&&React.createElement("button",{className:"npb clr-key",style:{width:"100%",borderRadius:14,padding:"10px",marginBottom:8},onClick:pressClear},"CLR — Limpiar"),
+      gameMode==="venganza"&&React.createElement("button",{className:"npb clr-key",style:{width:"100%",borderRadius:14,padding:"10px",marginBottom:8},onClick:pressClear},T.clrKeyClear),
       React.createElement("button",{className:"npb ok-key",onClick:()=>{
         if(error||(!expr&&finalVal===0)){snd("zero");onSubmit(0);}
         else{snd("score");onSubmit(Math.max(0,Math.round(finalVal)));}
-      }},isCorrection?"GUARDAR CORRECCIÓN · ":"CONFIRMAR · ",React.createElement("span",{style:{fontSize:"1.4rem"}},error?"0":Math.max(0,Math.round(finalVal)))," pts"),
+      }},isCorrection?T.saveCorrection:T.confirmDot,React.createElement("span",{style:{fontSize:"1.4rem"}},error?"0":Math.max(0,Math.round(finalVal)))," pts"),
       React.createElement("div",{style:{height:10}}),
-      React.createElement("button",{className:"mc",style:{width:"100%"},onClick:()=>{snd("tap");onClose();}},"Cancelar")
+      React.createElement("button",{className:"mc",style:{width:"100%"},onClick:()=>{snd("tap");onClose();}},T.cancel)
     ))
   );
 }
@@ -5737,7 +7551,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
   // mantiene activo en toda la app, no solo aquí.
 
   async function createGroup(){
-    if(!newGroupName.trim()){setErr("Ponle nombre al grupo");return;}
+    if(!newGroupName.trim()){setErr(T.grpNameRequired);return;}
     setErr("");
     try{
       const code=Math.random().toString(36).slice(2,6).toUpperCase();
@@ -5769,20 +7583,20 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
       setCreating(false);setNewGroupName("");
       setActiveGroup(created);
       snd("join");
-      setOk("✅ Grupo creado — código: "+code);
-    }catch(e){setErr("Error: "+e.message);}
+      setOk(T.grpCreatedMsg.replace('{code}',code));
+    }catch(e){setErr(T.errorPrefixLbl+" "+e.message);}
   }
 
   async function joinGroup(){
-    if(!joinCode.trim()||joinCode.length<4){setErr("Código de 4 letras");return;}
+    if(!joinCode.trim()||joinCode.length<4){setErr(T.grpCodeRequired);return;}
     setErr("");
     try{
       const snap=await _db.ref("groups").orderByChild("code").equalTo(joinCode.toUpperCase()).once("value");
       const data=snap.val();
-      if(!data){setErr("Grupo no encontrado");return;}
+      if(!data){setErr(T.grpNotFound);return;}
       const gid=Object.keys(data)[0];
       const group=data[gid];
-      if(group.members&&group.members[uid]){setErr("Ya eres miembro de este grupo");return;}
+      if(group.members&&group.members[uid]){setErr(T.grpAlreadyMember);return;}
       const me={
         displayName:authUser.displayName||"",
         email:authUser.email||"",
@@ -5800,8 +7614,8 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
       setMyGroups(prev=>[...prev,joined]);
       setJoinCode("");
       snd("join");
-      setOk("✅ Te uniste a "+group.name);
-    }catch(e){setErr("Error: "+e.message);}
+      setOk(T.grpJoinedMsg.replace('{name}',group.name));
+    }catch(e){setErr(T.errorPrefixLbl+" "+e.message);}
   }
 
   async function openRoomForGroup(group){
@@ -5810,7 +7624,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
       // Already has a room — join it
       onJoinRoom(group.currentRoom);
     } else {
-      setErr("Crea una sala desde el menú principal y elige este grupo");
+      setErr(T.grpCreateRoomHint);
     }
   }
 
@@ -5821,13 +7635,13 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
     <div className="wrap"><div className="page" style={{paddingTop:32}}>
       <div style={{textAlign:"center",padding:"40px 20px"}}>
         <div style={{fontSize:"3rem",marginBottom:12}}>👥</div>
-        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)",letterSpacing:2,marginBottom:8}}>GRUPOS</div>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)",letterSpacing:2,marginBottom:8}}>{T.groupsTitle}</div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.4)",lineHeight:1.6,marginBottom:20}}>
-          Crea una cuenta para crear grupos con tus amigos, ver quién está online y jugar juntos cada semana.
+          {T.groupsLoginPrompt}
         </div>
-        <button onClick={()=>signOut()} className="btn btn-y" style={{maxWidth:280,margin:"0 auto"}}>Crear cuenta</button>
+        <button onClick={()=>signOut()} className="btn btn-y" style={{maxWidth:280,margin:"0 auto"}}>{T.createAccount}</button>
         <div style={{height:12}}/>
-        <button onClick={onBack} className="btn btn-g" style={{maxWidth:280,margin:"0 auto"}}>← Volver</button>
+        <button onClick={onBack} className="btn btn-g" style={{maxWidth:280,margin:"0 auto"}}>{T.back}</button>
       </div>
     </div></div>
   );
@@ -5851,8 +7665,8 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
         ?{...g,members:Object.fromEntries(Object.entries(g.members||{}).filter(([k])=>k!==targetUid))}
         :g));
       setConfirmRemoveMember(null);
-      setOk("✅ Miembro eliminado del grupo");
-    }catch(e){setOk("❌ Error: "+e.message);}
+      setOk(T.grpMemberRemoved);
+    }catch(e){setOk("❌ "+T.errorPrefixLbl+" "+e.message);}
     setBusyAction(false);
   }
 
@@ -5873,8 +7687,8 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
       setMyGroups(prev=>prev.filter(g=>g.id!==activeGroup.id));
       setActiveGroup(null);
       setConfirmDeleteGroup(false);
-      setOk("✅ Grupo eliminado");
-    }catch(e){setOk("❌ Error: "+e.message);}
+      setOk(T.grpGroupDeleted);
+    }catch(e){setOk("❌ "+T.errorPrefixLbl+" "+e.message);}
     setBusyAction(false);
   }
 
@@ -5890,23 +7704,23 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
           <button onClick={()=>{setSelectedPlayers({});setActiveGroup(null);}} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
             color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
-            fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Grupos</button>
+            fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>{T.backToGroups}</button>
           <div style={{flex:1}}>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",letterSpacing:2}}>{activeGroup.name}</div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2}}>
-              CÓDIGO: {activeGroup.code} · {memberList.length} miembros · {onlineCount} online
+              {T.roomCapsInline||"CÓDIGO"}: {activeGroup.code} · {memberList.length} {T.grpMembersWord} · {onlineCount} online
             </div>
           </div>
           {/* Copy invite link */}
           <button onClick={()=>{
             const link="https://mysqldumpbd-afk.github.io/Flip7/?group="+activeGroup.code;
-            if(navigator.share){navigator.share({title:activeGroup.name,text:"Únete a nuestro grupo Flip 7!",url:link});}
-            else{navigator.clipboard.writeText(link);setOk("✅ Link copiado");}
+            if(navigator.share){navigator.share({title:activeGroup.name,text:T.grpShareText,url:link});}
+            else{navigator.clipboard.writeText(link);setOk(T.grpLinkCopied);}
             snd("tap");
           }} style={{background:"rgba(46,196,182,.12)",border:"1px solid rgba(46,196,182,.3)",
             color:"var(--t)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
             fontFamily:"'Righteous',sans-serif",fontSize:".62rem",flexShrink:0}}>
-            🔗 Invitar
+            {T.inviteBtn}
           </button>
           {isAdmin&&(
             confirmDeleteGroup ? (
@@ -5914,15 +7728,15 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                 <button disabled={busyAction} onClick={()=>{snd("tap");deleteGroup();}}
                   style={{background:"var(--r)",border:"none",borderRadius:8,padding:"6px 9px",
                     cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                    color:"#fff",fontWeight:900,whiteSpace:"nowrap"}}>Confirmar</button>
+                    color:"#fff",fontWeight:900,whiteSpace:"nowrap"}}>{T.confirmReq}</button>
                 <button onClick={()=>setConfirmDeleteGroup(false)}
                   style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:8,padding:"6px 9px",
                     cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                    color:"rgba(255,255,255,.5)"}}>Cancelar</button>
+                    color:"rgba(255,255,255,.5)"}}>{T.cancel}</button>
               </div>
             ) : (
               <button onClick={()=>{snd("tap");setConfirmDeleteGroup(true);}}
-                title="Eliminar grupo"
+                title={T.deleteGroupTitle}
                 style={{background:"rgba(230,57,70,.1)",border:"1px solid rgba(230,57,70,.3)",
                   color:"var(--r)",borderRadius:9,width:34,height:32,cursor:"pointer",flexShrink:0,
                   marginLeft:6,fontSize:".85rem"}}>
@@ -5939,23 +7753,23 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
             display:"flex",alignItems:"center",gap:12}}>
             <div style={{fontSize:"1.5rem"}}>🎮</div>
             <div style={{flex:1}}>
-              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--gr)",letterSpacing:2}}>PARTIDA EN CURSO</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--gr)",letterSpacing:2}}>{T.gameInProgress}</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:"#fff",letterSpacing:3}}>{activeGroup.currentRoom}</div>
             </div>
             <button onClick={()=>onJoinRoom(activeGroup.currentRoom)}
               style={{background:"var(--gr)",border:"none",borderRadius:10,padding:"8px 14px",
                 cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".82rem",color:"#fff"}}>
-              Unirme →
+              {T.grpJoinArrow}
             </button>
           </div>
         )}
 
         {/* Members with presence */}
-        <p className="sec">MIEMBROS</p>
+        <p className="sec">{T.membersLbl}</p>
         {/* Instrucción de selección */}
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
           color:"rgba(255,255,255,.3)",letterSpacing:1,marginBottom:8,textAlign:"center"}}>
-          TOCA A LOS QUE VAN A JUGAR · CUALQUIERA PUEDE UNIRSE DESPUÉS
+          {T.tapToIncludeHint}
         </div>
         {memberList.map(m=>{
           const pres=presence[m.uid]||{};
@@ -6001,21 +7815,21 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                   color:isSel?"var(--gr)":isMe?"var(--y)":"rgba(255,255,255,.85)"}}>
                   {m.name}
                   {isMe&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-                    color:"rgba(255,255,255,.3)",marginLeft:6,letterSpacing:1}}>tú</span>}
+                    color:"rgba(255,255,255,.3)",marginLeft:6,letterSpacing:1}}>{T.grpYouTag}</span>}
                 </div>
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",letterSpacing:1,marginTop:2,
                   color:isOnline?(status==="in-game"?"var(--t)":"var(--gr)"):"rgba(255,255,255,.25)"}}>
                   {isOnline
-                    ?(status==="in-game"?"🎮 En partida":status==="in-lobby"?"🎴 En lobby":"🟢 Online")
-                    :(pres.lastSeen?"⚫ "+fmtAgo(pres.lastSeen):"⚫ Offline")}
+                    ?(status==="in-game"?T.statusInGame:status==="in-lobby"?T.statusInLobby:T.statusOnline)
+                    :(pres.lastSeen?"⚫ "+fmtAgo(pres.lastSeen,T):"⚫ "+T.statusOffline)}
                 </div>
               </div>
               {m.role==="admin"&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
                 background:"rgba(245,200,0,.15)",border:"1px solid rgba(245,200,0,.3)",
-                color:"var(--y)",padding:"2px 7px",borderRadius:20,letterSpacing:1}}>ADMIN</span>}
+                color:"var(--y)",padding:"2px 7px",borderRadius:20,letterSpacing:1}}>{T.adminLbl}</span>}
               {/* Tap hint for offline */}
               {!isOnline&&!isSel&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                color:"rgba(255,255,255,.15)",letterSpacing:1}}>tap para incluir</span>}
+                color:"rgba(255,255,255,.15)",letterSpacing:1}}>{T.tapToIncludeShort}</span>}
               {/* Eliminar miembro — solo admin, no sobre uno mismo */}
               {isAdmin&&!isMe&&(
                 confirmRemoveMember===m.uid ? (
@@ -6023,15 +7837,15 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                     <button disabled={busyAction} onClick={()=>{snd("tap");removeMember(m.uid);}}
                       style={{background:"var(--r)",border:"none",borderRadius:7,padding:"4px 7px",
                         cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                        color:"#fff",fontWeight:900,whiteSpace:"nowrap"}}>Sí</button>
+                        color:"#fff",fontWeight:900,whiteSpace:"nowrap"}}>{T.yesLbl}</button>
                     <button onClick={()=>setConfirmRemoveMember(null)}
                       style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:7,padding:"4px 7px",
                         cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                        color:"rgba(255,255,255,.5)"}}>No</button>
+                        color:"rgba(255,255,255,.5)"}}>{T.noLbl}</button>
                   </div>
                 ) : (
                   <button onClick={e=>{e.stopPropagation();snd("tap");setConfirmRemoveMember(m.uid);}}
-                    title="Eliminar del grupo"
+                    title={T.deleteMemberTitle}
                     style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",
                       color:"rgba(255,255,255,.35)",borderRadius:7,width:26,height:26,cursor:"pointer",
                       flexShrink:0,fontSize:".72rem"}}>🗑</button>
@@ -6071,7 +7885,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                   transition:"all .2s"
                 }}>
                 <span style={{fontSize:"1.3rem"}}>🎮</span>
-                Jugar ahora · {count} jugador{count!==1?"es":""}
+                {T.grpPlayNow} · {count} {count!==1?T.grpPlayerWordPlural:T.grpPlayerWord}
                 <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
                   background:"rgba(255,255,255,.2)",borderRadius:20,padding:"2px 8px",marginLeft:4}}>
                   {selList.map(m=>(m.name||"?")[0]).join(" · ")}
@@ -6086,7 +7900,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
           const notInGroup=friends.filter(f=>!members[f.uid]);
           if(notInGroup.length===0)return null;
           return(<>
-            <p className="sec" style={{marginTop:8}}>AGREGAR AMIGOS AL GRUPO</p>
+            <p className="sec" style={{marginTop:8}}>{T.addFriendsToGroup}</p>
             {notInGroup.map(f=>(
               <div key={f.uid} style={{display:"flex",alignItems:"center",gap:10,
                 padding:"8px 12px",marginBottom:6,borderRadius:11,
@@ -6106,14 +7920,14 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                     // Índice inverso — sin esto, el amigo agregado nunca ve
                     // este grupo en SU propia lista (aunque sí aparezca aquí)
                     await _db.ref("users/"+f.uid+"/groups/"+activeGroup.id).set(true);
-                    setOk("✅ "+f.name+" agregado al grupo");
+                    setOk("✅ "+T.grpMemberAdded.replace('{name}',f.name));
                     setActiveGroup(g=>({...g,members:{...g.members,[f.uid]:{name:f.name,role:"member"}}}));
                     snd("join");
-                  }catch(e){setOk("❌ Error al agregar");}
+                  }catch(e){setOk(T.grpAddErr);}
                 }} style={{background:"rgba(46,196,182,.12)",border:"1px solid rgba(46,196,182,.3)",
                   color:"var(--t)",borderRadius:8,padding:"5px 12px",cursor:"pointer",
                   fontFamily:"'Righteous',sans-serif",fontSize:".65rem",flexShrink:0}}>
-                  + Agregar
+                  {T.addBtn}
                 </button>
               </div>
             ))}
@@ -6122,7 +7936,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
         {ok&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--gr)",
           textAlign:"center",padding:"8px",marginTop:4}}>{ok}</div>}
         <div style={{height:8}}/>
-        <button className="btn btn-g" onClick={()=>{setSelectedPlayers({});setActiveGroup(null);}}>← Volver a Grupos</button>
+        <button className="btn btn-g" onClick={()=>{setSelectedPlayers({});setActiveGroup(null);}}>{T.backToGroupsLong}</button>
       </div></div>
     );
   }
@@ -6132,13 +7946,13 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
         <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
           color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
-          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
-        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)",letterSpacing:2}}>👥 GRUPOS</div>
+          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>{T.back}</button>
+        <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)",letterSpacing:2}}>{T.groupsCapsTitle}</div>
       </div>
 
       {/* Tabs */}
       <div style={{display:"flex",gap:6,marginBottom:14}}>
-        {[["my","Mis grupos"],["join","Unirme"]].map(([id,lbl])=>(
+        {[["my",T.tabMyGroups],["join",T.tabJoinGroup]].map(([id,lbl])=>(
           <button key={id} className={"nb "+(tab===id?"on":"")}
             onClick={()=>{snd("tap");setTab(id);setErr("");setOk("");}} style={{flex:1,padding:"9px 4px"}}>
             {lbl}
@@ -6150,15 +7964,15 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
       {tab==="my"&&(<>
         {loading
           ? <div style={{textAlign:"center",paddingTop:30,color:"rgba(255,255,255,.3)",
-              fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:2}}>CARGANDO...</div>
+              fontFamily:"'Righteous',sans-serif",fontSize:".72rem",letterSpacing:2}}>{T.loadingCaps}</div>
           : myGroups.length===0
           ? <div style={{textAlign:"center",padding:"30px 20px"}}>
               <div style={{fontSize:"2.5rem",marginBottom:8}}>👥</div>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.4)"}}>
-                Sin grupos aún
+                {T.noGroupsYet2}
               </div>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",color:"rgba(255,255,255,.25)",marginTop:6,lineHeight:1.6}}>
-                Crea un grupo para jugar con los mismos amigos cada semana con el mismo código
+                {T.createGroupHint}
               </div>
             </div>
           : myGroups.map(g=>{
@@ -6183,14 +7997,14 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                           border:"1px solid rgba(245,200,0,.25)",borderRadius:6,
                           padding:"1px 7px"}}>{g.code}</span>
                         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                          color:"rgba(255,255,255,.3)",letterSpacing:1}}>{mList.length} miembros</span>
+                          color:"rgba(255,255,255,.3)",letterSpacing:1}}>{mList.length} {T.grpMembersWord}</span>
                       </div>
                     </div>
                     {hasRoom&&(
                       <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
                         background:"rgba(59,178,115,.2)",border:"1px solid rgba(59,178,115,.4)",
                         color:"var(--gr)",padding:"3px 8px",borderRadius:20,letterSpacing:1}}>
-                        🎮 EN JUEGO
+                        {T.inGameTag}
                       </span>
                     )}
                     <span style={{color:"rgba(255,255,255,.2)",fontSize:"1.1rem"}}>›</span>
@@ -6200,7 +8014,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                     {mList.map(m=>{
                       const isOnline=presence[m.uid]&&presence[m.uid].online;
                       return(
-                        <div key={m.uid} title={m.name+(isOnline?" · Online":"")}
+                        <div key={m.uid} title={m.name+(isOnline?" · "+T.onlineWord:"")}
                           style={{width:28,height:28,borderRadius:"50%",
                             background:isOnline?"rgba(59,178,115,.25)":"rgba(255,255,255,.06)",
                             border:"2px solid "+(isOnline?"var(--gr)":"rgba(255,255,255,.1)"),
@@ -6214,7 +8028,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                     {onlineM.length>0&&(
                       <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
                         color:"var(--gr)",letterSpacing:1,marginLeft:4}}>
-                        {onlineM.length} online
+                        {onlineM.length} {T.onlineWord}
                       </span>
                     )}
                   </div>
@@ -6228,8 +8042,8 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
           ? <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",
               borderRadius:12,padding:"14px",marginTop:10}}>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-                color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:10}}>NOMBRE DEL GRUPO</div>
-              <input className="inp" placeholder="ej. Los Jueves 🎴" value={newGroupName}
+                color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:10}}>{T.groupNameLbl}</div>
+              <input className="inp" placeholder={T.groupNamePlaceholder} value={newGroupName}
                 onChange={e=>setNewGroupName(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&createGroup()}
                 style={{marginBottom:10}} autoFocus/>
@@ -6237,9 +8051,9 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                 color:"var(--r)",marginBottom:8}}>{err}</div>}
               <div style={{display:"flex",gap:8}}>
                 <button onClick={()=>{setCreating(false);setErr("");}} className="btn btn-g"
-                  style={{flex:1,margin:0,padding:"11px"}}>Cancelar</button>
+                  style={{flex:1,margin:0,padding:"11px"}}>{T.cancel}</button>
                 <button onClick={createGroup} className="btn btn-y"
-                  style={{flex:2,margin:0,padding:"11px"}}>🎮 Crear grupo</button>
+                  style={{flex:2,margin:0,padding:"11px"}}>{T.createGroupBtn}</button>
               </div>
             </div>
           : <button onClick={()=>{snd("tap");setCreating(true);setErr("");}}
@@ -6249,7 +8063,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
                 transition:"all .2s"}}
               onMouseOver={e=>{e.target.style.borderColor="var(--y)";e.target.style.color="var(--y)";}}
               onMouseOut={e=>{e.target.style.borderColor="rgba(255,255,255,.12)";e.target.style.color="rgba(255,255,255,.4)";}}>
-              + Crear nuevo grupo
+              {T.newGroupBtn}
             </button>
         }
         {ok&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--gr)",
@@ -6260,7 +8074,7 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
       {tab==="join"&&(
         <div style={{paddingTop:8}}>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-            color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:10}}>CÓDIGO DEL GRUPO</div>
+            color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:10}}>{T.groupCodeLbl}</div>
           <input className="inp code-inp" style={{fontSize:"2.5rem",letterSpacing:8}}
             placeholder="XXXX" maxLength={4} value={joinCode}
             onChange={e=>setJoinCode(e.target.value.toUpperCase())}/>
@@ -6270,11 +8084,11 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
             color:"var(--gr)",marginBottom:10}}>{ok}</div>}
           <button className="btn btn-y" onClick={joinGroup}
             disabled={joinCode.length<4}>
-            👥 Unirme al grupo
+            {T.joinGroupBtn}
           </button>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
             color:"rgba(255,255,255,.25)",textAlign:"center",marginTop:8,lineHeight:1.6}}>
-            Pide el código de 4 letras al admin del grupo
+            {T.askGroupCode}
           </div>
         </div>
       )}
@@ -6286,7 +8100,8 @@ function GroupsScreen({authUser, onBack, onJoinRoom, onPlay, T}){
 // Mapa de calor de días jugados — mes navegable, intensidad según
 // cuántas partidas jugaste ese día. Puro adorno/vanidad, pero le da
 // contexto visual al historial.
-function GameCalendarHeatmap({games}){
+function GameCalendarHeatmap({games,T}){
+  T=T||LANGS.es;
   // Colapsado por defecto cada vez que se entra al historial (el
   // componente se desmonta al salir del tab, así que este estado
   // siempre vuelve a arrancar en false al volver a entrar).
@@ -6306,7 +8121,7 @@ function GameCalendarHeatmap({games}){
     }
   });
   const maxCount=Math.max(1,...Object.values(countByDay));
-  const monthName=viewDate.toLocaleDateString("es-MX",{month:"long",year:"numeric"});
+  const monthName=viewDate.toLocaleDateString(T.locale,{month:"long",year:"numeric"});
   const cells=[];
   for(let i=0;i<firstDayOfWeek;i++)cells.push(null);
   for(let d=1;d<=daysInMonth;d++)cells.push(d);
@@ -6321,9 +8136,9 @@ function GameCalendarHeatmap({games}){
         marginBottom:open?10:0}}>
         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",
           color:"rgba(255,255,255,.6)",letterSpacing:1,display:"flex",alignItems:"center",gap:6}}>
-          📅 CALENDARIO
+          {T.calendarLbl}
           {!open&&gamesThisMonth>0&&
-            <span style={{color:"var(--y)"}}>· {gamesThisMonth} este mes</span>}
+            <span style={{color:"var(--y)"}}>· {gamesThisMonth} {T.thisMonthSuffix}</span>}
         </span>
         <span style={{color:"rgba(255,255,255,.35)",fontSize:".8rem",
           transform:open?"rotate(180deg)":"none",transition:"transform .2s"}}>▾</span>
@@ -6340,7 +8155,7 @@ function GameCalendarHeatmap({games}){
             fontSize:"1rem",cursor:monthOffset>=0?"default":"pointer",padding:"2px 10px"}}>›</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:6}}>
-        {["D","L","M","M","J","V","S"].map((d,i)=>(
+        {T.weekdayLetters.map((d,i)=>(
           <div key={i} style={{textAlign:"center",fontFamily:"'Righteous',sans-serif",
             fontSize:".52rem",color:"rgba(255,255,255,.3)"}}>{d}</div>
         ))}
@@ -6350,7 +8165,7 @@ function GameCalendarHeatmap({games}){
           const count=d?(countByDay[d]||0):0;
           const isToday=d&&monthOffset===0&&d===now.getDate();
           return(
-            <div key={i} title={d&&count>0?count+" partida"+(count!==1?"s":""):""}
+            <div key={i} title={d&&count>0?count+" "+(count!==1?T.gameWordPlural:T.gameWord):""}
               style={{aspectRatio:"1",borderRadius:6,
                 background:d?colorFor(count):"transparent",
                 border:isToday?"1.5px solid var(--y)":"1px solid rgba(255,255,255,.03)",
@@ -6363,12 +8178,12 @@ function GameCalendarHeatmap({games}){
         })}
       </div>
       <div style={{display:"flex",alignItems:"center",gap:6,marginTop:10,justifyContent:"flex-end"}}>
-        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".5rem",color:"rgba(255,255,255,.25)"}}>menos</span>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".5rem",color:"rgba(255,255,255,.25)"}}>{T.lessLbl}</span>
         {[0,.3,.5,.7,.9].map((o,i)=>(
           <div key={i} style={{width:9,height:9,borderRadius:3,
             background:i===0?"rgba(255,255,255,.04)":"rgba(245,200,0,"+o+")"}}/>
         ))}
-        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".5rem",color:"rgba(255,255,255,.25)"}}>más</span>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".5rem",color:"rgba(255,255,255,.25)"}}>{T.moreLbl}</span>
       </div>
       </>)}
     </div>
@@ -6405,7 +8220,8 @@ function AnimatedScore({value,className,style}){
 // Comparativa cabeza a cabeza — cruza TUS partidas con las del amigo por
 // gameId compartido (si ambos tienen un registro con el mismo gameId,
 // jugaron juntos). No hace falta leer stats/games completo para esto.
-function HeadToHead({myUid,friendUid,friendName}){
+function HeadToHead({myUid,friendUid,friendName,T}){
+  T=T||LANGS.es;
   const[data,setData]=React.useState(null); // null=cargando
   React.useEffect(()=>{
     if(!myUid||!friendUid)return;
@@ -6432,14 +8248,14 @@ function HeadToHead({myUid,friendUid,friendName}){
     <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
       color:"rgba(255,255,255,.25)",padding:"10px 14px",background:"rgba(46,196,182,.07)",
       border:"1px solid rgba(46,196,182,.3)",borderTop:"none",
-      borderRadius:"0 0 13px 13px",marginTop:-1}}>Comparando…</div>
+      borderRadius:"0 0 13px 13px",marginTop:-1}}>{T.comparingLbl}</div>
   );
   if(data.length===0)return(
     <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
       color:"rgba(255,255,255,.3)",padding:"10px 14px",background:"rgba(46,196,182,.07)",
       border:"1px solid rgba(46,196,182,.3)",borderTop:"none",
       borderRadius:"0 0 13px 13px",marginTop:-1}}>
-      Aún no han jugado juntos en la misma partida
+      {T.neverPlayedTogether}
     </div>
   );
 
@@ -6452,15 +8268,15 @@ function HeadToHead({myUid,friendUid,friendName}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginBottom:8}}>
         <div style={{textAlign:"center"}}>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--t)"}}>{myWins}</div>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,255,255,.35)"}}>TÚ</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,255,255,.35)"}}>{T.youAllCaps}</div>
         </div>
-        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.25)"}}>vs</div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".7rem",color:"rgba(255,255,255,.25)"}}>{T.vsLbl}</div>
         <div style={{textAlign:"center"}}>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)"}}>{theirWins}</div>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,255,255,.35)"}}>{(friendName||"").toUpperCase().slice(0,10)}</div>
         </div>
         <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.25)",marginLeft:6}}>
-          {data.length} partida{data.length!==1?"s":""} juntos
+          {data.length} {data.length!==1?T.gameWordPlural:T.gameWord} {T.togetherSuffix}
         </div>
       </div>
       {/* Encabezados — antes las columnas de la lista no decían qué se
@@ -6470,16 +8286,16 @@ function HeadToHead({myUid,friendUid,friendName}){
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0 6px",
         borderBottom:"1px solid rgba(255,255,255,.1)",marginBottom:2}}>
         <span style={{flex:1,fontFamily:"'Righteous',sans-serif",fontSize:".52rem",
-          color:"rgba(255,255,255,.3)",letterSpacing:1,textTransform:"uppercase"}}>Fecha</span>
+          color:"rgba(255,255,255,.3)",letterSpacing:1,textTransform:"uppercase"}}>{T.dateColLbl}</span>
         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"var(--gr)",
-          letterSpacing:1,textTransform:"uppercase",minWidth:26,textAlign:"center"}}>Tú</span>
-        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".48rem",color:"rgba(255,255,255,.2)"}}>pos.</span>
+          letterSpacing:1,textTransform:"uppercase",minWidth:26,textAlign:"center"}}>{T.youCol}</span>
+        <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".48rem",color:"rgba(255,255,255,.2)"}}>{T.posAbbrev}</span>
         <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".52rem",color:"var(--y)",
           letterSpacing:1,textTransform:"uppercase",minWidth:26,textAlign:"center"}}>{(friendName||"").toUpperCase().slice(0,8)}</span>
       </div>
       {data.slice(0,5).map(r=>(
         <div key={r.gameId} style={{display:"flex",alignItems:"center",gap:8,padding:"3px 0",fontSize:".68rem"}}>
-          <span style={{flex:1,color:"rgba(255,255,255,.4)"}}>{fmtAgo(r.date)}</span>
+          <span style={{flex:1,color:"rgba(255,255,255,.4)"}}>{fmtAgo(r.date,T)}</span>
           <span style={{minWidth:26,textAlign:"center",color:r.myPos<r.theirPos?"var(--gr)":"rgba(255,255,255,.4)",fontWeight:900}}>#{r.myPos}</span>
           <span style={{color:"rgba(255,255,255,.2)"}}>–</span>
           <span style={{minWidth:26,textAlign:"center",color:r.theirPos<r.myPos?"var(--y)":"rgba(255,255,255,.4)",fontWeight:900}}>#{r.theirPos}</span>
@@ -6499,7 +8315,8 @@ function HeadToHead({myUid,friendUid,friendName}){
 // stats/games/{gameId} ya trae el rounds[] completo de TODOS los
 // jugadores, así que arma la misma tabla horizontal que se ve en vivo en
 // la pestaña Tabla — con ícono de Flip 7, modificadores y meta incluidos.
-function GameRoundsTable({gameId,highlightId}){
+function GameRoundsTable({gameId,highlightId,T}){
+  T=T||LANGS.es;
   const[players,setPlayers]=React.useState(null); // null=cargando
   const[winTarget,setWinTarget]=React.useState(null);
   React.useEffect(()=>{
@@ -6516,7 +8333,7 @@ function GameRoundsTable({gameId,highlightId}){
 
   if(players===null)return(
     <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-      color:"rgba(255,255,255,.25)",marginTop:10}}>Cargando tabla de rondas…</div>
+      color:"rgba(255,255,255,.25)",marginTop:10}}>{T.loadingRoundsTable}</div>
   );
   if(players.length===0)return null;
 
@@ -6526,10 +8343,10 @@ function GameRoundsTable({gameId,highlightId}){
   return(
     <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid rgba(255,255,255,.08)"}}>
       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-        color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>TABLA DE RONDAS</div>
+        color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>{T.rounds2}</div>
       <div className="tw">
         <table>
-          <thead><tr><th>Jugador</th>{Array.from({length:maxRounds},(_,i)=><th key={i}>R{i+1}</th>)}<th>Total</th></tr></thead>
+          <thead><tr><th>{T.colPlayer}</th>{Array.from({length:maxRounds},(_,i)=><th key={i}>R{i+1}</th>)}<th>{T.colTotal}</th></tr></thead>
           <tbody>
             {sorted.map((p,ri)=>{
               const isMe=highlightId&&p.id===highlightId;
@@ -6539,7 +8356,7 @@ function GameRoundsTable({gameId,highlightId}){
                   <span style={{color:p.color}}>{p.emoji}</span>{" "}
                   <span style={{color:p.color,fontWeight:isMe?900:undefined}}>{p.name}</span>
                   {isMe&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                    color:"var(--y)",marginLeft:4}}>tú</span>}
+                    color:"var(--y)",marginLeft:4}}>{T.grpYouTag}</span>}
                 </td>
                 {(p.rounds||[]).map((r,i)=>{
                   var hasFlip=r.breakdown&&r.breakdown.flip7;
@@ -6563,7 +8380,7 @@ function GameRoundsTable({gameId,highlightId}){
       {winTarget&&(
         <p style={{textAlign:"center",color:"var(--y)",fontFamily:"'Anton',sans-serif",
           fontSize:".85rem",letterSpacing:2,marginTop:8,textShadow:"0 0 10px rgba(245,200,0,.3)"}}>
-          🏆 META: {winTarget} PUNTOS
+          {T.goalTargetPts.replace('{n}',winTarget)}
         </p>
       )}
     </div>
@@ -6690,10 +8507,10 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
     setAddErr("");setAddOk("");
     try{
       // Ya son amigos — no hace falta nada
-      if(friends.some(f=>f.uid===found.uid)){setAddErr("Ya son amigos");return;}
+      if(friends.some(f=>f.uid===found.uid)){setAddErr(T.alreadyFriends);return;}
       // Ya le enviaste una solicitud — evita spam de solicitudes repetidas
       const sentCheck=await _db.ref("users/"+uid+"/sentRequests/"+found.uid).once("value");
-      if(sentCheck.exists()){setAddErr("Ya le enviaste una solicitud — espera a que responda");return;}
+      if(sentCheck.exists()){setAddErr(T.requestAlreadySent);return;}
       const meSnap=await _db.ref("users/"+uid).once("value");
       const me=meSnap.val()||{};
       const myName=me.displayName||me.email||"?";
@@ -6701,10 +8518,10 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
         ["users/"+found.uid+"/friendRequests/"+uid]:{uid,name:myName,email:me.email||"",at:Date.now()},
         ["users/"+uid+"/sentRequests/"+found.uid]:{uid:found.uid,name:found.name,at:Date.now()}
       });
-      setAddOk("✅ Solicitud enviada a "+found.name);
+      setAddOk(T.requestSentMsg.replace('{name}',found.name));
       setAddInput("");
       setSuggestions([]);
-    }catch(e){setAddErr("Error: "+e.message);}
+    }catch(e){setAddErr(T.errorPrefixLbl+" "+e.message);}
   }
 
   // Aceptar una solicitud entrante — recién ahí se crea la amistad
@@ -6737,10 +8554,10 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
       await _db.ref("users/"+friendUid+"/friends/"+uid).remove();
       setFriends(prev=>prev.filter(f=>f.uid!==friendUid));
       setConfirmRemove(null);
-    }catch(e){setAddErr("Error al eliminar: "+e.message);}
+    }catch(e){setAddErr(T.errRemoveFriendPrefix+' '+e.message);}
   }
 
-  const fmtD=ts=>new Date(ts).toLocaleDateString("es-MX",{day:"numeric",month:"short"})+" · "+new Date(ts).toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+  const fmtD=ts=>new Date(ts).toLocaleDateString(T.locale,{day:"numeric",month:"short"})+" · "+new Date(ts).toLocaleTimeString(T.locale,{hour:"2-digit",minute:"2-digit"});
   const winRate=myStats&&myStats.games>0?Math.round((myStats.wins/myStats.games)*100):0;
   const avgScore=myStats&&myStats.games>0?Math.round((myStats.totalScore||0)/myStats.games):0;
 
@@ -6818,7 +8635,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
         <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",
           color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",
-          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
+          fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>{T.back}</button>
         <div style={{flex:1,textAlign:"center"}}>
           {authUser.photoURL
             ? <img src={authUser.photoURL} style={{width:48,height:48,borderRadius:"50%",objectFit:"cover",border:"2px solid var(--y)"}} alt=""/>
@@ -6830,7 +8647,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
           }
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:"var(--y)",
             letterSpacing:2,marginTop:4}}>
-            {authUser.displayName||(authUser.email||"").split("@")[0]||"Jugador"}
+            {authUser.displayName||(authUser.email||"").split("@")[0]||T.colPlayer}
           </div>
           {authUser.email&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
             color:"rgba(255,255,255,.3)",letterSpacing:1}}>{authUser.email}</div>}
@@ -6841,7 +8658,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
       {/* Tabs — separadas por contexto: Estadísticas (Yo+Historial) vs Amigos (aparte) */}
       {dashMode!=="friends"&&(
         <div style={{display:"flex",gap:6,marginBottom:14}}>
-          {[["me","👤 Yo"],["history","🎮 Historial"]].map(([id,lbl])=>(
+          {[["me",T.tabMe],["history",T.tabHistory]].map(([id,lbl])=>(
             <button key={id} className={"nb "+(tab===id?"on":"")}
               onClick={()=>{snd("tap");setTab(id);}} style={{flex:1,padding:"9px 4px",fontSize:".65rem"}}>
               {lbl}
@@ -6851,7 +8668,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
       )}
 
       {loading&&<div style={{textAlign:"center",paddingTop:30,color:"rgba(255,255,255,.3)",
-        fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:2}}>CARGANDO...</div>}
+        fontFamily:"'Righteous',sans-serif",fontSize:".75rem",letterSpacing:2}}>{T.loadingCaps}</div>}
 
       {/* ── TAB: YO ── */}
       {!loading&&tab==="me"&&(
@@ -6859,33 +8676,33 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
         ? <div style={{textAlign:"center",padding:"30px 20px"}}>
             <div style={{fontSize:"3rem",marginBottom:10}}>👤</div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",
-              color:"rgba(255,255,255,.5)",marginBottom:6}}>Modo anónimo</div>
+              color:"rgba(255,255,255,.5)",marginBottom:6}}>{T.guestModeLbl}</div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
               color:"rgba(255,255,255,.3)",lineHeight:1.6}}>
-              Crea una cuenta para guardar tus stats, ver tu historial y agregar amigos.
+              {T.createAccountStatsHint}
             </div>
             <button onClick={()=>signOut()} className="btn btn-y" style={{marginTop:20,maxWidth:280}}>
-              Crear cuenta / Iniciar sesión
+              {T.createAccountLoginBtn}
             </button>
           </div>
         : !myStats
         ? <div style={{textAlign:"center",padding:"30px 20px"}}>
             <div style={{fontSize:"2.5rem",marginBottom:8}}>🎴</div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",
-              color:"rgba(255,255,255,.4)"}}>Aún sin partidas registradas</div>
+              color:"rgba(255,255,255,.4)"}}>{T.noGamesYetLong}</div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
-              color:"rgba(255,255,255,.25)",marginTop:6}}>Juega tu primera partida para ver tus stats</div>
+              color:"rgba(255,255,255,.25)",marginTop:6}}>{T.playFirstGameHint}</div>
           </div>
         : <>
           {/* Stats grid */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
             {[
-              ["🏆","Victorias",myStats.wins||0,"var(--y)"],
-              ["🎮","Partidas",myStats.games||0,"var(--t)"],
-              ["⭐","Mejor score",myStats.bestScore||0,"var(--y)"],
-              ["📊","Prom. partida",avgScore,"rgba(255,255,255,.6)"],
-              ["🃏","Flip 7s",myStats.flip7Count||0,"var(--y)"],
-              ["💀","Busts",myStats.bustCount||0,"var(--r)"],
+              ["🏆",T.statLblWins,myStats.wins||0,"var(--y)"],
+              ["🎮",T.statLblGames,myStats.games||0,"var(--t)"],
+              ["⭐",T.statLblBestScore,myStats.bestScore||0,"var(--y)"],
+              ["📊",T.statLblAvgGame,avgScore,"rgba(255,255,255,.6)"],
+              ["🃏",T.statLblFlip7s,myStats.flip7Count||0,"var(--y)"],
+              ["💀",T.statLblBusts,myStats.bustCount||0,"var(--r)"],
             ].map(([ico,lbl,val,clr])=>(
               <div key={lbl} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",
                 borderRadius:13,padding:"12px 14px",textAlign:"center"}}>
@@ -6901,7 +8718,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
             borderRadius:12,padding:"12px 14px",marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".68rem",
-                color:"rgba(255,255,255,.5)",letterSpacing:2}}>WIN RATE</div>
+                color:"rgba(255,255,255,.5)",letterSpacing:2}}>{T.winRateLbl}</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.2rem",color:"var(--y)"}}>{winRate}%</div>
             </div>
             <div style={{height:6,background:"rgba(255,255,255,.08)",borderRadius:3,overflow:"hidden"}}>
@@ -6910,7 +8727,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
             </div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
               color:"rgba(255,255,255,.3)",marginTop:6,letterSpacing:1}}>
-              {myStats.wins||0} victorias · {(myStats.games||0)-(myStats.wins||0)} derrotas
+              {T.winLossLine.replace('{w}',myStats.wins||0).replace('{l}',(myStats.games||0)-(myStats.wins||0))}
             </div>
           </div>
           {/* Flip 7 vs Bust ratio */}
@@ -6918,7 +8735,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
             <div style={{background:"rgba(245,200,0,.06)",border:"1px solid rgba(245,200,0,.15)",
               borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:4}}>FLIP 7 POR PARTIDA</div>
+                color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:4}}>{T.flip7PerGame}</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:"var(--y)"}}>
                 {myStats.games>0?((myStats.flip7Count||0)/myStats.games).toFixed(1):0}
               </div>
@@ -6926,7 +8743,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
             <div style={{background:"rgba(230,57,70,.06)",border:"1px solid rgba(230,57,70,.15)",
               borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:4}}>BUST POR PARTIDA</div>
+                color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:4}}>{T.bustPerGame}</div>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:"var(--r)"}}>
                 {myStats.games>0?((myStats.bustCount||0)/myStats.games).toFixed(1):0}
               </div>
@@ -6945,7 +8762,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   color:kpis.currentType?"var(--gr)":"var(--r)"}}>{kpis.currentStreak}</div>
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
                   color:"rgba(255,255,255,.3)",letterSpacing:1}}>
-                  {kpis.currentType?"VICTORIAS SEGUIDAS":"DERROTAS SEGUIDAS"}
+                  {kpis.currentType?T.winStreakCaps:T.lossStreakCaps}
                 </div>
               </div>
               <div style={{flex:1,background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",
@@ -6953,7 +8770,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                 <div style={{fontSize:"1.3rem"}}>👑</div>
                 <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--y)"}}>{kpis.bestStreak}</div>
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>RACHA RÉCORD</div>
+                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>{T.bestStreak}</div>
               </div>
             </div>
 
@@ -6964,7 +8781,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                 <div style={{fontSize:"1.3rem"}}>⚡</div>
                 <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--t)"}}>{kpis.aggressiveness}</div>
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>CARTAS POR RONDA</div>
+                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>{T.cardsPerRound}</div>
               </div>
               <div style={{flex:1,background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",
                 borderRadius:12,padding:"10px 12px",textAlign:"center"}}>
@@ -6973,7 +8790,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   {kpis.luckyCard!==null?kpis.luckyCard:"—"}
                 </div>
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>CARTA DE LA SUERTE</div>
+                  color:"rgba(255,255,255,.3)",letterSpacing:1}}>{T.luckyCard}</div>
               </div>
             </div>
 
@@ -6986,7 +8803,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                     <div style={{fontSize:"1.3rem"}}>🎬</div>
                     <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"#cc88ff"}}>{kpis.comebacks}</div>
                     <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                      color:"rgba(255,255,255,.3)",letterSpacing:1}}>REMONTADA{kpis.comebacks!==1?"S":""}</div>
+                      color:"rgba(255,255,255,.3)",letterSpacing:1}}>{kpis.comebacks!==1?T.comebackWordPlural:T.comebackWord}</div>
                   </div>
                 )}
                 {kpis.worstBustStreak>=2&&(
@@ -6995,7 +8812,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                     <div style={{fontSize:"1.3rem"}}>☠️</div>
                     <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:"var(--r)"}}>{kpis.worstBustStreak}</div>
                     <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                      color:"rgba(255,255,255,.3)",letterSpacing:1}}>BUSTS SEGUIDOS</div>
+                      color:"rgba(255,255,255,.3)",letterSpacing:1}}>{T.bustsInARow}</div>
                   </div>
                 )}
               </div>
@@ -7012,7 +8829,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   </div>
                   <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
                     color:"rgba(255,255,255,.3)",letterSpacing:1}}>
-                    CLÁSICO{kpis.classic?" · "+kpis.classic.games+"P":""}
+                    {T.modeClassicCaps}{kpis.classic?" · "+kpis.classic.games+T.gamesAbbrev:""}
                   </div>
                 </div>
                 <div style={{flex:1,background:"rgba(230,57,70,.08)",border:"1px solid rgba(230,57,70,.2)",
@@ -7023,7 +8840,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   </div>
                   <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
                     color:"rgba(255,255,255,.3)",letterSpacing:1}}>
-                    VENGANZA{kpis.venganza?" · "+kpis.venganza.games+"P":""}
+                    {T.modeVengCaps}{kpis.venganza?" · "+kpis.venganza.games+T.gamesAbbrev:""}
                   </div>
                 </div>
               </div>
@@ -7038,10 +8855,10 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
         ? <div style={{textAlign:"center",padding:"30px 20px"}}>
             <div style={{fontSize:"2.5rem",marginBottom:8}}>👥</div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".75rem",color:"rgba(255,255,255,.4)"}}>
-              Necesitas cuenta para agregar amigos
+              {T.needAccountFriends}
             </div>
             <button onClick={()=>signOut()} className="btn btn-y" style={{marginTop:16,maxWidth:280}}>
-              Crear cuenta
+              {T.createAccount}
             </button>
           </div>
         : <>
@@ -7049,36 +8866,36 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
           <div style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",
             borderRadius:12,padding:"12px 13px",marginBottom:14}}>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-              color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8}}>INVITAR AMIGO</div>
+              color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:8}}>{T.inviteFriendCaps}</div>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",
               color:"rgba(255,255,255,.6)",marginBottom:10,lineHeight:1.5}}>
-              Comparte tu link — cuando tu amigo lo abra quedará conectado contigo automáticamente.
+              {T.shareLinkDesc}
             </div>
             <button onClick={()=>{
               const link="https://mysqldumpbd-afk.github.io/Flip7/?invite="+uid;
               if(navigator.share){
-                navigator.share({title:"¡Únete a Flip 7!",text:"Agrégate como mi amigo en Flip 7 🃏",url:link});
+                navigator.share({title:T.shareInviteTitle,text:T.shareInviteText,url:link});
               } else {
-                navigator.clipboard.writeText(link).then(()=>setAddOk("✅ Link copiado — pégalo en WhatsApp"));
+                navigator.clipboard.writeText(link).then(()=>setAddOk(T.linkCopiedWhatsapp));
               }
               snd("tap");
             }} style={{width:"100%",padding:"11px",background:"linear-gradient(135deg,var(--t),#1A9A94)",
               border:"none",borderRadius:11,cursor:"pointer",
               fontFamily:"'Nunito',sans-serif",fontWeight:900,fontSize:".9rem",color:"#fff",
               display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-              🔗 Compartir link de invitación
+              {T.shareInviteLinkBtn}
             </button>
             {addOk&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
               color:"var(--gr)",marginTop:8,textAlign:"center"}}>{addOk}</div>}
             <div style={{height:12}}/>
             <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-              color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>O BUSCAR POR NOMBRE / EMAIL (2+ letras)</div>
+              color:"rgba(255,255,255,.3)",letterSpacing:2,marginBottom:8}}>{T.searchByNameEmail}</div>
             <div style={{position:"relative"}}>
               <input className="inp" style={{margin:0,width:"100%",padding:"7px 10px",fontSize:".86rem"}}
-                placeholder="Escribe nombre o email…"
+                placeholder={T.searchNameEmailPlaceholder}
                 value={addInput} onChange={e=>setAddInput(e.target.value)}/>
               {searching&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-                color:"rgba(255,255,255,.3)",marginTop:6}}>Buscando…</div>}
+                color:"rgba(255,255,255,.3)",marginTop:6}}>{T.searchingLbl}</div>}
               {!searching&&suggestions.length>0&&(
                 <div style={{marginTop:8,background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.1)",
                   borderRadius:10,overflow:"hidden"}}>
@@ -7097,14 +8914,14 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                           color:"rgba(255,255,255,.35)"}}>{s.email}</div>}
                       </div>
                       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"var(--t)",
-                        fontWeight:900,letterSpacing:1,flexShrink:0}}>+ SOLICITUD</div>
+                        fontWeight:900,letterSpacing:1,flexShrink:0}}>{T.requestSentBtn}</div>
                     </div>
                   ))}
                 </div>
               )}
               {!searching&&addInput.trim().length>=2&&suggestions.length===0&&(
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
-                  color:"rgba(255,255,255,.3)",marginTop:6}}>Sin resultados</div>
+                  color:"rgba(255,255,255,.3)",marginTop:6}}>{T.noResults}</div>
               )}
             </div>
             {addErr&&<div style={{fontFamily:"'Righteous',sans-serif",fontSize:".65rem",
@@ -7115,7 +8932,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
           {friendRequests.length>0&&(
             <div style={{marginBottom:16}}>
               <p className="sec" style={{color:"var(--r)"}}>
-                🔴 SOLICITUDES PENDIENTES ({friendRequests.length})
+                {T.pendingRequestsCaps.replace('{n}',friendRequests.length)}
               </p>
               {friendRequests.map(r=>(
                 <div key={r.fromUid} style={{background:"rgba(230,57,70,.06)",
@@ -7129,12 +8946,12 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:900,fontSize:".85rem",color:"#fff"}}>{r.name}</div>
                     <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                      color:"rgba(255,255,255,.35)"}}>quiere ser tu amigo</div>
+                      color:"rgba(255,255,255,.35)"}}>{T.wantsToBeFriend}</div>
                   </div>
                   <button onClick={()=>acceptFriendRequest(r.fromUid,r)}
                     style={{background:"var(--gr)",border:"none",borderRadius:8,padding:"7px 12px",
                       cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".62rem",
-                      color:"#fff",fontWeight:900,flexShrink:0}}>✓ Aceptar</button>
+                      color:"#fff",fontWeight:900,flexShrink:0}}>{T.acceptBtn}</button>
                   <button onClick={()=>declineFriendRequest(r.fromUid)}
                     style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",
                       borderRadius:8,width:30,height:30,cursor:"pointer",flexShrink:0,
@@ -7149,7 +8966,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
           {friends.length===0
             ? <div style={{textAlign:"center",padding:"20px",color:"rgba(255,255,255,.3)",
                 fontFamily:"'Righteous',sans-serif",fontSize:".75rem"}}>
-                Sin amigos aún — agrega a tus compañeros de juego
+                {T.noFriendsYetAdd}
               </div>
             : friends.map(f=>{
                 const fs=friendsStats[f.uid];
@@ -7180,22 +8997,22 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                       <div style={{fontWeight:900,fontSize:".9rem",color:"rgba(255,255,255,.85)"}}>{f.name}</div>
                       <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",letterSpacing:1,marginTop:2,
                         color:isOnline?"var(--gr)":"rgba(255,255,255,.25)"}}>
-                        {isOnline?"🟢 Online":(pres.lastSeen?"⚫ "+fmtAgo(pres.lastSeen):"⚫ Offline")}
+                        {isOnline?T.statusOnline:(pres.lastSeen?"⚫ "+fmtAgo(pres.lastSeen,T):"⚫ "+T.statusOffline)}
                       </div>
                       {fs
                         ? <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
                             color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
-                            {fs.games||0} partidas · {fWinRate}% wins · mejor: {fs.bestScore||0}pts · 🃏{fs.flip7Count||0}
+                            {T.friendStatsLine.replace('{n}',fs.games||0).replace('{pct}',fWinRate).replace('{best}',fs.bestScore||0).replace('{flip7}',fs.flip7Count||0)}
                           </div>
                         : <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
-                            color:"rgba(255,255,255,.25)",letterSpacing:1}}>Sin partidas aún</div>
+                            color:"rgba(255,255,255,.25)",letterSpacing:1}}>{T.noGamesYetShort}</div>
                       }
                     </div>
                     {fs&&<div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",
                       color:"rgba(255,255,255,.4)"}}>{fs.wins||0}<div style={{fontFamily:"'Righteous',sans-serif",
-                        fontSize:".52rem",color:"rgba(255,255,255,.25)",letterSpacing:1}}>WINS</div></div>}
+                        fontSize:".52rem",color:"rgba(255,255,255,.25)",letterSpacing:1}}>{T.winsLbl}</div></div>}
                     <button onClick={()=>{snd("tap");setH2hOpen(h2hOpen===f.uid?null:f.uid);}}
-                      title="Comparar cabeza a cabeza"
+                      title={T.compareHeadToHead}
                       style={{background:h2hOpen===f.uid?"rgba(46,196,182,.15)":"rgba(255,255,255,.06)",
                         border:"1px solid "+(h2hOpen===f.uid?"rgba(46,196,182,.4)":"rgba(255,255,255,.1)"),
                         borderRadius:8,width:30,height:30,cursor:"pointer",flexShrink:0,
@@ -7206,22 +9023,22 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                         <button onClick={()=>{snd("tap");removeFriend(f.uid);}}
                           style={{background:"var(--r)",border:"none",borderRadius:8,padding:"5px 9px",
                             cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                            color:"#fff",fontWeight:900,whiteSpace:"nowrap"}}>Confirmar</button>
+                            color:"#fff",fontWeight:900,whiteSpace:"nowrap"}}>{T.confirmReq}</button>
                         <button onClick={()=>setConfirmRemove(null)}
                           style={{background:"rgba(255,255,255,.08)",border:"none",borderRadius:8,padding:"5px 9px",
                             cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
-                            color:"rgba(255,255,255,.5)",whiteSpace:"nowrap"}}>Cancelar</button>
+                            color:"rgba(255,255,255,.5)",whiteSpace:"nowrap"}}>{T.cancel}</button>
                       </div>
                     ) : (
                       <button onClick={()=>{snd("tap");setConfirmRemove(f.uid);}}
-                        title="Eliminar amigo"
+                        title={T.deleteFriendTitle}
                         style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",
                           borderRadius:8,width:30,height:30,cursor:"pointer",flexShrink:0,
                           display:"flex",alignItems:"center",justifyContent:"center",
                           color:"rgba(255,255,255,.4)",fontSize:".9rem"}}>🗑</button>
                     )}
                   </div>
-                  {h2hOpen===f.uid&&<HeadToHead myUid={uid} friendUid={f.uid} friendName={f.name}/>}
+                  {h2hOpen===f.uid&&<HeadToHead myUid={uid} friendUid={f.uid} friendName={f.name} T={T}/>}
                   </div>
                 );
               })
@@ -7234,10 +9051,10 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
         myGames.length===0
         ? <div style={{textAlign:"center",padding:"30px",color:"rgba(255,255,255,.3)",
             fontFamily:"'Righteous',sans-serif",fontSize:".75rem"}}>
-            Sin partidas registradas aún
+            {T.noGamesRegisteredYet}
           </div>
         : <>
-          <GameCalendarHeatmap games={myGames}/>
+          <GameCalendarHeatmap games={myGames} T={T}/>
           {myGames.map((g,i)=>{
             const isOpen=expandedGame===(g.gameId||i);
             return(
@@ -7249,20 +9066,20 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                 <div style={{fontSize:"1.5rem"}}>{g.won?"🏆":g.position===2?"🥈":g.position===3?"🥉":"💀"}</div>
                 <div style={{flex:1}}>
                   <div style={{fontWeight:900,fontSize:".88rem",
-                    color:g.won?"var(--gr)":"rgba(255,255,255,.8)"}}>{g.title||"Partida"}
+                    color:g.won?"var(--gr)":"rgba(255,255,255,.8)"}}>{g.title?g.title:T.gamePrefix+" "+new Date(g.date).toLocaleDateString(T.locale)}
                     {g.gameMode&&g.gameMode!=="classic"&&<span style={{fontFamily:"'Righteous',sans-serif",
-                      fontSize:".55rem",color:"var(--r)",marginLeft:6}}>💀 VENGANZA</span>}
+                      fontSize:".55rem",color:"var(--r)",marginLeft:6}}>{T.vengeanceTag}</span>}
                   </div>
                   <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",
                     color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
-                    {fmtD(g.date)} · {g.playerCount} jugadores · pos #{g.position}
+                    {fmtD(g.date)} · {T.playersCountPos.replace('{n}',g.playerCount).replace('{p}',g.position)}
                   </div>
                 </div>
                 <div style={{textAlign:"right"}}>
                   <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",
                     color:g.won?"var(--y)":"rgba(255,255,255,.5)"}}>{g.total}</div>
                   <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
-                    color:"rgba(255,255,255,.3)",letterSpacing:1}}>pts totales</div>
+                    color:"rgba(255,255,255,.3)",letterSpacing:1}}>{T.ptsTotalLbl}</div>
                 </div>
                 <span style={{fontSize:"1rem",color:"rgba(255,255,255,.3)",
                   transform:isOpen?"rotate(180deg)":"none",transition:"transform .2s"}}>▾</span>
@@ -7283,7 +9100,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
                   la pestaña Tabla durante la partida en vivo. */}
               {isOpen&&(
                 <div onClick={e=>e.stopPropagation()}>
-                  <GameRoundsTable gameId={g.gameId} highlightId={uid}/>
+                  <GameRoundsTable gameId={g.gameId} highlightId={uid} T={T}/>
                 </div>
               )}
             </div>
@@ -7293,7 +9110,7 @@ function PersonalDashboard({authUser, onBack, T, initialTab, mode}){
       )}
 
       <div style={{height:8}}/>
-      <button className="btn btn-g" onClick={onBack}>← Volver al menú</button>
+      <button className="btn btn-g" onClick={onBack}>{T.backToMenu}</button>
     </div></div>
   );
 }
@@ -7352,7 +9169,7 @@ function StatsScreen({onBack,T}){
     return(
       <div className="wrap"><div className="page" style={{paddingTop:16}}>
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-          <button onClick={()=>setSelectedPlayer(null)} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
+          <button onClick={()=>setSelectedPlayer(null)} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>{T.back}</button>
           <div style={{flex:1,textAlign:"center"}}>
             <div style={{fontSize:"2.4rem"}}>{p.emoji}</div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:p.color,letterSpacing:2}}>{p.name}</div>
@@ -7360,12 +9177,12 @@ function StatsScreen({onBack,T}){
         </div>
         {/* Stats summary */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-          {[["🏆","Victorias",p.wins||0],["🎮","Partidas",p.games||0],["⭐","Mejor score",p.bestScore||0],["📊","Prom. score",avgScore],
-            ["🃏","Flip 7s",p.flip7Count||0],["💀","Busts",p.bustCount||0]
+          {[["🏆",T.statLblWins,p.wins||0],["🎮",T.statLblGames,p.games||0],["⭐",T.statLblBestScore,p.bestScore||0],["📊",T.avgScoreLbl,avgScore],
+            ["🃏",T.statLblFlip7s,p.flip7Count||0],["💀",T.statLblBusts,p.bustCount||0]
           ].map(([ico,lbl,val])=>(
             <div key={lbl} style={{background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.07)",borderRadius:13,padding:"12px 14px",textAlign:"center"}}>
               <div style={{fontSize:"1.4rem",marginBottom:4}}>{ico}</div>
-              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:lbl==="Flip 7s"?"var(--y)":lbl==="Busts"?"var(--r)":"var(--y)",lineHeight:1}}>{val}</div>
+              <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:lbl===T.statLblFlip7s?"var(--y)":lbl===T.statLblBusts?"var(--r)":"var(--y)",lineHeight:1}}>{val}</div>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>{lbl}</div>
             </div>
           ))}
@@ -7373,18 +9190,18 @@ function StatsScreen({onBack,T}){
         <div style={{background:"rgba(245,200,0,.08)",border:"1px solid rgba(245,200,0,.2)",borderRadius:12,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"2.4rem",color:"var(--y)"}}>{winRate}%</div>
           <div>
-            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--y)",letterSpacing:2}}>WIN RATE</div>
-            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:1}}>{p.wins||0} victorias de {p.games||0} partidas</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".72rem",color:"var(--y)",letterSpacing:2}}>{T.winRateLbl}</div>
+            <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:1}}>{T.winsOfGamesLine.replace('{w}',p.wins||0).replace('{g}',p.games||0)}</div>
           </div>
         </div>
-        <p className="sec">HISTORIAL DE PARTIDAS</p>
+        <p className="sec">{T.historyOfGames}</p>
         {(p.gamesList||[]).map((g,i)=>(
           <div key={g.gameId||i} style={{background:g.won?"rgba(59,178,115,.08)":"rgba(255,255,255,.03)",border:"2px solid "+(g.won?"rgba(59,178,115,.35)":"rgba(255,255,255,.07)"),borderRadius:13,padding:"11px 13px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
             <div style={{fontSize:"1.6rem"}}>{g.won?"🏆":g.position===2?"🥈":g.position===3?"🥉":"💀"}</div>
             <div style={{flex:1}}>
-              <div style={{fontWeight:900,fontSize:".88rem",color:g.won?"var(--gr)":"rgba(255,255,255,.8)"}}>{g.title||"Partida"}</div>
+              <div style={{fontWeight:900,fontSize:".88rem",color:g.won?"var(--gr)":"rgba(255,255,255,.8)"}}>{g.title?g.title:T.gamePrefix+" "+new Date(g.date).toLocaleDateString(T.locale)}</div>
               <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
-                {fmtD(g.date)} · {g.playerCount} jug.
+                {fmtD(g.date)} · {g.playerCount} {T.playersAbbrev}
               </div>
               {/* Round breakdown mini */}
               <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:4}}>
@@ -7400,13 +9217,13 @@ function StatsScreen({onBack,T}){
             </div>
             <div style={{textAlign:"right"}}>
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:g.won?"var(--y)":"rgba(255,255,255,.5)"}}>{g.total}</div>
-              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>#{g.position} de {g.playerCount}</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>{T.posOfTotalTemplate.replace('{p}',g.position).replace('{n}',g.playerCount)}</div>
             </div>
           </div>
         ))}
-        {(!p.gamesList||p.gamesList.length===0)&&<div className="es"><p>Sin historial aún</p></div>}
+        {(!p.gamesList||p.gamesList.length===0)&&<div className="es"><p>{T.noHistoryYet}</p></div>}
         <div className="g8"/>
-        <button className="btn btn-g" onClick={()=>setSelectedPlayer(null)}>← Volver al ranking</button>
+        <button className="btn btn-g" onClick={()=>setSelectedPlayer(null)}>{T.backToRanking}</button>
       </div></div>
     );
   }
@@ -7415,25 +9232,25 @@ function StatsScreen({onBack,T}){
     <div className="wrap"><div className="page" style={{paddingTop:16}}>
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-        <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>← Volver</button>
+        <button onClick={onBack} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>{T.back}</button>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",letterSpacing:3,color:"var(--y)"}}>📊 ESTADÍSTICAS</div>
-          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2}}>FLIP 7 · RACE TO 200</div>
+          <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.5rem",letterSpacing:3,color:"var(--y)"}}>{T.statsCapsTitle}</div>
+          <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.3)",letterSpacing:2}}>{T.flip7RaceTo200}</div>
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{display:"flex",gap:6,marginBottom:14}}>
-        {[["leaderboard","🏆 Ranking"],["games","🎮 Partidas"]].map(([id,lbl])=>(
+        {[["leaderboard",T.tabRankingEmoji],["games",T.tabGamesEmoji]].map(([id,lbl])=>(
           <button key={id} className={"nb "+(tab===id?"on":"")} onClick={()=>{snd('tap');setTab(id);}} style={{flex:1,padding:"9px 4px"}}>{lbl}</button>
         ))}
       </div>
 
-      {loading&&<div style={{textAlign:"center",paddingTop:40}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>Cargando estadísticas...</p></div>}
+      {loading&&<div style={{textAlign:"center",paddingTop:40}}><div className="spin" style={{margin:"0 auto 14px"}}/><p style={{color:"rgba(255,255,255,.4)",fontWeight:700}}>{T.loadingStats}</p></div>}
 
       {/* LEADERBOARD */}
       {!loading&&tab==="leaderboard"&&(<>
-        {players.length===0&&<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>📊</div><p style={{fontWeight:700}}>Sin estadísticas aún</p><p style={{fontSize:".8rem",marginTop:6,color:"rgba(255,255,255,.3)"}}>Completa una partida para ver el ranking</p></div>}
+        {players.length===0&&<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>📊</div><p style={{fontWeight:700}}>{T.noStatsYet}</p><p style={{fontSize:".8rem",marginTop:6,color:"rgba(255,255,255,.3)"}}>{T.completeGameForRanking}</p></div>}
         {players.map((p,i)=>{
           const winRate=p.games>0?Math.round((p.wins/p.games)*100):0;
           return(
@@ -7448,12 +9265,12 @@ function StatsScreen({onBack,T}){
               <div style={{flex:1}}>
                 <div style={{fontWeight:900,fontSize:".96rem",color:p.color}}>{p.name}</div>
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
-                  {p.games||0} partidas · {winRate}% victorias · mejor: {p.bestScore||0}pts
+                  {T.statsLeaderRow.replace('{g}',p.games||0).replace('{pct}',winRate).replace('{best}',p.bestScore||0)}
                 </div>
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:i===0?"var(--y)":"rgba(255,255,255,.55)"}}>{p.wins||0}</div>
-                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>🏆 wins</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",color:"rgba(255,255,255,.3)",letterSpacing:1}}>{T.winsTrophy}</div>
               </div>
               <div style={{color:"rgba(255,255,255,.2)",fontSize:".9rem"}}>›</div>
             </div>
@@ -7463,15 +9280,15 @@ function StatsScreen({onBack,T}){
 
       {/* PARTIDAS */}
       {!loading&&tab==="games"&&(<>
-        {games.length===0&&<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>🎮</div><p style={{fontWeight:700}}>Sin partidas aún</p></div>}
+        {games.length===0&&<div className="es"><div style={{fontSize:"2.8rem",marginBottom:10}}>🎮</div><p style={{fontWeight:700}}>{T.noGamesYetShort}</p></div>}
         {games.map((g,i)=>(
           <div key={g.gameId||i} style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.07)",borderRadius:13,padding:"12px 14px",marginBottom:8}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
               <div>
-                <div style={{fontWeight:900,fontSize:".88rem"}}>{g.title||"Partida"}</div>
-                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>{fmtD(g.date)} · {fmtT(g.date)} · Sala {g.code}</div>
+                <div style={{fontWeight:900,fontSize:".88rem"}}>{g.title?g.title:T.gamePrefix+" "+new Date(g.date).toLocaleDateString(T.locale)}</div>
+                <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>{fmtD(g.date)} · {fmtT(g.date)} · {T.roomInlineLower.replace('{code}',g.code)}</div>
               </div>
-              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",background:"rgba(255,255,255,.06)",padding:"2px 8px",borderRadius:20}}>{g.playerCount||0} jug. · {g.rounds||0} rondas</div>
+              <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",color:"rgba(255,255,255,.3)",background:"rgba(255,255,255,.06)",padding:"2px 8px",borderRadius:20}}>{g.playerCount||0} {T.playersAbbrev} · {g.rounds||0} {T.roundsWord}</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(245,200,0,.08)",borderRadius:9,padding:"7px 10px",marginBottom:8}}>
               <span style={{fontSize:"1.1rem"}}>🏆</span>
@@ -7504,19 +9321,22 @@ function StatsScreen({onBack,T}){
 // 3 variantes de celebración — mismo layout y mecánica (confeti, texto,
 // botones), solo cambia ícono, acento de color, fondo y animación del
 // ícono. Se elige al azar cada vez que termina una partida.
+// NOTA: label/labelTie ya NO llevan el texto — guardan la KEY de LANGS
+// (labelKey/labelTieKey) para poder resolverse en el idioma activo (T)
+// dentro de WinnerScreen, en vez de texto fijo en español.
 const CELEBRATIONS=[
-  {icon:"🏆",label:"¡GANADOR!",labelTie:"¡EMPATE!",
+  {icon:"🏆",labelKey:"celWinnerLbl",labelTieKey:"celTieLbl",
     bg:"radial-gradient(circle at 50% 40%,#2a1800 0%,#0F0F1A 60%)",
     confetti:CONF,iconAnim:"fl 2s ease-in-out infinite",accent:"var(--y)"},
-  {icon:"🎆",label:"¡VICTORIA EXPLOSIVA!",labelTie:"¡EMPATE EXPLOSIVO!",
+  {icon:"🎆",labelKey:"celExplosiveLbl",labelTieKey:"celExplosiveTieLbl",
     bg:"radial-gradient(circle at 50% 40%,#0d1a3a 0%,#0a0a18 60%)",
     confetti:["#2EC4B6","#7C6FE0","#ffffff","#4A90D9"],
     iconAnim:"celSpin 1.2s ease-in-out infinite",accent:"var(--t)"},
-  {icon:"👑",label:"¡CORONADO!",labelTie:"¡CORONA COMPARTIDA!",
+  {icon:"👑",labelKey:"celCrownedLbl",labelTieKey:"celCrownSharedLbl",
     bg:"radial-gradient(circle at 50% 40%,#2a0a30 0%,#0F0F1A 60%)",
     confetti:["#F5C800","#ffffff","#cc88ff","#FF6B35"],
     iconAnim:"celPulse 1.5s ease-in-out infinite",accent:"#cc88ff"},
-  {icon:"🐒",image:"icons/monkey.gif",label:"¡REY DE LA SELVA!",labelTie:"¡SELVA COMPARTIDA!",
+  {icon:"🐒",image:"icons/monkey.gif",labelKey:"celJungleKingLbl",labelTieKey:"celJungleSharedLbl",
     bg:"radial-gradient(circle at 50% 40%,#0e2a12 0%,#0F0F1A 60%)",
     confetti:["#3BB273","#F5C800","#8B5E34","#ffffff"],
     iconAnim:"celSwing 1.4s ease-in-out infinite",accent:"#3BB273"}
@@ -7524,11 +9344,12 @@ const CELEBRATIONS=[
 
 // Frases de margen — según qué tan grande fue la diferencia de puntos entre
 // el 1° y el 2° lugar. Se elige una al azar dentro del rango que
-// corresponda, cada vez que alguien gana (sin empate).
-const VICTORY_PHRASES={
-  close:["¡Qué partidazo cerrado!","Ganó por los pelos","Victoria al filo de la navaja","Casi un empate — qué emoción","Se decidió en el último suspiro"],
-  solid:["Victoria sólida","Con margen de sobra","Dominó de principio a fin","Una ventaja clara","Se lo llevó con autoridad"],
-  crushing:["¡Victoria aplastante!","Arrasó con todos","No hubo color","Un baño histórico","Nadie estuvo cerca"]
+// corresponda, cada vez que alguien gana (sin empate). Guardan KEYS de
+// LANGS (no texto fijo) para poder traducirse según el idioma activo.
+const VICTORY_PHRASE_KEYS={
+  close:["vpClose1","vpClose2","vpClose3","vpClose4","vpClose5"],
+  solid:["vpSolid1","vpSolid2","vpSolid3","vpSolid4","vpSolid5"],
+  crushing:["vpCrush1","vpCrush2","vpCrush3","vpCrush4","vpCrush5"]
 };
 
 function WinnerScreen({winner,celebrationType,players,target,onClose,onRematch,isHost,T}){
@@ -7546,8 +9367,8 @@ function WinnerScreen({winner,celebrationType,players,target,onClose,onRematch,i
   // cambie de frase mientras se ve la pantalla.
   const[victoryPhrase]=React.useState(()=>{
     if(!marginTier)return null;
-    const pool=VICTORY_PHRASES[marginTier];
-    return pool[Math.floor(Math.random()*pool.length)];
+    const pool=VICTORY_PHRASE_KEYS[marginTier];
+    return T[pool[Math.floor(Math.random()*pool.length)]];
   });
   const dots=Array.from({length:40},(_,i)=>({
     id:i,c:cel.confetti[i%cel.confetti.length],
@@ -7563,16 +9384,16 @@ function WinnerScreen({winner,celebrationType,players,target,onClose,onRematch,i
       (cel.image&&!isTie)
         ? React.createElement("img",{src:cel.image,alt:"",className:"wc-img",style:{animation:cel.iconAnim},onError:e=>{e.target.style.display="none";}})
         : React.createElement("div",{className:"wc",style:{animation:cel.iconAnim}},isTie?"🎊":cel.icon),
-      React.createElement("div",{className:"wl",style:{color:cel.accent}},isTie?cel.labelTie:cel.label),
+      React.createElement("div",{className:"wl",style:{color:cel.accent}},isTie?T[cel.labelTieKey]:T[cel.labelKey]),
       React.createElement("div",{className:"wbig"},"FLIP 7"),
       isTie?React.createElement(React.Fragment,null,
-        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",color:cel.accent,letterSpacing:3,marginBottom:8}},winner.players.length+" GANADORES"),
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",color:cel.accent,letterSpacing:3,marginBottom:8}},winner.players.length+" "+T.winners),
         winner.players.map(p=>React.createElement("div",{key:p.id,style:{fontFamily:"'Lilita One',sans-serif",fontSize:"2rem",color:"white",letterSpacing:1,marginBottom:4,textShadow:"0 0 20px rgba(245,200,0,.4)"}},p.emoji+" "+p.name)),
-        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"var(--y)",marginBottom:30,letterSpacing:2,marginTop:6}},winner.total+" PUNTOS CADA UNO")
+        React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"var(--y)",marginBottom:30,letterSpacing:2,marginTop:6}},winner.total+" "+T.ptsEach)
       ):React.createElement(React.Fragment,null,
         React.createElement("div",{className:"wnm"},(winner.emoji||"")+" "+(winner.name||"")),
         React.createElement("div",{className:"wpt",style:{marginBottom:victoryPhrase?10:32}},
-          (winner.total||0)+" PUNTOS · META A "+(target||WIN)+" PUNTOS"),
+          T.ptsGoalTemplate.replace('{pts}',winner.total||0).replace('{target}',target||WIN)),
         victoryPhrase&&React.createElement("div",{style:{
           fontFamily:"'Lilita One',sans-serif",fontSize:"1.15rem",color:cel.accent,
           letterSpacing:1,marginBottom:26,textShadow:"0 0 18px "+cel.accent+"66"
@@ -7580,9 +9401,9 @@ function WinnerScreen({winner,celebrationType,players,target,onClose,onRematch,i
       ),
       // Revancha solo para el host
       isHost
-        ? React.createElement("button",{className:"btn btn-y",onClick:()=>{snd("round");onRematch();},style:{maxWidth:300,marginBottom:10}},"🔁 REVANCHA · Mismos jugadores")
-        : React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:16,padding:"10px 20px",background:"rgba(255,255,255,.06)",borderRadius:12,border:"1px solid rgba(255,255,255,.1)"}},"⏳ Esperando revancha del admin..."),
-      React.createElement("button",{className:"btn btn-g",onClick:()=>{snd("tap");onClose();},style:{maxWidth:300}},"📊 Ver marcador final")
+        ? React.createElement("button",{className:"btn btn-y",onClick:()=>{snd("round");onRematch();},style:{maxWidth:300,marginBottom:10}},T.rematchSamePlayers)
+        : React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".78rem",color:"rgba(255,255,255,.35)",letterSpacing:2,marginBottom:16,padding:"10px 20px",background:"rgba(255,255,255,.06)",borderRadius:12,border:"1px solid rgba(255,255,255,.1)"}},T.waitingRematchAdmin),
+      React.createElement("button",{className:"btn btn-g",onClick:()=>{snd("tap");onClose();},style:{maxWidth:300}},T.seeFinal)
     )
   );
 }
@@ -7601,24 +9422,29 @@ class ErrorBoundary extends React.Component{
     this.state={hasError:false,msg:""};
   }
   static getDerivedStateFromError(err){
-    return{hasError:true,msg:(err&&err.message)||"Error desconocido"};
+    return{hasError:true,msg:(err&&err.message)||"__ERR_UNKNOWN__"};
   }
   componentDidCatch(err,info){
     console.error("Flip7 — error no capturado:",err,info&&info.componentStack);
+    reportErrorToPosthog(err,{app:"game",componentStack:info&&info.componentStack});
   }
   render(){
     if(this.state.hasError){
+      var _lang="es";
+      try{ _lang=localStorage.getItem("f7lang")||"es"; }catch(e){}
+      var _T=(typeof LANGS!=="undefined"&&LANGS[_lang])||LANGS.es;
+      var _msg=this.state.msg==="__ERR_UNKNOWN__"?_T.errUnknown:this.state.msg;
       return React.createElement("div",{style:{minHeight:"100vh",display:"flex",flexDirection:"column",
         alignItems:"center",justifyContent:"center",padding:28,textAlign:"center",background:"var(--dark)"}},
         React.createElement("div",{style:{fontSize:"2.8rem",marginBottom:14}},"😵"),
         React.createElement("div",{style:{fontFamily:"'Anton',sans-serif",fontSize:"1.3rem",color:"var(--y)",
-          marginBottom:10,letterSpacing:1}},"Algo salió mal"),
+          marginBottom:10,letterSpacing:1}},_T.errBoundaryTitle),
         React.createElement("div",{style:{color:"rgba(255,255,255,.45)",fontSize:".78rem",marginBottom:8,
-          maxWidth:320,lineHeight:1.5}},"La app tuvo un error inesperado y no puede seguir en esta pantalla."),
+          maxWidth:320,lineHeight:1.5}},_T.errBoundaryDesc),
         React.createElement("div",{style:{color:"rgba(255,255,255,.3)",fontSize:".68rem",marginBottom:24,
-          maxWidth:320,wordBreak:"break-word",fontFamily:"monospace"}},this.state.msg),
+          maxWidth:320,wordBreak:"break-word",fontFamily:"monospace"}},_msg),
         React.createElement("button",{className:"btn btn-y",style:{maxWidth:260},
-          onClick:()=>{window.location.reload();}},"🔄 Recargar la app")
+          onClick:()=>{window.location.reload();}},_T.reloadApp)
       );
     }
     return this.props.children;
