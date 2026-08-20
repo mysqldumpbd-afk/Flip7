@@ -2777,7 +2777,15 @@ function App(){
         // perfil, se usa esa — si no, se sortea igual que siempre.
         const iAmWinner=!data.winner.tied&&myPlayerIdRef.current&&data.winner.id===myPlayerIdRef.current;
         const preferred=iAmWinner?myPreferredCelebrationRef.current:null;
-        const ct=(preferred===0||preferred===1||preferred===2||preferred===3)?preferred:Math.floor(Math.random()*4);
+        // OJO: antes esto solo aceptaba 0-3 (los 4 originales) y el sorteo
+        // "aleatoria" también solo sorteaba entre esos 4 -- con el tope fijo
+        // en 4, cualquier preferencia guardada en 4..9 (las 6 celebraciones
+        // nuevas) se ignoraba en silencio y siempre caía a un sorteo 0-3, y
+        // el modo aleatorio nunca las mostraba tampoco. Usar
+        // CELEBRATIONS.length en vez del número fijo arregla ambos casos y
+        // ya no hay que tocar esta línea si se agregan más celebraciones.
+        const validPreferred=preferred!=null&&preferred>=0&&preferred<CELEBRATIONS.length;
+        const ct=validPreferred?preferred:Math.floor(Math.random()*CELEBRATIONS.length);
         setCelebrationType(ct);
         if(ct===0){snd('winner');setTimeout(()=>snd('victory'),400);}
         else if(ct===1){snd('fanfare');}
