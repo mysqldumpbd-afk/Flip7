@@ -41,6 +41,61 @@ const COLORS=[
   "#FFD700","#6A8C2F","#FF9A8B"
 ];
 
+// ── AVATARES ILUSTRADOS (icons/avatars/*.png) ───────────────────────────
+// Reemplazan al emoji como forma principal de identificarte: cada archivo ya
+// viene recortado a cuadro y optimizado (~200x200, ~10-30KB c/u). "file" es
+// el nombre exacto en icons/avatars/, "label" es lo que ve el usuario en el
+// selector del perfil. defaultAvatar guarda el "file" en users/{uid}; si no
+// hay avatar elegido (o el jugador es un invitado viejo), se sigue cayendo
+// al emoji de siempre — ver PlayerAvatar más abajo.
+const AVATARS=[
+  {file:"adorable-cartoon-green-turtle-character.png",label:"Tortuga"},
+  {file:"blue-dolphin-cartoon-character.png",label:"Delfín"},
+  {file:"brown-teddy-bear-toy.png",label:"Osito"},
+  {file:"cartoon-cow-character.png",label:"Vaca"},
+  {file:"cartoon-monkey-holding-a-banana.png",label:"Mono"},
+  {file:"cartoon-snail.png",label:"Caracol"},
+  {file:"fluffy-white-sheep-character.png",label:"Oveja"},
+  {file:"green-baby-dinosaur-character.png",label:"Dino Bebé"},
+  {file:"green-cartoon-dinosaur-character.png",label:"Dinosaurio"},
+  {file:"green-frog-character.png",label:"Rana"},
+  {file:"koala-character-hugging-a-tree-log.png",label:"Koala"},
+  {file:"orange-fox-character.png",label:"Zorro"},
+  {file:"panda-character-holding-bamboo.png",label:"Panda"},
+  {file:"penguin-character.png",label:"Pingüino"},
+  {file:"purple-octopus-character.png",label:"Pulpo"},
+  {file:"rendered-corgi-puppy-character.png",label:"Corgi"},
+  {file:"rendered-yellow-baby-duckling-character.png",label:"Patito"},
+  {file:"sleeping-grey-and-white-kitten.png",label:"Gatito"},
+  {file:"stylized-unicorn-character-with-pastel-mane.png",label:"Unicornio"},
+  {file:"white-bunny.png",label:"Conejo"}
+];
+// Cómo viaja el avatar por TODO el juego sin tener que agregar un campo
+// paralelo en cada sala/estado/registro de Firebase que hoy ya carga un
+// "emoji": si elegiste un avatar ilustrado, su valor de "emoji" efectivo
+// deja de ser un emoji de verdad y pasa a ser la cadena especial
+// "@avatar:archivo.png" -- así reutiliza intacta toda la plomería existente
+// (playerEmojis, customEmojis, room.players[i].emoji, winner.emoji, etc.)
+// que ya lee/guarda/sincroniza ese campo por su cuenta. <Ava v={...}/>
+// es el único punto que sabe interpretar esa cadena especial: si detecta
+// el prefijo muestra la imagen, si no, muestra el emoji tal cual (por eso
+// ningún perfil viejo se rompe -- nunca tuvieron ese prefijo).
+function Ava({v,size,style}){
+  if(v&&typeof v==="string"&&v.indexOf("@avatar:")===0){
+    return <img src={"icons/avatars/"+v.slice(8)} alt="" draggable="false"
+      style={{width:size||"1em",height:size||"1em",objectFit:"contain",
+        verticalAlign:"-0.15em",display:"inline-block",flexShrink:0,...style}}/>;
+  }
+  return <React.Fragment>{v}</React.Fragment>;
+}
+// Convierte el perfil guardado (defaultAvatar + defaultEmoji) en el valor
+// de "emoji" efectivo que se siembra en una partida nueva. Se usa en los
+// pocos puntos donde se lee el perfil para pre-llenar tu fila de jugador.
+function effectiveEmoji(profile){
+  if(!profile)return null;
+  if(profile.defaultAvatar)return "@avatar:"+profile.defaultAvatar;
+  return profile.defaultEmoji||null;
+}
 const CONF=["#F5C800","#E63946","#2EC4B6","#FF6B35","#fff","#3BB273","#7B2D8B"];
 const uid4=()=>Math.random().toString(36).slice(2,6).toUpperCase();
 const uid=()=>Math.random().toString(36).slice(2,10);
@@ -270,7 +325,7 @@ async function enrichPickedPlayers(list){
     try{
       const snap=await _db.ref('users/'+f.uid).once('value');
       const v=snap.val()||{};
-      return{name:v.nickname||f.name,uid:f.uid,emoji:v.defaultEmoji||null,color:v.defaultColor||null};
+      return{name:v.nickname||f.name,uid:f.uid,emoji:effectiveEmoji(v),color:v.defaultColor||null};
     }catch(e){return{name:f.name,uid:f.uid,emoji:null,color:null};}
   }));
 }
@@ -448,6 +503,9 @@ const LANGS={
     nickForGamesDesc:"Se usa para pre-llenar tu nombre al crear una partida, sin tener que cambiar tu nombre real de {provider}.",
     nickForGamesPlaceholder:"Tu nombre en partidas",
     defaultEmojiLabel:"TU EMOJI POR DEFECTO",
+    defaultAvatarLabel:"TU AVATAR",
+    avatarNoneLabel:"Ninguno",
+    avatarOverridesEmoji:"Si eliges un avatar, reemplaza a tu emoji en las partidas. Elige \"Ninguno\" para volver al emoji.",
     defaultColorLabel:"TU COLOR POR DEFECTO",
     celebrationLabel:"CELEBRACIÓN AL GANAR",
     celebrationDesc:"Se aplica solo en TU pantalla cuando SOS quien gana. Los demás jugadores siguen viendo su propio sorteo.",
@@ -461,6 +519,18 @@ const LANGS={
     celebCrownedSub:"Morado claro",
     celebJungle:"Selva",
     celebJungleSub:"Verde — hojas y tambores",
+    celebBeaming:"Radiante",
+    celebBeamingSub:"Dorado — sonrisa gigante",
+    celebFire:"En Llamas",
+    celebFireSub:"Naranja — fuego intenso",
+    celebBiceps:"Pura Potencia",
+    celebBicepsSub:"Verde lima — fuerza bruta",
+    celebHahaha:"Muerto de Risa",
+    celebHahahaSub:"Coral — carcajada total",
+    celebRainbow:"Arcoíris",
+    celebRainbowSub:"Multicolor — magia pura",
+    celebSquint:"Travieso",
+    celebSquintSub:"Rosa — guiño pícaro",
     savingBtn:"⏳ Guardando...",
     saveProfileBtn:"💾 Guardar perfil",
     profileSaved:"✅ Perfil guardado",
@@ -765,6 +835,18 @@ const LANGS={
     celCrownSharedLbl:"¡CORONA COMPARTIDA!",
     celJungleKingLbl:"¡REY DE LA SELVA!",
     celJungleSharedLbl:"¡SELVA COMPARTIDA!",
+    celBeamingLbl:"¡RADIANTE!",
+    celBeamingSharedLbl:"¡BRILLO COMPARTIDO!",
+    celFireLbl:"¡EN LLAMAS!",
+    celFireSharedLbl:"¡AMBOS EN LLAMAS!",
+    celBicepsLbl:"¡PURA POTENCIA!",
+    celBicepsSharedLbl:"¡FUERZA COMPARTIDA!",
+    celHahahaLbl:"¡MUERTO DE RISA!",
+    celHahahaSharedLbl:"¡RISA COMPARTIDA!",
+    celRainbowLbl:"¡PURA MAGIA!",
+    celRainbowSharedLbl:"¡MAGIA COMPARTIDA!",
+    celSquintLbl:"¡TRAVIESO Y GANADOR!",
+    celSquintSharedLbl:"¡TRAVESURA COMPARTIDA!",
     vpClose1:"¡Qué partidazo cerrado!",
     vpClose2:"Ganó por los pelos",
     vpClose3:"Victoria al filo de la navaja",
@@ -1050,6 +1132,9 @@ const LANGS={
     nickForGamesDesc:"Used to pre-fill your name when creating a game, without changing your real {provider} name.",
     nickForGamesPlaceholder:"Your name in games",
     defaultEmojiLabel:"YOUR DEFAULT EMOJI",
+    defaultAvatarLabel:"YOUR AVATAR",
+    avatarNoneLabel:"None",
+    avatarOverridesEmoji:"If you pick an avatar, it replaces your emoji in games. Pick \"None\" to go back to the emoji.",
     defaultColorLabel:"YOUR DEFAULT COLOR",
     celebrationLabel:"WIN CELEBRATION",
     celebrationDesc:"Only applies on YOUR screen when YOU are the winner. Other players still see their own random pick.",
@@ -1063,6 +1148,18 @@ const LANGS={
     celebCrownedSub:"Light purple",
     celebJungle:"Jungle",
     celebJungleSub:"Green — leaves and drums",
+    celebBeaming:"Beaming",
+    celebBeamingSub:"Gold — huge grin",
+    celebFire:"On Fire",
+    celebFireSub:"Orange — intense flames",
+    celebBiceps:"Pure Power",
+    celebBicepsSub:"Lime — raw strength",
+    celebHahaha:"Dying Laughing",
+    celebHahahaSub:"Coral — total laughter",
+    celebRainbow:"Rainbow",
+    celebRainbowSub:"Multicolor — pure magic",
+    celebSquint:"Cheeky",
+    celebSquintSub:"Pink — playful wink",
     savingBtn:"⏳ Saving...",
     saveProfileBtn:"💾 Save profile",
     profileSaved:"✅ Profile saved",
@@ -1367,6 +1464,18 @@ const LANGS={
     celCrownSharedLbl:"SHARED CROWN!",
     celJungleKingLbl:"KING OF THE JUNGLE!",
     celJungleSharedLbl:"SHARED JUNGLE!",
+    celBeamingLbl:"BEAMING!",
+    celBeamingSharedLbl:"SHARED GLOW!",
+    celFireLbl:"ON FIRE!",
+    celFireSharedLbl:"BOTH ON FIRE!",
+    celBicepsLbl:"PURE POWER!",
+    celBicepsSharedLbl:"SHARED STRENGTH!",
+    celHahahaLbl:"DYING LAUGHING!",
+    celHahahaSharedLbl:"SHARED LAUGHS!",
+    celRainbowLbl:"PURE MAGIC!",
+    celRainbowSharedLbl:"SHARED MAGIC!",
+    celSquintLbl:"CHEEKY WINNER!",
+    celSquintSharedLbl:"SHARED MISCHIEF!",
     vpClose1:"What a close game!",
     vpClose2:"Won by a hair",
     vpClose3:"A razor-thin victory",
@@ -1690,6 +1799,9 @@ const LANGS={
     nickForGamesDesc:"Usado para preencher seu nome ao criar uma partida, sem precisar mudar seu nome real do {provider}.",
     nickForGamesPlaceholder:"Seu nome nas partidas",
     defaultEmojiLabel:"SEU EMOJI PADRÃO",
+    defaultAvatarLabel:"SEU AVATAR",
+    avatarNoneLabel:"Nenhum",
+    avatarOverridesEmoji:"Se você escolher um avatar, ele substitui seu emoji nas partidas. Escolha \"Nenhum\" para voltar ao emoji.",
     defaultColorLabel:"SUA COR PADRÃO",
     celebrationLabel:"COMEMORAÇÃO AO GANHAR",
     celebrationDesc:"Aplica-se só na SUA tela quando VOCÊ é quem ganha. Os outros jogadores continuam vendo o próprio sorteio deles.",
@@ -1703,6 +1815,18 @@ const LANGS={
     celebCrownedSub:"Roxo claro",
     celebJungle:"Selva",
     celebJungleSub:"Verde — folhas e tambores",
+    celebBeaming:"Radiante",
+    celebBeamingSub:"Dourado — sorriso enorme",
+    celebFire:"Pegando Fogo",
+    celebFireSub:"Laranja — chamas intensas",
+    celebBiceps:"Pura Potência",
+    celebBicepsSub:"Verde-limão — força bruta",
+    celebHahaha:"Morrendo de Rir",
+    celebHahahaSub:"Coral — risada total",
+    celebRainbow:"Arco-íris",
+    celebRainbowSub:"Multicolor — magia pura",
+    celebSquint:"Travesso",
+    celebSquintSub:"Rosa — piscadela travessa",
     savingBtn:"⏳ Salvando...",
     saveProfileBtn:"💾 Salvar perfil",
     profileSaved:"✅ Perfil salvo",
@@ -2007,6 +2131,18 @@ const LANGS={
     celCrownSharedLbl:"COROA COMPARTILHADA!",
     celJungleKingLbl:"REI DA SELVA!",
     celJungleSharedLbl:"SELVA COMPARTILHADA!",
+    celBeamingLbl:"RADIANTE!",
+    celBeamingSharedLbl:"BRILHO COMPARTILHADO!",
+    celFireLbl:"PEGANDO FOGO!",
+    celFireSharedLbl:"AMBOS PEGANDO FOGO!",
+    celBicepsLbl:"PURA POTÊNCIA!",
+    celBicepsSharedLbl:"FORÇA COMPARTILHADA!",
+    celHahahaLbl:"MORRENDO DE RIR!",
+    celHahahaSharedLbl:"RISADA COMPARTILHADA!",
+    celRainbowLbl:"PURA MAGIA!",
+    celRainbowSharedLbl:"MAGIA COMPARTILHADA!",
+    celSquintLbl:"TRAVESSO E VENCEDOR!",
+    celSquintSharedLbl:"TRAVESSURA COMPARTILHADA!",
     vpClose1:"Que jogo apertado!",
     vpClose2:"Ganhou por pouco",
     vpClose3:"Vitória no fio da navalha",
@@ -2287,7 +2423,7 @@ function PlayerRow({idx,name,emoji,color,allEmojis,allColors,usedColors,canRemov
       <div className="psr-top">
         <div style={{position:"relative",flexShrink:0}}>
           <button ref={emojiBtnRef} className="emoji-big-btn" onClick={openEmoji}
-            style={{background:color+"22",borderColor:color+"88"}}>{emoji}</button>
+            style={{background:color+"22",borderColor:color+"88"}}><Ava v={emoji}/></button>
           <div style={{position:"absolute",top:-5,left:-5,width:15,height:15,borderRadius:"50%",
             background:color,border:"2px solid var(--dark,#0F0F1A)",display:"flex",
             alignItems:"center",justifyContent:"center",fontFamily:"'Anton',sans-serif",
@@ -3578,6 +3714,7 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
   const isAnon=authUser&&authUser.isAnonymous;
   const[loading,setLoading]=React.useState(true);
   const[emoji,setEmoji]=React.useState(EMOJIS[0]);
+  const[avatar,setAvatar]=React.useState(null); // null = sin avatar ilustrado, usa el emoji
   const[color,setColor]=React.useState(COLORS[0]);
   const[nickname,setNickname]=React.useState('');
   const[celebration,setCelebration]=React.useState('random'); // 0|1|2|'random'
@@ -3593,6 +3730,7 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
     _db.ref('users/'+uid).once('value').then(snap=>{
       const v=snap.val()||{};
       if(v.defaultEmoji)setEmoji(v.defaultEmoji);
+      if(v.defaultAvatar)setAvatar(v.defaultAvatar);
       if(v.defaultColor)setColor(v.defaultColor);
       setNickname(v.nickname||'');
       setCelebration(v.preferredCelebration!=null?v.preferredCelebration:'random');
@@ -3604,7 +3742,7 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
     setSaving(true);setOk('');
     try{
       const profile={
-        defaultEmoji:emoji,defaultColor:color,nickname:nickname.trim(),
+        defaultEmoji:emoji,defaultAvatar:avatar,defaultColor:color,nickname:nickname.trim(),
         preferredCelebration:celebration==='random'?null:celebration
       };
       await _db.ref('users/'+uid).update(profile);
@@ -3709,8 +3847,38 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",marginBottom:18}}>
           <div style={{width:64,height:64,borderRadius:"50%",background:color+"22",
             border:"3px solid "+color,display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:"2rem",boxShadow:"0 0 20px "+color+"55"}}>{emoji}</div>
+            fontSize:"2rem",boxShadow:"0 0 20px "+color+"55",overflow:"hidden"}}>
+            {avatar
+              ? <img src={"icons/avatars/"+avatar} alt="" style={{width:"78%",height:"78%",objectFit:"contain"}}/>
+              : emoji}
+          </div>
         </div>
+
+        {/* Avatar ilustrado (opcional) — reemplaza al emoji donde se te ve
+            en las partidas cuando está elegido. "Ninguno" vuelve al emoji. */}
+        <p className="sec">{T.defaultAvatarLabel}</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:8}}>
+          <button onClick={()=>{snd('tap');setAvatar(null);}}
+            style={{aspectRatio:"1",borderRadius:12,cursor:"pointer",display:"flex",flexDirection:"column",
+              alignItems:"center",justifyContent:"center",gap:2,
+              background:!avatar?"rgba(245,200,0,.18)":"rgba(255,255,255,.04)",
+              border:"2px solid "+(!avatar?"var(--y)":"rgba(255,255,255,.1)")}}>
+            <span style={{fontSize:"1.1rem"}}>🚫</span>
+            <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".5rem",color:"rgba(255,255,255,.5)"}}>{T.avatarNoneLabel}</span>
+          </button>
+          {AVATARS.map(a=>(
+            <button key={a.file} onClick={()=>{snd('tap');setAvatar(a.file);}} title={a.label}
+              style={{aspectRatio:"1",borderRadius:12,cursor:"pointer",padding:4,
+                background:avatar===a.file?"rgba(245,200,0,.18)":"rgba(255,255,255,.04)",
+                border:"2px solid "+(avatar===a.file?"var(--y)":"rgba(255,255,255,.1)"),
+                display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <img src={"icons/avatars/"+a.file} alt={a.label} draggable="false"
+                style={{width:"100%",height:"100%",objectFit:"contain"}}/>
+            </button>
+          ))}
+        </div>
+        <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.3)",
+          marginBottom:16,lineHeight:1.5}}>{T.avatarOverridesEmoji}</div>
 
         {/* Seudónimo para partidas */}
         <p className="sec">{T.nickForGamesLabel}</p>
@@ -3758,6 +3926,12 @@ function ProfileScreen({authUser,onBack,onSaved,T}){
             {v:1,icon:'🎆',label:T.celebExplosive,sub:T.celebExplosiveSub},
             {v:2,icon:'👑',label:T.celebCrowned,sub:T.celebCrownedSub},
             {v:3,icon:'🐒',label:T.celebJungle,sub:T.celebJungleSub},
+            {v:4,icon:'😁',label:T.celebBeaming,sub:T.celebBeamingSub},
+            {v:5,icon:'🔥',label:T.celebFire,sub:T.celebFireSub},
+            {v:6,icon:'💪',label:T.celebBiceps,sub:T.celebBicepsSub},
+            {v:7,icon:'🤣',label:T.celebHahaha,sub:T.celebHahahaSub},
+            {v:8,icon:'🌈',label:T.celebRainbow,sub:T.celebRainbowSub},
+            {v:9,icon:'😜',label:T.celebSquint,sub:T.celebSquintSub},
           ].map(opt=>(
             <button key={opt.v} onClick={()=>{snd('tap');setCelebration(opt.v);}}
               style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",borderRadius:12,cursor:"pointer",
@@ -4016,6 +4190,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
       const v=snap.val()||{};
       setMyProfile({
         defaultEmoji:v.defaultEmoji||null,
+        defaultAvatar:v.defaultAvatar||null,
         defaultColor:v.defaultColor||null,
         nickname:v.nickname||null,
         preferredCelebration:v.preferredCelebration!=null?v.preferredCelebration:null
@@ -4025,7 +4200,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
   React.useEffect(()=>{
     if(appliedProfileDefaults.current||!myProfile)return;
     appliedProfileDefaults.current=true;
-    if(myProfile.defaultEmoji)setPlayerEmojis(p=>{const c=[...p];c[0]=myProfile.defaultEmoji;return c;});
+    if(myProfile.defaultEmoji||myProfile.defaultAvatar)setPlayerEmojis(p=>{const c=[...p];c[0]=effectiveEmoji(myProfile);return c;});
     if(myProfile.defaultColor)setPlayerColors(p=>{const c=[...p];c[0]=myProfile.defaultColor;return c;});
     if(myProfile.nickname)setNames(nm=>{const c=[...nm];c[0]=myProfile.nickname;return c;});
   },[myProfile]);
@@ -4311,7 +4486,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
       // quedan atadas a tu cuenta en vez de adivinarse por tu nombre.
       const myUidJoin=(authUser&&!authUser.isAnonymous)?authUser.uid:null;
       const newP={id:uid(),name:jname.trim(),
-        emoji:(myProfile&&myProfile.defaultEmoji)||EMOJIS[r.players.length%EMOJIS.length],
+        emoji:effectiveEmoji(myProfile)||EMOJIS[r.players.length%EMOJIS.length],
         color:(myProfile&&myProfile.defaultColor)||COLORS[r.players.length%COLORS.length],
         uid:myUidJoin,total:0,rounds:[]};
       r.players=[...r.players,newP];
@@ -4587,7 +4762,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
         async function applyPicked(pickedList){
           const myName=(myProfile&&myProfile.nickname)||myDisplayName;
           const myUid=(authUser&&!authUser.isAnonymous)?authUser.uid:null;
-          const myEmoji=(myProfile&&myProfile.defaultEmoji)||null;
+          const myEmoji=effectiveEmoji(myProfile);
           const myColor=(myProfile&&myProfile.defaultColor)||null;
           const enriched=await enrichPickedPlayers(pickedList);
           const all=[{name:myName,uid:myUid,emoji:myEmoji,color:myColor},...enriched];
@@ -4881,7 +5056,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
               onClick={()=>{if(!isOnline)pickPlayer(p);}}
               style={{opacity:isOnline?.55:1,cursor:isOnline?"not-allowed":"pointer",
                 border:"2px solid "+(isOnline?"rgba(230,57,70,.4)":"rgba(255,255,255,.1)")}}>
-              <div className="ava" style={{background:p.color+"22",color:p.color,width:42,height:42,fontSize:"1.4rem"}}>{p.emoji}</div>
+              <div className="ava" style={{background:p.color+"22",color:p.color,width:42,height:42,fontSize:"1.4rem"}}><Ava v={p.emoji}/></div>
               <div style={{flex:1}}>
                 <div style={{fontWeight:900,fontSize:"1rem"}}>{p.name}</div>
                 <div style={{fontSize:".72rem",color:isOnline?"var(--r)":"rgba(255,255,255,.4)",fontWeight:700}}>
@@ -4945,7 +5120,7 @@ function HomeScreen({onEnter,sessions,setSessions,aiConfig,setAiConfig,lang,setL
       // no se reflejaba hasta recargar la página.
       setMyProfile(p);
       if(p.nickname)setNames(nm=>{const c=[...nm];c[0]=p.nickname;return c;});
-      if(p.defaultEmoji)setPlayerEmojis(pe=>{const c=[...pe];c[0]=p.defaultEmoji;return c;});
+      if(p.defaultEmoji||p.defaultAvatar)setPlayerEmojis(pe=>{const c=[...pe];c[0]=effectiveEmoji(p);return c;});
       if(p.defaultColor)setPlayerColors(pc=>{const c=[...pc];c[0]=p.defaultColor;return c;});
     }} T={T}/></>;
 
@@ -5316,7 +5491,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                   borderRadius:20,padding:"3px 9px",
                   fontFamily:"'Righteous',sans-serif",fontSize:".68rem",letterSpacing:1
                 }}>
-                  <span style={{color:p.color}}>{p.emoji}</span>
+                  <span style={{color:p.color}}><Ava v={p.emoji}/></span>
                   <span style={{color:"rgba(255,255,255,.8)",fontWeight:800}}>{p.name}</span>
                 </span>
               ))}
@@ -5422,7 +5597,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
                   padding:"8px 10px",marginBottom:5,borderRadius:9,
                   background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",
                   cursor:online?"pointer":"not-allowed",opacity:online?1:.4}}>
-                <span style={{color:p.color}}>{p.emoji}</span>
+                <span style={{color:p.color}}><Ava v={p.emoji}/></span>
                 <span style={{flex:1,textAlign:"left",fontWeight:900,fontSize:".8rem",color:"#fff"}}>{p.name}</span>
                 <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",
                   color:online?"var(--gr)":"rgba(255,255,255,.25)"}}>{online?T.onlineDotWord:T.offlineSimple}</span>
@@ -5472,7 +5647,7 @@ function RoundTab({room,allDone,onSubmit,onUndo,onFinalize,myPlayerId,isHost,dem
           <div key={p.id}
             className={"pr "+(done?"done":"")+(p.id===myPlayerId?" me":"")+((done&&p.id===myPlayerId)?" me-done":"")+(isShaking?" zero-flash":"")}
             style={{"--clr":p.color}}>
-            <div className="ava" style={{background:p.color+"22",color:p.color,border:"2px solid "+p.color+"55",boxShadow:"0 0 10px "+p.color+"33",fontSize:"1.4rem"}}>{p.emoji}</div>
+            <div className="ava" style={{background:p.color+"22",color:p.color,border:"2px solid "+p.color+"55",boxShadow:"0 0 10px "+p.color+"33",fontSize:"1.4rem"}}><Ava v={p.emoji}/></div>
             <div style={{flex:1}}>
               <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:8}}>
                 <div className="pr-name" style={{display:"flex",alignItems:"center",gap:5}}>
@@ -5679,7 +5854,7 @@ function RoundProgressChart({sorted,target,mr,T}){
         {sorted.map(p=>(
           <div key={p.id} style={{display:"flex",alignItems:"center",gap:4}}>
             <span style={{width:8,height:8,borderRadius:"50%",background:p.color,display:"inline-block",flexShrink:0}}/>
-            <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.5)"}}>{p.emoji} {p.name}</span>
+            <span style={{fontFamily:"'Righteous',sans-serif",fontSize:".58rem",color:"rgba(255,255,255,.5)"}}><Ava v={p.emoji}/> {p.name}</span>
           </div>
         ))}
       </div>
@@ -5701,7 +5876,7 @@ function ScoreTab({sorted,room,T}){
             <div className="sc-rank">{i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1)}</div>
             <div style={{flex:1}}>
               <div style={{fontWeight:900,fontSize:".98rem",display:"flex",alignItems:"center",gap:6}}>
-                <span style={{fontSize:"1.2rem"}}>{p.emoji}</span>
+                <span style={{fontSize:"1.2rem"}}><Ava v={p.emoji}/></span>
                 {/* nombre con color del jugador */}
                 <span style={{color:p.color,textShadow:"0 0 12px "+p.color+"55"}}>{p.name}</span>
               </div>
@@ -5724,7 +5899,7 @@ function ScoreTab({sorted,room,T}){
           <thead><tr><th>{T.colPlayer}</th>{Array.from({length:mr},(_,i)=><th key={i}>R{i+1}</th>)}<th>{T.colTotal}</th></tr></thead>
           <tbody>{sorted.map((p,ri)=>(
             <tr key={p.id} className={ri===0?"lr":""}>
-              <td><span style={{color:p.color}}>{p.emoji}</span> <span style={{color:p.color}}>{p.name}</span></td>
+              <td><span style={{color:p.color}}><Ava v={p.emoji}/></span> <span style={{color:p.color}}>{p.name}</span></td>
               {(p.rounds||[]).map((r,i)=>{
                 var hasFlip=r.breakdown&&r.breakdown.flip7;
                 var hasMod=r.breakdown&&(r.breakdown.multiplier||r.breakdown.divTwo||(r.breakdown.negMods&&r.breakdown.negMods.length>0)||(r.breakdown.plusCards&&r.breakdown.plusCards.length>0));
@@ -5824,7 +5999,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchA
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".8rem",letterSpacing:5,color:"var(--t)",textTransform:"uppercase",marginBottom:8}}>{T.winner2}</div>
           <div style={{fontFamily:"'Anton',sans-serif",fontSize:"5rem",letterSpacing:3,background:"linear-gradient(135deg,var(--y) 30%,var(--or))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:10}}>FLIP 7</div>
           <div style={{fontFamily:"'Lilita One',sans-serif",fontSize:"3.2rem",color:"white",letterSpacing:2,lineHeight:1.1,marginBottom:6,textShadow:"0 0 30px rgba(245,200,0,.5)"}}>
-            {winner.emoji} {winner.name}
+            <Ava v={winner.emoji}/> {winner.name}
           </div>
           <div style={{fontFamily:"'Righteous',sans-serif",fontSize:"1.1rem",color:"var(--y)",marginBottom:30,letterSpacing:2}}>
             {T.ptsGoalTemplate.replace('{pts}',winner.total).replace('{target}',target)}
@@ -5875,7 +6050,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchA
                   <div style={{fontFamily:"'Anton',sans-serif",fontSize:isFirst?"3.5rem":"2.5rem",color:scoreColor,lineHeight:1,width:isFirst?56:44,flexShrink:0,textAlign:"center"}}>{rankEmoji}</div>
                   <div style={{flex:1,minWidth:0}}>
                     {/* nombre con color del jugador en espectador */}
-                    <div style={{fontWeight:900,fontSize:nameSize,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:p.color,textShadow:"0 0 12px "+p.color+"55"}}>{p.emoji} {p.name}</div>
+                    <div style={{fontWeight:900,fontSize:nameSize,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:p.color,textShadow:"0 0 12px "+p.color+"55"}}><Ava v={p.emoji}/> {p.name}</div>
                     <div style={{fontSize:".7rem",color:"rgba(255,255,255,.38)",fontWeight:700,marginTop:2}}>{T.missingPtsPctTemplate.replace('{n}',Math.max(0,target-p.total)).replace('{pct}',Math.round(pct))}</div>
                     <div style={{height:isFirst?6:4,background:"rgba(255,255,255,.08)",borderRadius:3,marginTop:5,overflow:"hidden"}}>
                       <div style={{height:"100%",width:pct+"%",background:"linear-gradient(90deg,"+p.color+","+p.color+"cc)",borderRadius:3,transition:"width 1.2s cubic-bezier(.4,0,.2,1)"}}/>
@@ -5895,7 +6070,7 @@ function SpectatorScreen({room,sorted,roomCode,demoMode,onBack,winner,onRematchA
                 <thead><tr><th>{T.colPlayer}</th>{Array.from({length:maxRound},(_,i)=><th key={i}>R{i+1}</th>)}<th>{T.colTotal}</th></tr></thead>
                 <tbody>{sorted.map((p,ri)=>(
                   <tr key={p.id} className={ri===0?"lr":""}>
-                    <td style={{fontSize:".82rem",color:p.color}}>{p.emoji} {p.name}</td>
+                    <td style={{fontSize:".82rem",color:p.color}}><Ava v={p.emoji}/> {p.name}</td>
                     {(p.rounds||[]).map((r,i)=>{
                 var hasFlip=r.breakdown&&r.breakdown.flip7;
                 var hasMod=r.breakdown&&(r.breakdown.multiplier||r.breakdown.divTwo||(r.breakdown.negMods&&r.breakdown.negMods.length>0)||(r.breakdown.plusCards&&r.breakdown.plusCards.length>0));
@@ -5968,7 +6143,7 @@ function SesCards({sessions,onClear,T}){
               <span style={{fontSize:"1.2rem"}}>🏆</span>
               <span style={{fontFamily:"'Lilita One',sans-serif",fontSize:".9rem",color:"var(--y)"}}>{s.winner}</span>
               <div className="hpl">
-                {s.players.map(p=><span key={p.id} className="hpt">{p.emoji} {p.name}</span>)}
+                {s.players.map(p=><span key={p.id} className="hpt"><Ava v={p.emoji}/> {p.name}</span>)}
               </div>
             </div>
             {isOpen&&(
@@ -5976,7 +6151,7 @@ function SesCards({sessions,onClear,T}){
                 {sorted.map((p,i)=>(
                   <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid rgba(255,255,255,.05)"}}>
                     <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:i===0?"var(--y)":"rgba(255,255,255,.3)",width:28}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1)}</div>
-                    <div style={{fontWeight:900,flex:1,color:p.color}}>{p.emoji} {p.name}</div>
+                    <div style={{fontWeight:900,flex:1,color:p.color}}><Ava v={p.emoji}/> {p.name}</div>
                     <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.6rem",color:i===0?"var(--y)":"rgba(255,255,255,.6)"}}>{p.total}</div>
                   </div>
                 ))}
@@ -8353,7 +8528,7 @@ function GameRoundsTable({gameId,highlightId,T}){
               return(
               <tr key={p.id||ri} className={isMe||(!highlightId&&ri===0)?"lr":""}>
                 <td>
-                  <span style={{color:p.color}}>{p.emoji}</span>{" "}
+                  <span style={{color:p.color}}><Ava v={p.emoji}/></span>{" "}
                   <span style={{color:p.color,fontWeight:isMe?900:undefined}}>{p.name}</span>
                   {isMe&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".55rem",
                     color:"var(--y)",marginLeft:4}}>{T.grpYouTag}</span>}
@@ -9171,7 +9346,7 @@ function StatsScreen({onBack,T}){
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
           <button onClick={()=>setSelectedPlayer(null)} style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.5)",borderRadius:9,padding:"6px 12px",cursor:"pointer",fontFamily:"'Righteous',sans-serif",fontSize:".72rem"}}>{T.back}</button>
           <div style={{flex:1,textAlign:"center"}}>
-            <div style={{fontSize:"2.4rem"}}>{p.emoji}</div>
+            <div style={{fontSize:"2.4rem"}}><Ava v={p.emoji}/></div>
             <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.4rem",color:p.color,letterSpacing:2}}>{p.name}</div>
           </div>
         </div>
@@ -9261,7 +9436,7 @@ function StatsScreen({onBack,T}){
               <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1.8rem",color:i===0?"var(--y)":i===1?"#C0C0C0":i===2?"#CD7F32":"rgba(255,255,255,.2)",width:36,textAlign:"center"}}>
                 {i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1)}
               </div>
-              <div style={{fontSize:"1.6rem"}}>{p.emoji}</div>
+              <div style={{fontSize:"1.6rem"}}><Ava v={p.emoji}/></div>
               <div style={{flex:1}}>
                 <div style={{fontWeight:900,fontSize:".96rem",color:p.color}}>{p.name}</div>
                 <div style={{fontFamily:"'Righteous',sans-serif",fontSize:".62rem",color:"rgba(255,255,255,.35)",letterSpacing:1,marginTop:2}}>
@@ -9300,7 +9475,7 @@ function StatsScreen({onBack,T}){
               return(
               <div key={p.id||p.name} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
                 <div style={{fontFamily:"'Anton',sans-serif",fontSize:"1rem",width:24,color:"rgba(255,255,255,.3)"}}>{p.position===1?"🥇":p.position===2?"🥈":p.position===3?"🥉":"#"+p.position}</div>
-                <div style={{fontSize:"1rem"}}>{p.emoji}</div>
+                <div style={{fontSize:"1rem"}}><Ava v={p.emoji}/></div>
                 <div style={{fontWeight:800,flex:1,fontSize:".84rem",color:p.color}}>{p.name}</div>
                 <div style={{display:"flex",gap:5,alignItems:"center"}}>
                   {pFlip7s>0&&<span style={{fontFamily:"'Righteous',sans-serif",fontSize:".6rem",background:"rgba(245,200,0,.15)",color:"var(--y)",padding:"1px 6px",borderRadius:10}}>🃏×{pFlip7s}</span>}
@@ -9336,10 +9511,36 @@ const CELEBRATIONS=[
     bg:"radial-gradient(circle at 50% 40%,#2a0a30 0%,#0F0F1A 60%)",
     confetti:["#F5C800","#ffffff","#cc88ff","#FF6B35"],
     iconAnim:"celPulse 1.5s ease-in-out infinite",accent:"#cc88ff"},
-  {icon:"🐒",image:"icons/monkey.gif",labelKey:"celJungleKingLbl",labelTieKey:"celJungleSharedLbl",
+  {icon:"🐒",image:"icons/Celebraciones/monkey.gif",labelKey:"celJungleKingLbl",labelTieKey:"celJungleSharedLbl",
     bg:"radial-gradient(circle at 50% 40%,#0e2a12 0%,#0F0F1A 60%)",
     confetti:["#3BB273","#F5C800","#8B5E34","#ffffff"],
-    iconAnim:"celSwing 1.4s ease-in-out infinite",accent:"#3BB273"}
+    iconAnim:"celSwing 1.4s ease-in-out infinite",accent:"#3BB273"},
+  // ── Celebraciones nuevas (carpeta icons/Celebraciones) — los nombres de
+  // archivo traen espacios reales en disco, por eso van con %20 aquí.
+  {icon:"😁",image:"icons/Celebraciones/Beaming%20Face%20Emoji.gif",labelKey:"celBeamingLbl",labelTieKey:"celBeamingSharedLbl",
+    bg:"radial-gradient(circle at 50% 40%,#2a2200 0%,#0F0F1A 60%)",
+    confetti:["#F5C800","#FFD700","#ffffff","#FF6B35"],
+    iconAnim:"celPulse 1.3s ease-in-out infinite",accent:"#F5C800"},
+  {icon:"🔥",image:"icons/Celebraciones/Fire%20Emoji.gif",labelKey:"celFireLbl",labelTieKey:"celFireSharedLbl",
+    bg:"radial-gradient(circle at 50% 40%,#3a0e00 0%,#0F0F1A 60%)",
+    confetti:["#FF6B35","#E63946","#F5C800","#ffffff"],
+    iconAnim:"celPulse 1s ease-in-out infinite",accent:"#FF6B35"},
+  {icon:"💪",image:"icons/Celebraciones/Flexed%20Biceps%20Emoji.gif",labelKey:"celBicepsLbl",labelTieKey:"celBicepsSharedLbl",
+    bg:"radial-gradient(circle at 50% 40%,#1a2a0e 0%,#0F0F1A 60%)",
+    confetti:["#A8E63B","#3BB273","#ffffff","#F5C800"],
+    iconAnim:"celSpin 1.4s ease-in-out infinite",accent:"#A8E63B"},
+  {icon:"🤣",image:"icons/Celebraciones/Hahaha%20Emoji.gif",labelKey:"celHahahaLbl",labelTieKey:"celHahahaSharedLbl",
+    bg:"radial-gradient(circle at 50% 40%,#2a1a00 0%,#0F0F1A 60%)",
+    confetti:["#FF9A8B","#F5C800","#ffffff","#FF6B6B"],
+    iconAnim:"celSwing 1.2s ease-in-out infinite",accent:"#FF9A8B"},
+  {icon:"🌈",image:"icons/Celebraciones/Rainbow%20Emoji.gif",labelKey:"celRainbowLbl",labelTieKey:"celRainbowSharedLbl",
+    bg:"radial-gradient(circle at 50% 40%,#150e2a 0%,#0F0F1A 60%)",
+    confetti:["#E63946","#F5C800","#3BB273","#00B4D8","#7B2D8B"],
+    iconAnim:"celSpin 1.6s ease-in-out infinite",accent:"#00CFE8"},
+  {icon:"😜",image:"icons/Celebraciones/Squinting%20Face%20with%20Tongue%20Emoji.gif",labelKey:"celSquintLbl",labelTieKey:"celSquintSharedLbl",
+    bg:"radial-gradient(circle at 50% 40%,#2a0e22 0%,#0F0F1A 60%)",
+    confetti:["#ff69b4","#F5C800","#ffffff","#9B5DE5"],
+    iconAnim:"celPulse 1.1s ease-in-out infinite",accent:"#ff69b4"}
 ];
 
 // Frases de margen — según qué tan grande fue la diferencia de puntos entre
@@ -9388,10 +9589,10 @@ function WinnerScreen({winner,celebrationType,players,target,onClose,onRematch,i
       React.createElement("div",{className:"wbig"},"FLIP 7"),
       isTie?React.createElement(React.Fragment,null,
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".85rem",color:cel.accent,letterSpacing:3,marginBottom:8}},winner.players.length+" "+T.winners),
-        winner.players.map(p=>React.createElement("div",{key:p.id,style:{fontFamily:"'Lilita One',sans-serif",fontSize:"2rem",color:"white",letterSpacing:1,marginBottom:4,textShadow:"0 0 20px rgba(245,200,0,.4)"}},p.emoji+" "+p.name)),
+        winner.players.map(p=>React.createElement("div",{key:p.id,style:{fontFamily:"'Lilita One',sans-serif",fontSize:"2rem",color:"white",letterSpacing:1,marginBottom:4,textShadow:"0 0 20px rgba(245,200,0,.4)"}},React.createElement(Ava,{v:p.emoji})," "+p.name)),
         React.createElement("div",{style:{fontFamily:"'Righteous',sans-serif",fontSize:".9rem",color:"var(--y)",marginBottom:30,letterSpacing:2,marginTop:6}},winner.total+" "+T.ptsEach)
       ):React.createElement(React.Fragment,null,
-        React.createElement("div",{className:"wnm"},(winner.emoji||"")+" "+(winner.name||"")),
+        React.createElement("div",{className:"wnm"},React.createElement(Ava,{v:winner.emoji})," "+(winner.name||"")),
         React.createElement("div",{className:"wpt",style:{marginBottom:victoryPhrase?10:32}},
           T.ptsGoalTemplate.replace('{pts}',winner.total||0).replace('{target}',target||WIN)),
         victoryPhrase&&React.createElement("div",{style:{
